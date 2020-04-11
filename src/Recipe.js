@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 
 const Recipe = ({ recipe }) => {
+  if (recipe == null) return null
   const { ingredients, directions } = recipe
   if (typeof recipe === "undefined") return null
   return (
@@ -17,7 +18,7 @@ const Recipe = ({ recipe }) => {
         } else if (type === "step") {
           return (
             <div key={index}>
-              <input type='checkbox' />
+              <input type='checkbox' style={{ cursor: "pointer" }} />
               <p style={{ display: "inline" }}> - {text}</p>
             </div>
           )
@@ -59,7 +60,11 @@ const Ingredients = ({ ingredients }) => {
         return (
           <div key={ingredient.name + ingredient.amount} style={{ textDecoration: strike }}>
             <span
-              style={{ fontWeight: 500, color: "green" }}
+              style={{
+                fontWeight: 500,
+                color: ingredient.special ? "red" : "green",
+                cursor: "pointer",
+              }}
               onClick={() => handleCheckedIngredient(ingredient.name)}>
               {ingredient.name}
             </span>{" "}

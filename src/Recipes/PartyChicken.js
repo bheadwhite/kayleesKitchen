@@ -26,7 +26,7 @@ export const PartyChicken = {
   directions: [
     {
       type: "section",
-      text: "prep",
+      text: "Prep",
     },
     {
       type: "step",
@@ -42,7 +42,7 @@ export const PartyChicken = {
     },
     {
       type: "section",
-      text: "combine",
+      text: "Mix",
     },
     {
       type: "step",
@@ -55,7 +55,7 @@ export const PartyChicken = {
     },
     {
       type: "section",
-      text: "bake",
+      text: "Bake",
     },
     {
       type: "step",

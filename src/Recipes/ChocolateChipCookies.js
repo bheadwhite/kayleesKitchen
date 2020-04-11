@@ -38,7 +38,7 @@ export const ChocolateChipCookies = {
     },
     {
       type: "section",
-      text: "mix",
+      text: "Mix",
     },
     {
       type: "step",
@@ -52,7 +52,7 @@ export const ChocolateChipCookies = {
       type: "step",
       text: "slowly add flour and chips",
     },
-    { type: "section", text: "bake" },
+    { type: "section", text: "Bake" },
     {
       type: "step",
       text: "place on pan and cook for 10 minutes at 350 deg",

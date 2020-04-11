@@ -26,6 +26,19 @@ export const VanillaExtract = (amount) => ({
   name: "Vanilla Extract",
   amount,
 })
+export const CanOfTomatoes = (amount, type = "diced") => ({
+  name: `Can of Tomatoes (${type})`,
+  amount,
+})
+export const TomatoSauce = (amount) => ({
+  name: "Tomato Sauce",
+  amount,
+})
+export const Noodles = (amount, type) => ({
+  name: typeof type !== "undefined" ? "Noodles" : `Noodles (${type})`,
+  special: true,
+  amount,
+})
 
 //fridge
 export const Eggs = (amount = 1) => ({
@@ -54,6 +67,18 @@ export const CheddarCheese = (amount = "as much as you want") => ({
 })
 export const JackCheese = (amount = "as much as you want") => ({
   name: "Jack Cheese",
+  special: true,
+  amount,
+})
+
+export const Cheese = (amount, type, special) => ({
+  name: typeof type !== "undefined" ? `${type} Cheese` : "Cheese",
+  amount,
+})
+
+export const DicedOnions = (amount, type = "diced") => ({
+  name: "Diced Onions",
+  type,
   amount,
 })
 
@@ -62,6 +87,16 @@ export const Chicken = (amount, type = "normal") => ({
   name: "Chicken",
   special: true,
   type,
+  amount,
+})
+export const GroundBeef = (amount = "1 lb") => ({
+  name: "Ground Beef",
+  special: true,
+  amount,
+})
+export const GroundSausage = (amount = "1 lb") => ({
+  name: "Ground Sausage",
+  special: true,
   amount,
 })
 
@@ -88,6 +123,14 @@ export const BakingSoda = (amount) => ({
 })
 export const Flour = (amount) => ({
   name: "Flour",
+  amount,
+})
+export const Garlic = (amount, type = "Minced") => ({
+  name: `Garlic (${type})`,
+  amount,
+})
+export const Basil = (amount, type) => ({
+  name: typeof type !== "undefined" ? "Basil" : `Basil (${type})`,
   amount,
 })
 
