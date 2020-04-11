@@ -57,12 +57,13 @@ const Ingredients = ({ ingredients }) => {
           strike = "line-through"
         }
         return (
-          <div
-            key={ingredient.name + ingredient.amount}
-            onClick={() => handleCheckedIngredient(ingredient.name)}
-            style={{ textDecoration: strike }}>
-            <span style={{ fontWeight: 500, color: "green" }}>{ingredient.name}</span> -{" "}
-            {ingredient.amount}
+          <div key={ingredient.name + ingredient.amount} style={{ textDecoration: strike }}>
+            <span
+              style={{ fontWeight: 500, color: "green" }}
+              onClick={() => handleCheckedIngredient(ingredient.name)}>
+              {ingredient.name}
+            </span>{" "}
+            - {ingredient.amount}
           </div>
         )
       })}
