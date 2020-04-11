@@ -46,7 +46,7 @@ export const ChocolateChipCookies = {
     },
     {
       type: "step",
-      text: "add eggs, vaanilla, salt baking soda",
+      text: "add eggs, vanilla, salt baking soda",
     },
     {
       type: "step",
