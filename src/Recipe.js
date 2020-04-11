@@ -48,7 +48,6 @@ const Ingredients = ({ ingredients }) => {
     }
   }
 
-  console.log(checkedIngredients)
   return (
     <div>
       <h3>Ingredients</h3>
