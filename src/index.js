@@ -2,13 +2,17 @@ import React from "react"
 import ReactDOM from "react-dom"
 import "./index.css"
 import { BrowserRouter as Router } from "react-router-dom"
+import { ThemeProvider } from "@material-ui/core"
 import App from "./App"
+import theme from "theme"
 import * as serviceWorker from "./serviceWorker"
 
 ReactDOM.render(
-  <Router>
-    <App />
-  </Router>,
+  <ThemeProvider theme={theme}>
+    <Router>
+      <App />
+    </Router>
+  </ThemeProvider>,
   document.getElementById("root")
 )
 

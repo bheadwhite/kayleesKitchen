@@ -105,6 +105,21 @@ export const Cilantro = (amount = "a pinch") => ({
   name: "Cilantro",
   amount,
 })
+export const Peas = (amount, type, special = false, optional) => ({
+  name: typeof type !== "undefined" ? `${type} Peas` : "Peas",
+  special,
+  amount,
+})
+export const Beans = (amount, type, special = false, optional) => ({
+  name: typeof type !== "undefined" ? `${type} Beans` : "Beans",
+  special,
+  amount,
+})
+export const Corn = (amount, type, special = false, optional) => ({
+  name: typeof type !== "undefined" ? `${type} Corn` : "Corn",
+  special,
+  amount,
+})
 
 //freezer
 export const Chicken = (amount, type = "normal") => ({
@@ -137,6 +152,36 @@ export const Pepper = (amount = "a pinch") => ({
   name: "Pepper",
   amount,
 })
+export const Peppers = (amount, type, special = false, optional) => ({
+  name: typeof type === "undefined" ? "Peppers" : `Peppers (${type})`,
+  special,
+  amount,
+})
+export const Dressing = (amount, type, special = false, optional) => ({
+  name: typeof type === "undefined" ? "Dressing" : `Dressing (${type})`,
+  special,
+  amount,
+})
+export const Juice = (amount, type, special = false, optional) => ({
+  name: typeof type === "undefined" ? "Juice" : `Juice (${type})`,
+  special,
+  amount,
+})
+export const Avocado = (amount, type, special = false, optional) => ({
+  name: typeof type === "undefined" ? "Avocado" : `Avocado (${type})`,
+  special,
+  amount,
+})
+export const RedChilliFlakes = (amount, type, special = false, optional) => ({
+  name: typeof type === "undefined" ? "Red Chilli Flakes" : `Red Chilli Flakes (${type})`,
+  special,
+  amount,
+})
+export const Cumin = (amount, type, special = false, optional) => ({
+  name: typeof type === "undefined" ? "Cumin" : `Cumin (${type})`,
+  special,
+  amount,
+})
 export const Salt = (amount = "a pinch") => ({
   name: "Salt",
   amount,
@@ -149,8 +194,8 @@ export const Flour = (amount, type, special = false, optional) => ({
   name: "Flour",
   amount,
 })
-export const Garlic = (amount, type = "Minced") => ({
-  name: `Garlic (${type})`,
+export const Garlic = (amount, type) => ({
+  name: typeof type === "undefined" ? "Garlic" : `Garlic (${type})`,
   amount,
 })
 export const Basil = (amount, type, special = false, optional) => ({
