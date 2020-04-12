@@ -6,8 +6,7 @@ import {
   EvaporatedMilk,
   Salt,
   Pepper,
-  CheddarCheese,
-  JackCheese,
+  Cheese,
 } from "ingredients"
 
 export const ChristmasCasserole = {
@@ -20,8 +19,8 @@ export const ChristmasCasserole = {
     EvaporatedMilk(),
     Salt(),
     Pepper(),
-    CheddarCheese(),
-    JackCheese(),
+    Cheese("as much as you want", "Cheddar"),
+    Cheese("as much as you want", "Jack", true),
   ],
   directions: [
     { type: "section", text: "Prep" },
