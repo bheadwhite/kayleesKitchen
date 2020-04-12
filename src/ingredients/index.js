@@ -9,8 +9,8 @@ export const CreamOfChicken = (amount) => ({
   special: true,
   amount,
 })
-export const ChocolateChipMorsels = (amount) => ({
-  name: "Chocolate Chip Morsels",
+export const ChocolateChipMorsels = (amount, type) => ({
+  name: typeof type === "undefined" ? "Chocolate Chip Morsels" : `Chocolate Chip Morsels (${type})`,
   special: true,
   amount,
 })
@@ -39,6 +39,11 @@ export const Noodles = (amount, type) => ({
   special: true,
   amount,
 })
+export const Oreos = (amount, type) => ({
+  name: typeof type !== "undefined" ? "Oreos" : `Oreos (${type})`,
+  special: true,
+  amount,
+})
 
 //fridge
 export const Eggs = (amount = 1) => ({
@@ -57,8 +62,8 @@ export const Shortening = (amount) => ({
   name: "Shortening",
   amount,
 })
-export const Butter = (amount = "1 cube") => ({
-  name: "Butter",
+export const Butter = (amount = "1 cube", type) => ({
+  name: typeof type === "undefined" ? "Butter" : `Butter (${type})`,
   amount,
 })
 export const CheddarCheese = (amount = "as much as you want") => ({
@@ -153,6 +158,11 @@ export const DicedHam = (amount = 1) => ({
 })
 export const EvaporatedMilk = (amount = "1 can") => ({
   name: "Evaporated Milk",
+  special: true,
+  amount,
+})
+export const PuddingMix = (amount = "1 can", type) => ({
+  name: typeof type === "undefined" ? "Pudding Mix" : `Pudding Mix (${type})`,
   special: true,
   amount,
 })
