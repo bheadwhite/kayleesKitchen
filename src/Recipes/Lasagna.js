@@ -12,9 +12,14 @@ import {
   Onion,
   GroundBeef,
 } from "ingredients"
+import tags from "tags"
+import categories from "categories"
 
 export const Lasagna = {
   title: "Lasagna",
+  contributor: "Kaylee Whitehead",
+  category: categories.dinner,
+  tags: [tags.lunch, tags.dinner],
   ingredients: [
     GroundBeef(),
     Onion("1/2 cup", "diced"),

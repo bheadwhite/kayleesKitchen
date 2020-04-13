@@ -8,9 +8,14 @@ import {
   Pepper,
   Cheese,
 } from "ingredients"
+import categories from "categories"
+import tags from "tags"
 
 export const ChristmasCasserole = {
   title: "Christmas Casserole",
+  category: categories.breakfast,
+  contributor: "Campbell Family",
+  tags: [tags.breakfast],
   ingredients: [
     Butter("1 cube"),
     HashBrownsBag(),

@@ -13,12 +13,14 @@ import {
   Juice,
   RedChilliFlakes,
 } from "ingredients"
+import tags from "tags"
 
 export const CowboyCaviar = {
   title: "Cowboy Caviar",
   contributor: "Lauren Tarver",
   description:
-    "chip dip. Peppers and Avocados make this one an incredibly fresh big bowl of flavours. Perfect for get-togethers, pot lucks barbecues, or anything you need it for.",
+    "Chip Dip. Peppers and Avocados make this one an incredibly fresh big bowl of flavours. Perfect for get-togethers, pot lucks barbecues, or anything you need it for.",
+  tags: [tags.chipDip],
   ingredients: [
     Peas("*", "Black-eyed"),
     Beans("*", "Black"),

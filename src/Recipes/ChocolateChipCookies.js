@@ -9,9 +9,14 @@ import {
   VanillaExtract,
   WhiteSugar,
 } from "ingredients"
+import tags from "tags"
+import categories from "categories"
 
 export const ChocolateChipCookies = {
   title: "Chocolate Chip Cookies",
+  category: categories.dessert,
+  tags: [tags.dessert],
+  contributor: "Kaylee Whitehead",
   ingredients: [
     BakingSoda("1 tsp"),
     BrownSugar("1 cup"),

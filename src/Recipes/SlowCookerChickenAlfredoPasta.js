@@ -1,9 +1,12 @@
-//crock pot
-
 import { Chicken, Sauce, Basil, CanOfTomatoes, Noodles, Cheese, Tomato } from "ingredients"
+import categories from "categories"
+import tags from "tags"
 
 export const SlowCookerChickenAlfredoPasta = {
   title: "Slow Cooker Chicken Alfredo Pasta",
+  contributor: "Kaylee Whitehead",
+  category: categories.dinner,
+  tags: [tags.dinner, tags.lunch, tags.crockPot],
   ingredients: [
     Chicken(5, "skinless breasts"),
     Sauce("1 (15 oz)", "Alfredo Pasta"),

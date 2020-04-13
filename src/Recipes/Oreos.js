@@ -1,8 +1,13 @@
 import { CakeMix, Shortening, Eggs } from "ingredients"
+import tags from "tags"
+import categories from "categories"
 
 export const Oreos = {
   title: "Oreos",
   ingredients: [CakeMix("1 box", "Devils Food Cake"), Shortening("1 stick or 1 cup"), Eggs(2)],
+  contributor: "Laurel Fletcher",
+  category: categories.dessert,
+  tags: [tags.dessert, tags.cookies],
   directions: [
     { type: "section", text: "Prep" },
     { type: "step", text: "oven to 350 degrees" },

@@ -9,9 +9,14 @@ import {
   SourCream,
   Water,
 } from "ingredients"
+import tags from "tags"
+import categories from "categories"
 
 export const PartyChicken = {
   title: "Party Chicken",
+  contributor: "Tarver Family",
+  category: categories.dinner,
+  tags: [tags.dinner, tags.lunch],
   ingredients: [
     Chicken("2-4 cups", "chunks"),
     CreamOfChicken("1 (2 reg cans or 1 big)"),

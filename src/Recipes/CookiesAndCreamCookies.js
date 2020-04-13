@@ -10,9 +10,14 @@ import {
   ChocolateChipMorsels,
   Oreos,
 } from "ingredients"
+import categories from "categories"
+import tags from "tags"
 
 export const CookiesNCremeCookies = {
   title: "Cookies N' Cream Cookies",
+  contributor: "Kaylee Whitehead",
+  tags: [tags.dessert, tags.cookies],
+  category: categories.dessert,
   ingredients: [
     Flour("2 1/4 cup"),
     BakingSoda("1 tsp"),
