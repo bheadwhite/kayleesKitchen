@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect } from "react"
 import { Switch, Route } from "react-router-dom"
 import { makeStyles } from "@material-ui/core"
 import clsx from "clsx"
@@ -15,6 +15,7 @@ const useStyles = makeStyles((theme) => ({
 
 function App() {
   const classes = useStyles()
+
   return (
     <div className={clsx("Kitchen Recipes", classes.container)}>
       <Switch>
