@@ -1,6 +1,6 @@
-import { CakeMix, Shortening, Eggs } from "ingredients"
-import tags from "tags"
-import categories from "categories"
+import { CakeMix, Shortening, Eggs } from "data/ingredients"
+import tags from "data/tags"
+import categories from "data/categories"
 
 export const Oreos = {
   title: "Oreos",

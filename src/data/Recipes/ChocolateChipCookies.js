@@ -8,9 +8,9 @@ import {
   Shortening,
   VanillaExtract,
   WhiteSugar,
-} from "ingredients"
-import tags from "tags"
-import categories from "categories"
+} from "data/ingredients"
+import tags from "data/tags"
+import categories from "data/categories"
 
 export const ChocolateChipCookies = {
   title: "Chocolate Chip Cookies",

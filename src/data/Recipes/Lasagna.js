@@ -11,9 +11,9 @@ import {
   Garlic,
   Onion,
   GroundBeef,
-} from "ingredients"
-import tags from "tags"
-import categories from "categories"
+} from "data/ingredients"
+import categories from "data/categories"
+import tags from "data/tags"
 
 export const Lasagna = {
   title: "Lasagna",

@@ -1,6 +1,6 @@
-import { Chicken, Sauce, Basil, CanOfTomatoes, Noodles, Cheese, Tomato } from "ingredients"
-import categories from "categories"
-import tags from "tags"
+import { Chicken, Sauce, Basil, CanOfTomatoes, Noodles, Cheese, Tomato } from "data/ingredients"
+import categories from "data/categories"
+import tags from "data/tags"
 
 export const SlowCookerChickenAlfredoPasta = {
   title: "Slow Cooker Chicken Alfredo Pasta",

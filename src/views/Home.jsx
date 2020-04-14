@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from "react"
-import Recipe from "./components/Recipe"
+import Recipe from "../components/Recipe"
 import { makeStyles } from "@material-ui/core"
 import ReactSelect from "react-select"
-import * as recipesArray from "./Recipes"
-import Toolbar from "./components/Toolbar"
+import * as recipesArray from "../data/Recipes"
+import Toolbar from "../components/Toolbar/Toolbar"
 
 const useStyles = makeStyles((theme) => ({
   root: {

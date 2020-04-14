@@ -1,6 +1,6 @@
-import { Butter, Milk, VanillaExtract, Sugar } from "ingredients"
-import categories from "categories"
-import tags from "tags"
+import { Butter, Milk, VanillaExtract, Sugar } from "data/ingredients"
+import categories from "data/categories"
+import tags from "data/tags"
 
 export const VanillaFrosting = {
   title: "Vanilla Frosting",

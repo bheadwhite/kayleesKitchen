@@ -1,4 +1,3 @@
-import React from "react"
 import { authRef } from "./firebase"
 
 const useAuth = () => {

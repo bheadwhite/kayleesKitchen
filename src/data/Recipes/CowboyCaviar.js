@@ -12,8 +12,8 @@ import {
   Oil,
   Juice,
   RedChilliFlakes,
-} from "ingredients"
-import tags from "tags"
+} from "data/ingredients"
+import tags from "data/tags"
 
 export const CowboyCaviar = {
   title: "Cowboy Caviar",

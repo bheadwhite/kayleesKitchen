@@ -7,9 +7,9 @@ import {
   Salt,
   Pepper,
   Cheese,
-} from "ingredients"
-import categories from "categories"
-import tags from "tags"
+} from "data/ingredients"
+import categories from "data/categories"
+import tags from "data/tags"
 
 export const ChristmasCasserole = {
   title: "Christmas Casserole",

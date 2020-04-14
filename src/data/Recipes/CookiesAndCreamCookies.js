@@ -9,9 +9,9 @@ import {
   VanillaExtract,
   ChocolateChipMorsels,
   Oreos,
-} from "ingredients"
-import categories from "categories"
-import tags from "tags"
+} from "data/ingredients"
+import categories from "data/categories"
+import tags from "data/tags"
 
 export const CookiesNCremeCookies = {
   title: "Cookies N' Cream Cookies",

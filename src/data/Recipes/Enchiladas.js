@@ -8,7 +8,7 @@ import {
   ParsleyFlakes,
   Onion,
   Cilantro,
-} from "ingredients"
+} from "data/ingredients"
 
 export const Enchiladas = {
   title: "Chicken Enchiladas",
