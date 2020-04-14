@@ -4,7 +4,13 @@ import { userRef } from "./firebase"
 const useUsers = () => {
   const [users, setUsers] = React.useState([])
 
-  React.useEffect(() => {}, [], [users])
+  userRef.onSnapshot((docs) => {
+    const myUsers = []
+    docs.forEach((doc) => myUsers.push(doc.data()))
+    if (users.length !== myUsers.length) setUsers(myUsers)
+  })
 
-  userRef.onSnapshot((docs) => docs.forEach((doc) => set))
+  return users
 }
+
+export default useUsers
