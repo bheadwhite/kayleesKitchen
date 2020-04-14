@@ -2,6 +2,7 @@ import React from "react"
 import { Switch, Route } from "react-router-dom"
 import { makeStyles } from "@material-ui/core"
 import clsx from "clsx"
+import useAuth from "./fire/useAuth"
 import Home from "./Home"
 import "./App.css"
 
@@ -15,6 +16,7 @@ const useStyles = makeStyles((theme) => ({
 
 function App() {
   const classes = useStyles()
+  const auth = useAuth()
 
   return (
     <div className={clsx("Kitchen Recipes", classes.container)}>

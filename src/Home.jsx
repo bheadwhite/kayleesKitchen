@@ -1,10 +1,14 @@
 import React, { useState, useMemo } from "react"
-import Recipe from "./Recipe"
+import Recipe from "./components/Recipe"
 import { makeStyles } from "@material-ui/core"
 import ReactSelect from "react-select"
 import * as recipesArray from "./Recipes"
+import Toolbar from "./components/Toolbar"
 
 const useStyles = makeStyles((theme) => ({
+  root: {
+    paddingBottom: 300,
+  },
   select: {
     maxWidth: 400,
   },
@@ -33,8 +37,8 @@ const Home = () => {
     []
   )
   return (
-    <div>
-      <div>Welcome to kitchen helper app</div>
+    <div className={classes.root}>
+      <Toolbar />
       <ReactSelect
         onChange={handleRecipe}
         defaultValue=''
