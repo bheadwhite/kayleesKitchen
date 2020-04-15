@@ -5,12 +5,17 @@ import clsx from "clsx"
 import useAuth from "./fire/useAuth"
 import { Home, Login } from "./views"
 import Toolbar from "components/Toolbar"
-import "./App.css"
 
 const useStyles = makeStyles((theme) => ({
-  container: {
+  app: {
     height: "100vh",
+    boxSizing: "border-box",
+    display: "flex",
+    flexFlow: "column",
+  },
+  pageWrapper: {
     padding: theme.spacing(2),
+    height: "100%",
     boxSizing: "border-box",
   },
 }))
@@ -20,12 +25,14 @@ function App() {
   useAuth()
 
   return (
-    <div className={clsx("Kitchen Recipes", classes.container)}>
+    <div className={clsx("Kitchen Recipes", classes.app)}>
       <Toolbar />
-      <Switch>
-        <Route path='/' exact component={Home} />
-        <Route path='/login' component={Login} />
-      </Switch>
+      <div className={classes.pageWrapper}>
+        <Switch>
+          <Route path='/' exact component={Home} />
+          <Route path='/login' component={Login} />
+        </Switch>
+      </div>
     </div>
   )
 }

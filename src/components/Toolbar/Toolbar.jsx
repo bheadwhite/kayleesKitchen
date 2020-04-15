@@ -6,7 +6,7 @@ import Typography from "@material-ui/core/Typography"
 import Menu from "./Menu"
 
 const useStyles = makeStyles((theme) => ({
-  root: {
+  appBar: {
     flexGrow: 1,
     marginBottom: theme.spacing(2),
   },
@@ -19,15 +19,13 @@ export default function Toolbar() {
   const classes = useStyles()
 
   return (
-    <div className={classes.root}>
-      <AppBar position='static'>
-        <MUIToolbar>
-          <Typography variant='h6' className={classes.title}>
-            My Kitchen App
-          </Typography>
-          <Menu />
-        </MUIToolbar>
-      </AppBar>
-    </div>
+    <AppBar position='static' className={classes.appBar}>
+      <MUIToolbar>
+        <Typography variant='h6' className={classes.title}>
+          My Kitchen App
+        </Typography>
+        <Menu />
+      </MUIToolbar>
+    </AppBar>
   )
 }

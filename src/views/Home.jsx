@@ -5,8 +5,9 @@ import ReactSelect from "react-select"
 import * as recipesArray from "../data/Recipes"
 
 const useStyles = makeStyles((theme) => ({
-  root: {
+  home: {
     paddingBottom: 300,
+    width: "100%",
   },
   select: {
     maxWidth: 400,
@@ -36,7 +37,7 @@ const Home = () => {
     []
   )
   return (
-    <div className={classes.root}>
+    <div className={classes.home}>
       <ReactSelect
         onChange={handleRecipe}
         defaultValue=''
