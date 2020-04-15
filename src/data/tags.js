@@ -23,6 +23,12 @@ const tags = {
   cookies: {
     name: "Cookies",
   },
+  cake: {
+    name: "Cake",
+  },
+  sauce: {
+    name: "Sauce",
+  },
   homemade: {
     name: "Home-made",
   },

@@ -3,7 +3,8 @@ import { Switch, Route } from "react-router-dom"
 import { makeStyles } from "@material-ui/core"
 import clsx from "clsx"
 import useAuth from "./fire/useAuth"
-import Home from "./views/Home"
+import { Home, Login } from "./views"
+import Toolbar from "components/Toolbar"
 import "./App.css"
 
 const useStyles = makeStyles((theme) => ({
@@ -20,8 +21,10 @@ function App() {
 
   return (
     <div className={clsx("Kitchen Recipes", classes.container)}>
+      <Toolbar />
       <Switch>
         <Route path='/' exact component={Home} />
+        <Route path='/login' component={Login} />
       </Switch>
     </div>
   )

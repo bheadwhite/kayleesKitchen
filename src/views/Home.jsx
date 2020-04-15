@@ -3,7 +3,6 @@ import Recipe from "../components/Recipe"
 import { makeStyles } from "@material-ui/core"
 import ReactSelect from "react-select"
 import * as recipesArray from "../data/Recipes"
-import Toolbar from "../components/Toolbar/Toolbar"
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -38,7 +37,6 @@ const Home = () => {
   )
   return (
     <div className={classes.root}>
-      <Toolbar />
       <ReactSelect
         onChange={handleRecipe}
         defaultValue=''

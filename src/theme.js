@@ -1,7 +1,11 @@
 import { createMuiTheme } from "@material-ui/core"
 
 const theme = createMuiTheme({
-  palette: {},
+  palette: {
+    baseColors: {
+      grayBorder: "#c4c4c4",
+    },
+  },
   spacing: 5,
 })
 
