@@ -21,7 +21,7 @@ const Recipe = ({ recipe }) => {
       <p>{recipe.description}</p>
       {recipe.contributor != null && <p>Contributed by: {recipe.contributor}</p>}
       <Ingredients ingredients={ingredients} />
-      {directions.map(({ type, text }, index) => {
+      {directions?.map(({ type, text }, index) => {
         if (type === "section") {
           return (
             <h3 key={index} style={{ color: "blue" }}>
@@ -65,7 +65,7 @@ const Ingredients = ({ ingredients }) => {
   return (
     <div>
       <h3>Ingredients</h3>
-      {ingredients.map((ingredient) => {
+      {ingredients?.map((ingredient) => {
         let strike = "none"
         if (checkedIngredients.indexOf(ingredient.name) !== -1) {
           strike = "line-through"

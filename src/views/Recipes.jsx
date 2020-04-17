@@ -5,16 +5,17 @@ import ReactSelect from "react-select"
 import * as recipesArray from "../data/Recipes"
 
 const useStyles = makeStyles((theme) => ({
-  home: {
+  recipes: {
     paddingBottom: 300,
     width: "100%",
+    height: "100%",
   },
   select: {
     maxWidth: 400,
   },
 }))
 
-const Home = () => {
+const Recipes = () => {
   const classes = useStyles()
   const [recipe, setRecipe] = useState("")
   const handleRecipe = ({ value: recipe }) => {
@@ -22,6 +23,7 @@ const Home = () => {
       setRecipe(recipe)
     }
   }
+
   const recipes = useMemo(
     () =>
       Object.values({ ...recipesArray }).sort((a, b) => {
@@ -37,7 +39,7 @@ const Home = () => {
     []
   )
   return (
-    <div className={classes.home}>
+    <div className={classes.recipes}>
       <ReactSelect
         onChange={handleRecipe}
         defaultValue=''
@@ -50,4 +52,4 @@ const Home = () => {
   )
 }
 
-export default Home
+export default Recipes

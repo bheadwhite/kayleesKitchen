@@ -4,7 +4,13 @@ import { Button as MUIButton, makeStyles } from "@material-ui/core"
 const useStyles = makeStyles((theme) => ({
   button: {
     margin: theme.spacing(1, 1, 0, 0),
-    border: `1px solid ${theme.palette.baseColors.grayBorder}`,
+    background: theme.palette.baseColors.blue,
+    color: theme.palette.baseColors.white,
+    border: "none",
+    textTransform: "none",
+    "&:hover": {
+      color: theme.palette.baseColors.blue,
+    },
   },
 }))
 

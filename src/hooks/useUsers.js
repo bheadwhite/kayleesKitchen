@@ -1,5 +1,4 @@
-import React from "react"
-import { userRef } from "./firebase"
+import { userRef } from "fire/firebase"
 
 const useUsers = () => {
   const [users, setUsers] = React.useState([])

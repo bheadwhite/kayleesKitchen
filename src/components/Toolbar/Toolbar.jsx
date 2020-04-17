@@ -19,10 +19,10 @@ export default function Toolbar() {
   const classes = useStyles()
 
   return (
-    <AppBar position='static' className={classes.appBar}>
+    <AppBar position='fixed' className={classes.appBar}>
       <MUIToolbar>
         <Typography variant='h6' className={classes.title}>
-          My Kitchen App
+          Kitchen Help
         </Typography>
         <Menu />
       </MUIToolbar>

@@ -5,50 +5,61 @@ import { TextField } from "components/finalForm"
 import { Button } from "components"
 import { makeStyles } from "@material-ui/core"
 import { loginWithEmail } from "fire/services"
+import { toast } from "react-toastify"
 
 const useStyles = makeStyles((theme) => ({
   login: {
     height: "100%",
     width: "100%",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
+    [theme.breakpoints.up("sm")]: {
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    "& form": {
+      height: "100%",
+      display: "flex",
+    },
   },
   paper: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    width: "100%",
+    height: "100%",
     padding: theme.spacing(3),
-    maxWidth: 800,
-    height: 310,
     margin: "auto",
-    width: 530,
     textAlign: "center",
+    [theme.breakpoints.up("sm")]: {
+      width: 530,
+      maxWidth: 800,
+      height: 310,
+    },
   },
   form: {
     height: "100%",
   },
 }))
 
-const Login = () => {
+const Login = (props) => {
   const classes = useStyles()
 
   const onSubmit = (values) => {
     loginWithEmail(values)
       .then((response) => {
-        console.log(response)
+        props.history.push("/recipes")
       })
       .catch((error) => {
-        console.log(error)
+        toast.error(error.message)
       })
   }
-  const validate = () => {
-    console.log("validate")
+  const handleRegister = () => {
+    props.history.push("/register")
   }
 
   return (
     <div className={classes.login}>
-      <Form onSubmit={onSubmit} validate={validate}>
+      <Form onSubmit={onSubmit}>
         {({ handleSubmit, values }) => {
           return (
             <form onSubmit={handleSubmit}>
@@ -59,7 +70,9 @@ const Login = () => {
                   <TextField name='password' label='Password' type='password' />
                   <div>
                     <Button type='submit'>Submit</Button>
-                    <Button style={{ marginLeft: "auto" }}>Register</Button>
+                    <Button style={{ marginLeft: "auto" }} onClick={handleRegister}>
+                      Register
+                    </Button>
                   </div>
                 </div>
               </Paper>
