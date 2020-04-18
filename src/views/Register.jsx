@@ -29,6 +29,7 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(3),
     textAlign: "center",
     height: "100%",
+    width: "100%",
     [theme.breakpoints.up("sm")]: {
       width: 530,
       height: 440,
