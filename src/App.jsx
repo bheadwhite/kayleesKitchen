@@ -53,6 +53,7 @@ function App() {
 const Restricted = ({ children, path, component }) => {
   const classes = useStyles()
   const { isLoading, user } = useAuth()
+
   if (isLoading) {
     return (
       <Route

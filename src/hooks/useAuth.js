@@ -6,7 +6,7 @@ const useAuth = () => {
 
   useEffect(() => {
     const unsubcribe = authRef.onAuthStateChanged((state) => {
-      if (authState.user !== state) {
+      if ((state == null && authState.isLoading === true) || state !== authState.user) {
         setAuthState({ isLoading: false, user: state })
       }
     })
