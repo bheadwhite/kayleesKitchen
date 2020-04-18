@@ -69,10 +69,8 @@ const Login = (props) => {
                   <TextField name='email' label='Email' />
                   <TextField name='password' label='Password' type='password' />
                   <div>
+                    <Button onClick={handleRegister}>Register</Button>
                     <Button type='submit'>Submit</Button>
-                    <Button style={{ marginLeft: "auto" }} onClick={handleRegister}>
-                      Register
-                    </Button>
                   </div>
                 </div>
               </Paper>
