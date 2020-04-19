@@ -1,296 +1,311 @@
 //pantry
-export const Rice = (amount, type, special = false, optional) => ({
+// ( amount, options)
+export const Rice = (amount, options) => ({
   name: "Rice",
   amount,
+  ...options,
 })
-export const CreamOfChicken = (amount, type, special = false, optional) => ({
+export const CreamOfChicken = (amount, options) => ({
   name: "Cream of Chicken Soup",
-  type: "can",
-  special: true,
   amount,
+  ...options,
 })
-export const ChocolateChipMorsels = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Chocolate Chip Morsels" : `Chocolate Chip Morsels (${type})`,
-  special: true,
+export const ChocolateChipMorsels = (amount, options) => ({
+  name: "Chocolate Chip Morsels",
   amount,
+  ...options,
 })
-export const Oil = (amount, type, special = false) => ({
-  name: typeof type === "undefined" ? "Oil" : `${type} Oil`,
-  special,
+export const Oil = (amount, options) => ({
+  name: "Oil",
   amount,
+  ...options,
 })
-export const BrownSugar = (amount, type, special = false, optional) => ({
-  name: "Brown Sugar",
+export const Sugar = (amount, options) => ({
+  name: "Sugar",
   amount,
+  ...options,
 })
-export const WhiteSugar = (amount, type, special = false, optional) => ({
-  name: "White Sugar",
+export const Milk = (amount, options) => ({
+  name: "Milk",
   amount,
-})
-
-export const Sugar = (amount, type, special = false) => ({
-  name: typeof type === "undefined" ? "Sugar" : `${type} Sugar`,
-  special,
-  amount,
-})
-export const Milk = (amount, type, special = false) => ({
-  name: typeof type == "undefined" ? "Milk" : `${type} Milk`,
-  special,
-  amount,
+  ...options,
 })
 
-export const VanillaExtract = (amount, type, special = false, optional) => ({
+export const VanillaExtract = (amount, options) => ({
   name: "Vanilla Extract",
   amount,
+  ...options,
 })
-export const CanOfTomatoes = (amount, type = "diced") => ({
-  name: `Can of Tomatoes (${type})`,
+export const CanOfTomatoes = (amount, options) => ({
+  name: `Can of Tomatoes`,
   amount,
+  ...options,
 })
-export const Sauce = (amount, type, special = false) => ({
-  name: typeof type === "undefined" ? "Sauce" : `${type} Sauce`,
-  special,
+export const Sauce = (amount, options) => ({
+  name: "Sauce",
   amount,
+  ...options,
 })
-export const Noodles = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Noodles" : `Noodles (${type})`,
+export const Noodles = (amount, options) => ({
+  name: "Noodles",
+  amount,
+  ...options,
+})
+export const Oreos = (amount, options) => ({
+  name: "Oreos",
+  amount,
   special: true,
-  amount,
-})
-export const Oreos = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Oreos" : `Oreos (${type})`,
-  special: true,
-  amount,
+  ...options,
 })
 
-//fridge
-export const Eggs = (amount = 1) => ({
+export const Eggs = (amount, options) => ({
   name: "Eggs",
   amount,
+  ...options,
 })
-export const Mayonaise = (amount, type, special = false, optional) => ({
+export const Mayonaise = (amount, options) => ({
   name: "Mayonaise",
   amount,
+  ...options,
 })
-export const SourCream = (amount, type, special = false, optional) => ({
+export const SourCream = (amount, options) => ({
   name: "Sour Cream",
   amount,
+  ...options,
 })
-export const Shortening = (amount, type, special = false, optional) => ({
+export const Shortening = (amount, options) => ({
   name: "Shortening",
   amount,
+  ...options,
 })
-export const Butter = (amount = "1 cube", type) => ({
-  name: typeof type === "undefined" ? "Butter" : `Butter (${type})`,
+export const Butter = (amount, options) => ({
+  name: "Butter",
   amount,
+  ...options,
 })
 
-export const Cheese = (amount, type, special = false) => ({
-  name: typeof type !== "undefined" ? `${type} Cheese` : "Cheese",
-  special,
+export const Cheese = (amount, options) => ({
+  name: "Cheese",
   amount,
+  ...options,
 })
 
-export const Onion = (amount, type, special = false, optional) => ({
-  name: typeof type !== "undefined" ? `${type} Onion` : "Onion",
-  type,
+export const Onion = (amount, options) => ({
+  name: "Onion",
   amount,
+  ...options,
 })
-export const Tomato = (amount, type, special = false, optional) => ({
-  name: typeof type !== "undefined" ? `${type} Tomato` : "Tomato",
-  type,
+export const Tomato = (amount, options) => ({
+  name: "Tomato",
   amount,
+  ...options,
 })
-export const Cilantro = (amount = "a pinch") => ({
+export const Cilantro = (amount, options) => ({
   name: "Cilantro",
   amount,
+  ...options,
 })
-export const Peas = (amount, type, special = false, optional) => ({
-  name: typeof type !== "undefined" ? `${type} Peas` : "Peas",
-  special,
+export const Peas = (amount, options) => ({
+  name: "Peas",
   amount,
+  ...options,
 })
-export const Beans = (amount, type, special = false, optional) => ({
-  name: typeof type !== "undefined" ? `${type} Beans` : "Beans",
-  special,
+export const Beans = (amount, options) => ({
+  name: "Beans",
   amount,
+  ...options,
 })
-export const Corn = (amount, type, special = false, optional) => ({
-  name: typeof type !== "undefined" ? `${type} Corn` : "Corn",
-  special,
+export const Corn = (amount, options) => ({
+  name: "Corn",
   amount,
+  ...options,
 })
-export const Carrots = (amount, type, special = false, optional) => ({
-  name: typeof type !== "undefined" ? `Carrots (${type})` : "Carrots",
-  special,
+export const Carrots = (amount, options) => ({
+  name: "Carrots",
   amount,
+  ...options,
 })
 
 //freezer
-export const Chicken = (amount, type = "normal") => ({
+export const Chicken = (amount, options) => ({
   name: "Chicken",
-  special: true,
-  type,
   amount,
+  special: true,
+  ...options,
 })
-export const Turkey = (amount, type = "normal") => ({
+export const Turkey = (amount, options) => ({
   name: "Turkey",
-  special: true,
-  type,
   amount,
+  special: true,
+  ...options,
 })
-export const GroundBeef = (amount = "1 lb") => ({
-  name: "Ground Beef",
-  special: true,
+export const Beef = (amount, options) => ({
+  name: "Beef",
   amount,
+  special: true,
+  ...options,
 })
-export const GroundSausage = (amount = "1 lb") => ({
-  name: "Ground Sausage",
-  special: true,
+export const Sausage = (amount, options) => ({
+  name: "Sausage",
   amount,
+  special: true,
+  ...options,
 })
 
 //spices/baking stuff
-export const Paprika = (amount = "a pinch") => ({
+export const Paprika = (amount, options) => ({
   name: "Paprika",
   amount,
+  ...options,
 })
-export const ParsleyFlakes = (amount = "a pinch") => ({
-  name: "Parsley Flakes",
+export const Parsley = (amount, options) => ({
+  name: "Parsley",
   amount,
+  ...options,
 })
-export const Pepper = (amount = "a pinch") => ({
+export const Pepper = (amount, options) => ({
   name: "Pepper",
   amount,
+  ...options,
 })
-export const Peppers = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Peppers" : `Peppers (${type})`,
-  special,
+export const Peppers = (amount, options) => ({
+  name: "Peppers",
   amount,
+  special: true,
+  ...options,
 })
-export const Dressing = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Dressing" : `Dressing (${type})`,
-  special,
+export const Dressing = (amount, options) => ({
+  name: "Dressing",
   amount,
+  ...options,
 })
-export const Juice = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Juice" : `Juice (${type})`,
-  special,
+export const Juice = (amount, options) => ({
+  name: "Juice",
   amount,
+  ...options,
 })
-export const Avocado = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Avocado" : `Avocado (${type})`,
-  special,
+export const Avocado = (amount, options) => ({
+  name: "Avocado",
   amount,
+  special: true,
+  ...options,
 })
-export const RedChilliFlakes = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Red Chilli Flakes" : `Red Chilli Flakes (${type})`,
-  special,
+export const RedChilliFlakes = (amount, options) => ({
+  name: "Red Chilli Flakes",
   amount,
+  ...options,
 })
-export const Cumin = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Cumin" : `Cumin (${type})`,
-  special,
+export const Cumin = (amount, options) => ({
+  name: "Cumin",
   amount,
+  ...options,
 })
-export const Salt = (amount = "a pinch") => ({
+export const Salt = (amount, options) => ({
   name: "Salt",
   amount,
+  ...options,
 })
-export const BakingSoda = (amount, type, special = false, optional) => ({
+export const BakingSoda = (amount, options) => ({
   name: "Baking Soda",
   amount,
+  ...options,
 })
-export const Flour = (amount, type, special = false, optional) => ({
+export const Flour = (amount, options) => ({
   name: "Flour",
   amount,
+  ...options,
 })
-export const Garlic = (amount, type) => ({
-  name: typeof type === "undefined" ? "Garlic" : `Garlic (${type})`,
+export const Garlic = (amount, options) => ({
+  name: "Garlic",
   amount,
+  ...options,
 })
-export const Basil = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Basil" : `Basil (${type})`,
+export const Basil = (amount, options) => ({
+  name: "Basil",
   amount,
+  ...options,
 })
-export const Celery = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Celery" : `Celery (${type})`,
-  special,
+export const Celery = (amount, options) => ({
+  name: "Celery",
   amount,
+  special: true,
+  ...options,
 })
-export const Thyme = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Thyme" : `Thyme (${type})`,
-  special,
+export const Thyme = (amount, options) => ({
+  name: "Thyme",
   amount,
+  ...options,
 })
 
-export const CakeMix = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Cake Mix" : `Cake Mix (${type})`,
+export const CakeMix = (amount, options) => ({
+  name: "Cake Mix",
   amount,
+  ...options,
 })
-
-//water
-export const Water = (amount, type, special = false, optional) => ({
+export const Water = (amount, options) => ({
   name: "Water",
   amount,
+  ...options,
 })
 
-//special
-export const HashBrownsBag = (bags = 1) => ({
+export const HashBrownsBag = (amount, options) => ({
   name: "Bag of HashBrowns",
+  amount,
   special: true,
-  amount: bags,
+  ...options,
 })
-export const DicedHam = (amount = 1) => ({
-  name: "Diced Ham",
+export const Ham = (amount, options) => ({
+  name: "Ham",
+  amount,
   special: true,
-  amount,
+  ...options,
 })
-export const EvaporatedMilk = (amount = "1 can") => ({
-  name: "Evaporated Milk",
+export const PuddingMix = (amount, options) => ({
+  name: "Pudding Mix",
+  amount,
   special: true,
-  amount,
+  ...options,
 })
-export const PuddingMix = (amount, type, special = false, optional) => ({
-  name: typeof type === "undefined" ? "Pudding Mix" : `Pudding Mix (${type})`,
-  special: true,
+export const Tortillas = (amount, options) => ({
+  name: "Tortillas",
   amount,
+  ...options,
 })
-export const Tortillas = (amount = "1 can", type) => ({
-  name: typeof type === "undefined" ? "Tortillas" : `Tortillas (${type})`,
-  special: true,
+export const Broth = (amount, options) => ({
+  name: "Broth",
   amount,
+  ...options,
 })
-export const Broth = (amount = "1 can", type) => ({
-  name: typeof type === "undefined" ? "Broth" : `${type} Broth`,
-  special: true,
+export const BakingPowder = (amount, options) => ({
+  name: "BakingPowder",
   amount,
+  ...options,
 })
-export const BakingPowder = (amount, type) => ({
-  name: typeof type === "undefined" ? "BakingPowder" : `BakingPowder (${type})`,
-  special: true,
+export const Cinnamon = (amount, options) => ({
+  name: "Cinnamon",
   amount,
+  ...options,
 })
-export const Cinnamon = (amount, type) => ({
-  name: typeof type === "undefined" ? "Cinnamon" : `Cinnamon (${type})`,
-  amount,
-})
-export const Pecans = (amount, type) => ({
-  name: typeof type === "undefined" ? "Pecans" : `Pecans (${type})`,
-  amount,
-})
-export const Cranberries = (amount, type) => ({
-  name: typeof type === "undefined" ? "Cranberries" : `Cranberries (${type})`,
+export const Pecans = (amount, options) => ({
+  name: "Pecans",
   special: true,
   amount,
+  ...options,
 })
-export const Raspberries = (amount, type) => ({
-  name: typeof type === "undefined" ? "Raspberries" : `Raspberries (${type})`,
-  special: true,
+export const Cranberries = (amount, options) => ({
+  name: "Cranberries",
   amount,
+  special: true,
+  ...options,
 })
-export const Orange = (amount, type) => ({
-  name: typeof type === "undefined" ? "Orange" : `Orange (${type})`,
-  special: true,
+export const Raspberries = (amount, options) => ({
+  name: "Raspberries",
   amount,
+  special: true,
+  ...options,
+})
+export const Orange = (amount, options) => ({
+  name: "Orange",
+  amount,
+  ...options,
 })

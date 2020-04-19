@@ -8,10 +8,10 @@ export const VanillaFrosting = {
   category: categories.homemade,
   tags: [tags.homemade],
   ingredients: [
-    Butter("2 sticks", "Melted"),
+    Butter("2 sticks", { type: "Melted" }),
     Milk("2 tbsp"),
     VanillaExtract("1 tsp"),
-    Sugar("4 cups", "Powdered"),
+    Sugar("4 cups", { type: "Powdered" }),
   ],
   directions: [
     { type: "section", text: "Mix" },

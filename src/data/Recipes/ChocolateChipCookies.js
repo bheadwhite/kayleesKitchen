@@ -1,13 +1,12 @@
 import {
   BakingSoda,
-  BrownSugar,
+  Sugar,
   ChocolateChipMorsels,
   Eggs,
   Flour,
   Salt,
   Shortening,
   VanillaExtract,
-  WhiteSugar,
 } from "data/ingredients"
 import tags from "data/tags"
 import categories from "data/categories"
@@ -19,14 +18,14 @@ export const ChocolateChipCookies = {
   contributor: "Kaylee Whitehead",
   ingredients: [
     BakingSoda("1 tsp"),
-    BrownSugar("1 cup"),
+    Sugar("1 cup", { type: "Brown" }),
     ChocolateChipMorsels("1 1/2 cup"),
     Eggs(2),
     Flour("2 1/4 cup"),
     Salt("1/2 tsp"),
     Shortening("1 cup"),
     VanillaExtract("2 1/2 tsp"),
-    WhiteSugar("1/2 cup"),
+    Sugar("1/2 cup", { type: "White" }),
   ],
   directions: [
     {

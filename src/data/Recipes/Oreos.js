@@ -4,7 +4,7 @@ import categories from "data/categories"
 
 export const Oreos = {
   title: "Oreos",
-  ingredients: [CakeMix("1 box", "Devils Food Cake"), Shortening("1 stick or 1 cup"), Eggs(2)],
+  ingredients: [CakeMix("1 box", { type: "Devils Food" }), Shortening("1 stick or 1 cup"), Eggs(2)],
   contributor: "Laurel Fletcher",
   category: categories.dessert,
   tags: [tags.dessert, tags.cookies],

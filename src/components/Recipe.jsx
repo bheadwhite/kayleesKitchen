@@ -71,7 +71,9 @@ const Ingredients = ({ ingredients }) => {
           strike = "line-through"
         }
         return (
-          <div key={ingredient.name + ingredient.amount} style={{ textDecoration: strike }}>
+          <div
+            key={ingredient.type + ingredient.name + ingredient.parens + ingredient.amount}
+            style={{ textDecoration: strike }}>
             <span
               style={{
                 fontWeight: 500,
@@ -79,9 +81,12 @@ const Ingredients = ({ ingredients }) => {
                 cursor: "pointer",
               }}
               onClick={() => handleCheckedIngredient(ingredient.name)}>
+              {ingredient.type && `${ingredient.type} `}
               {ingredient.name}
-            </span>{" "}
-            - {ingredient.amount}
+              {ingredient.parens && ` (${ingredient.parens})`}
+            </span>
+            <span> - {ingredient.amount}</span>
+            {ingredient.optional && <span style={{ color: "rgba(0,0,0,0.4)" }}> (optional) </span>}
           </div>
         )
       })}

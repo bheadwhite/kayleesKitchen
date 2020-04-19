@@ -6,10 +6,10 @@ export const CranberrySauce = {
   contributor: "Kauren Campbell",
   tags: [tags.sauce],
   ingredients: [
-    Sugar("1 cup", "Brown"),
-    Juice("1 cup", "Orange"),
-    Cranberries("2 cups", "Fresh or Frozen"),
-    Orange("2 tsp", "grated peel"),
+    Sugar("1 cup", { type: "Brown" }),
+    Juice("1 cup", { type: "Orange" }),
+    Cranberries("2 cups", { type: "Fresh or Frozen" }),
+    Orange("2 tsp", { parens: "grated peel" }),
     Raspberries("1 carton"),
   ],
   directions: [

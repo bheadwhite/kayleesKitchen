@@ -1,13 +1,4 @@
-import {
-  Butter,
-  HashBrownsBag,
-  DicedHam,
-  Eggs,
-  EvaporatedMilk,
-  Salt,
-  Pepper,
-  Cheese,
-} from "data/ingredients"
+import { Butter, HashBrownsBag, Ham, Eggs, Milk, Salt, Pepper, Cheese } from "data/ingredients"
 import categories from "data/categories"
 import tags from "data/tags"
 
@@ -18,14 +9,14 @@ export const ChristmasCasserole = {
   tags: [tags.breakfast],
   ingredients: [
     Butter("1 cube"),
-    HashBrownsBag(),
-    DicedHam(),
+    HashBrownsBag("1 Bag"),
+    Ham("1 package", { parens: "diced" }),
     Eggs("1 dozen"),
-    EvaporatedMilk(),
-    Salt(),
-    Pepper(),
-    Cheese("as much as you want", "Cheddar"),
-    Cheese("as much as you want", "Jack", true),
+    Milk("as needed", { type: "Evaporated" }),
+    Salt("as needed"),
+    Pepper("as needed"),
+    Cheese("as needed", { type: "Cheddar" }),
+    Cheese("as needed", { type: "Jack", special: true }),
   ],
   directions: [
     { type: "section", text: "Prep" },
