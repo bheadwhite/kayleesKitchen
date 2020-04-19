@@ -85,7 +85,7 @@ const Ingredients = ({ ingredients }) => {
               {ingredient.name}
               {ingredient.parens && ` (${ingredient.parens})`}
             </span>
-            <span> - {ingredient.amount}</span>
+            <span>{` - ${ingredient.amount}`}</span>
             {ingredient.optional && <span style={{ color: "rgba(0,0,0,0.4)" }}> (optional) </span>}
           </div>
         )
