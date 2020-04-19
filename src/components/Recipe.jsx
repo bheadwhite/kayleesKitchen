@@ -65,9 +65,9 @@ const Ingredients = ({ ingredients }) => {
   return (
     <div>
       <h3>Ingredients</h3>
-      {ingredients?.map((ingredient) => {
+      {ingredients?.map((ingredient, index) => {
         let strike = "none"
-        if (checkedIngredients.indexOf(ingredient.name) !== -1) {
+        if (checkedIngredients.indexOf(`${ingredient.name}-${index}`) !== -1) {
           strike = "line-through"
         }
         return (
@@ -80,7 +80,7 @@ const Ingredients = ({ ingredients }) => {
                 color: ingredient.special ? "red" : "green",
                 cursor: "pointer",
               }}
-              onClick={() => handleCheckedIngredient(ingredient.name)}>
+              onClick={() => handleCheckedIngredient(`${ingredient.name}-${index}`)}>
               {ingredient.type && `${ingredient.type} `}
               {ingredient.name}
               {ingredient.parens && ` (${ingredient.parens})`}
