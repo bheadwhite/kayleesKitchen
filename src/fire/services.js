@@ -1,4 +1,4 @@
-import { authRef, userRef } from "./firebase"
+import { authRef, userRef, recipesRef } from "./firebase"
 
 export const loginWithEmail = ({ email, password }) =>
   new Promise(async (res, rej) => {
@@ -40,6 +40,16 @@ export const signOut = () =>
   new Promise(async (res, rej) => {
     try {
       res(authRef.signOut())
+    } catch (error) {
+      rej(new Error(error))
+    }
+  })
+
+export const getRecipes = () =>
+  new Promise(async (res, rej) => {
+    try {
+      const docs = await recipesRef.get()
+      res(docs)
     } catch (error) {
       rej(new Error(error))
     }

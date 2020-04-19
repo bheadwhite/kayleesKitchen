@@ -3,7 +3,7 @@ import { Switch, Route } from "react-router-dom"
 import { makeStyles } from "@material-ui/core"
 import clsx from "clsx"
 import useAuth from "./hooks/useAuth"
-import { Recipes, Login, Register } from "./views"
+import { Recipes, Login, Register, CreateRecipe } from "./views"
 import { ToastContainer } from "react-toastify"
 import Toolbar from "components/Toolbar"
 import { Redirect } from "react-router-dom"
@@ -39,7 +39,8 @@ function App() {
       <Toolbar />
       <div className={classes.pageWrapper}>
         <Switch>
-          <Restricted path='/recipes' component={Recipes} />
+          <Restricted path='/recipes' exact component={Recipes} />
+          <Restricted path='/recipes/new' exact component={CreateRecipe} />
           <Route path='/login' component={Login} />
           <Route path='/register' component={Register} />
           <Restricted path='/*' component={Recipes} />
@@ -50,7 +51,7 @@ function App() {
   )
 }
 
-const Restricted = ({ children, path, component }) => {
+const Restricted = ({ children, path, component, ...props }) => {
   const classes = useStyles()
   const { isLoading, user } = useAuth()
 
@@ -63,11 +64,12 @@ const Restricted = ({ children, path, component }) => {
             <CircularProgress />
           </div>
         )}
+        {...props}
       />
     )
   } else {
     if (user != null) {
-      return <Route path={path} component={component} />
+      return <Route path={path} component={component} {...props} />
     } else {
       return <Redirect to='/login' />
     }

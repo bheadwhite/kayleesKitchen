@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from "react"
+import React, { useState, useEffect } from "react"
 import Recipe from "../components/Recipe"
-import { makeStyles } from "@material-ui/core"
+import { makeStyles, Dailog } from "@material-ui/core"
 import ReactSelect from "react-select"
-import * as recipesArray from "../data/Recipes"
+import { getRecipes } from "fire/services"
 
 const useStyles = makeStyles((theme) => ({
   recipes: {
@@ -18,26 +18,21 @@ const useStyles = makeStyles((theme) => ({
 const Recipes = () => {
   const classes = useStyles()
   const [recipe, setRecipe] = useState("")
+  const [myRecipes, setMyRecipes] = useState([])
+
   const handleRecipe = ({ value: recipe }) => {
     if (recipe != null) {
       setRecipe(recipe)
     }
   }
 
-  const recipes = useMemo(
-    () =>
-      Object.values({ ...recipesArray }).sort((a, b) => {
-        if (typeof a.category === "undefined" || typeof b.category === "undefined") return 0
-        if (a.category.sort < b.category.sort) {
-          return -1
-        } else if (a.category.sort > b.category.sort) {
-          return 1
-        } else {
-          return 0
-        }
-      }),
-    []
-  )
+  useEffect(() => {
+    ;(async () => {
+      const recipes = await getRecipes()
+      setMyRecipes(recipes.docs)
+    })()
+  }, [])
+
   return (
     <div className={classes.recipes}>
       <ReactSelect
@@ -45,7 +40,16 @@ const Recipes = () => {
         defaultValue=''
         className={classes.select}
         placeholder='Select a Recipe...'
-        options={recipes.map((recipe, index) => ({ label: recipe.title, value: recipe }))}
+        options={myRecipes.map((recipe, index) => {
+          const data = recipe.data()
+          if (data != null) {
+            data.id = recipe.id
+            return {
+              label: data.title,
+              value: data,
+            }
+          }
+        })}
       />
       {recipe && <Recipe recipe={recipe} />}
     </div>

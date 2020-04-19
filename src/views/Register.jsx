@@ -65,7 +65,7 @@ const Register = (props) => {
   return (
     <div className={classes.register}>
       <Form onSubmit={onSubmit} validate={register}>
-        {({ handleSubmit, values, errors, submitting }) => {
+        {({ handleSubmit, values, errors }) => {
           return (
             <form
               onSubmit={(e) => {

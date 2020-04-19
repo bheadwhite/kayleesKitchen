@@ -23,6 +23,14 @@ const Menu = (props) => {
     handleOpen()
     props.history.push("/login")
   }
+  const handleRecipe = () => {
+    handleOpen()
+    props.history.push("/recipes")
+  }
+  const handleCreateRecipe = () => {
+    handleOpen()
+    props.history.push("/recipes/new")
+  }
 
   const handleSignOut = () => {
     handleOpen()
@@ -30,6 +38,22 @@ const Menu = (props) => {
       .then(props.history.push("/login"))
       .catch((e) => console.log(e))
   }
+
+  const CleanMenu = ({ children }) => (
+    <MUIMenu
+      id='menu-appbar'
+      anchorEl={anchorEl}
+      anchorOrigin={{
+        vertical: "bottom",
+        horizontal: "right",
+      }}
+      keepMounted
+      open={open}
+      getContentAnchorEl={null}
+      onClose={handleOpen}>
+      {children}
+    </MUIMenu>
+  )
 
   return (
     <React.Fragment>
@@ -41,20 +65,17 @@ const Menu = (props) => {
         onClick={handleOpen}>
         <MenuIcon />
       </IconButton>
-      <MUIMenu
-        id='menu-appbar'
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        keepMounted
-        open={open}
-        getContentAnchorEl={null}
-        onClose={handleOpen}>
-        {user == null && <MenuItem onClick={handleLogin}>Login</MenuItem>}
-        {user != null && <MenuItem onClick={handleSignOut}>Signout</MenuItem>}
-      </MUIMenu>
+      {user == null ? (
+        <CleanMenu>
+          <MenuItem onClick={handleLogin}>Login</MenuItem>
+        </CleanMenu>
+      ) : (
+        <CleanMenu>
+          <MenuItem onClick={handleCreateRecipe}>Create New Recipe</MenuItem>
+          <MenuItem onClick={handleRecipe}>Recipes</MenuItem>
+          <MenuItem onClick={handleSignOut}>Signout</MenuItem>
+        </CleanMenu>
+      )}
     </React.Fragment>
   )
 }
