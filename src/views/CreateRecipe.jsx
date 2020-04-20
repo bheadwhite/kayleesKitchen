@@ -1,44 +1,61 @@
 import React, { useState } from "react"
 import { toast } from "react-toastify"
 import { Button } from "components"
+import { Edit, Delete } from "@material-ui/icons"
 import { Form } from "react-final-form"
-import { TextField } from "../components/finalForm"
-{
-  /** a recipe is composed of ingredients, title, contributor, usersVoted array(calculating score), and directions,
-   * ingredients: array,
-   * {
-   *  name: string, name of ingredient
-   *  amount: string, the amount you need of the ingredient for recipe
-   *  special: boolean, usually this ingredient can be found in stock in my pantry
-   *  optional: boolean, recipe can be made with/without it
-   *  substitutions: array, other ingredients this ingredient can be substituted for.
-   * }
-   * directions: array of objects to create recipe
-   * {
-   *  type: section | step
-   *       steps are listed with a checkbox
-   *       sections are a new header title
-   *  text: what will be printed to the dom
-   * }
-   **/
-}
+import { TextField, Checkbox } from "../components/finalForm"
 
 const CreateRecipe = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [ingredients, setIngredients] = useState([])
   const [directions, setDirections] = useState([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+
+  // const handleAddDirection = (values, type) => {
+  //   const clone = values.directions.splice()
+  //   clone.push({ type, text: "" })
+  //   setDirections(clone)
+  // }
+  const handleAddNewIngredient = ({ name, amount, optional, unique }, cb) => {
+    setIngredients((a) => [...a, { name, amount, optional, special: unique }])
+    cb()
+  }
 
   const onSubmit = (values) => {
     console.log(values)
+  }
+
+  const deleteIngredient = (index) => {
+    const clone = Array.from(ingredients)
+    clone.splice(index, 1)
+    setIngredients(clone)
+  }
+
+  const updateIngredient = (values) => {
+    const clone = Array.from(ingredients)
+    clone.splice(editItem.position, 1, { ...values, special: values.unique })
+    setEditItem(null)
+    setIngredients(clone)
   }
 
   const validate = () => {
     const errors = {}
     return errors
   }
+
   return (
-    <Form onSubmit={onSubmit} validate={validate}>
-      {({ handleSubmit, values, errors, submitting }) => {
+    <Form
+      onSubmit={onSubmit}
+      validate={validate}
+      initialValues={{
+        name: editItem?.name ?? "",
+        amount: editItem?.amount ?? "",
+        directions,
+        optional: editItem?.optional ?? false,
+        unique: editItem?.unique ?? false,
+      }}>
+      {({ handleSubmit, values, errors, form }) => {
+        console.log("finalform values", JSON.stringify(values, undefined, 2))
         return (
           <form
             onSubmit={(e) => {
@@ -54,26 +71,69 @@ const CreateRecipe = () => {
                 handleSubmit(values)
               }
             }}>
+            <div>Recipe Title:</div>
             <TextField name='title' />
             <div>
               Ingredients:
-              {ingredients.map((ingredient, index) => {
+              {ingredients.map((e, i) => {
                 return (
-                  <div key={ingredient.name}>
-                    <TextField name='ingredients[index][ingredient[name]]' placeholder='Name' />
-                    <TextField name='ingredients[index][ingredient[amount]]' placeholder='Amount' />
+                  <div key={e.name + i + e.amount}>
+                    <span
+                      style={{
+                        fontWeight: 500,
+                        color: e.special ? "red" : "green",
+                      }}>
+                      {e.name}
+                    </span>
+                    <span>{` - ${e.amount}`}</span>
+                    {e.optional && <span style={{ color: "rgba(0,0,0,0.4)" }}> (optional) </span>}
+                    <Edit
+                      style={{ cursor: "pointer" }}
+                      onClick={() => setEditItem(() => ({ ...e, position: i }))}
+                    />
+                    <Delete style={{ cursor: "pointer" }} onClick={() => deleteIngredient(i)} />
                   </div>
                 )
               })}
-              {directions.map((direction, index) => {
+              <div>
+                <TextField name='name' value={values.name} fullWidth={false} placeholder='Name' />
+                <TextField
+                  name='amount'
+                  value={values.amount}
+                  fullWidth={false}
+                  placeholder='Amount'
+                />
+              </div>
+              <label>optional:</label>
+              <Checkbox name='optional' checked={values.optional} />
+              <label>unique:</label>
+              <Checkbox name='unique' checked={values.unique} />
+              {editItem == null ? (
+                <Button
+                  onClick={() =>
+                    handleAddNewIngredient(values, () => {
+                      form.initialize({ name: "", amount: "", optional: false, unique: false })
+                    })
+                  }>
+                  Add
+                </Button>
+              ) : (
+                <>
+                  <Button onClick={() => updateIngredient(values)}>UpdateItem</Button>
+                  <Button onClick={() => setEditItem(null)}>Cancel</Button>
+                </>
+              )}
+              {/* Directions: */}
+              {/* <Button onClick={() => handleAddDirection(, "section")}>Add section</Button>
+              <Button onClick={() => handleAddDirection(values, "step")}>Add step</Button> */}
+              {/* {directions.map((direction, index) => {
                 return (
                   <div key={direction.name}>
-                    <TextField name='directions[index][direction[type]]' placeholder='type' />
-                    <TextField name='directions[index][direction[text]]' placeholder='text' />
+                    <TextField name='type' placeholder='type' />
+                    <TextField name='text' placeholder='text' />
                   </div>
                 )
-              })}
-              <Button type='submit'>Submit</Button>
+              })} */}
             </div>
           </form>
         )

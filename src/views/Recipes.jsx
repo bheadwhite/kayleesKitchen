@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import Recipe from "../components/Recipe"
-import { makeStyles, Dailog } from "@material-ui/core"
+import { makeStyles } from "@material-ui/core"
 import ReactSelect from "react-select"
 import { getRecipes } from "fire/services"
 
@@ -48,6 +48,8 @@ const Recipes = () => {
               label: data.title,
               value: data,
             }
+          } else {
+            return null
           }
         })}
       />

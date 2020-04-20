@@ -1,18 +1,10 @@
 import React from "react"
 import { useForm, useField } from "react-final-form"
-import { TextField as MUITextField, makeStyles } from "@material-ui/core"
+import { makeStyles } from "@material-ui/core"
+import ReactSelect from "react-select"
 
 const useStyles = makeStyles((theme) => ({
-  textField: {
-    maxWidth: 380,
-    margin: theme.spacing(1, 0),
-    "& input": {
-      padding: theme.spacing(3),
-    },
-    "& label": {
-      transform: "translate(14px, 18px) scale(1)",
-    },
-  },
+  select: {},
 }))
 
 const TextField = (props) => {
@@ -27,7 +19,7 @@ const TextField = (props) => {
   const handleChange = (e) => change(props.name, e.target.value)
 
   return (
-    <MUITextField
+    <ReactSelect
       error={error && touched}
       variant='outlined'
       fullWidth={true}
@@ -35,7 +27,7 @@ const TextField = (props) => {
       onBlur={(e) => onBlur(e)}
       onFocus={onFocus}
       onChange={handleChange}
-      className={classes.textField}
+      className={classes.select}
       {...props}
     />
   )

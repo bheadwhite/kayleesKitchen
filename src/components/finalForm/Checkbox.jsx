@@ -1,18 +1,9 @@
 import React from "react"
 import { useForm, useField } from "react-final-form"
-import { TextField as MUITextField, makeStyles } from "@material-ui/core"
+import { Checkbox as MUICheckbox, makeStyles } from "@material-ui/core"
 
 const useStyles = makeStyles((theme) => ({
-  textField: {
-    maxWidth: 380,
-    margin: theme.spacing(1, 0),
-    "& input": {
-      padding: theme.spacing(3),
-    },
-    "& label": {
-      transform: "translate(14px, 18px) scale(1)",
-    },
-  },
+  checkbox: {},
 }))
 
 const TextField = (props) => {
@@ -24,18 +15,19 @@ const TextField = (props) => {
   } = useField(props.name, {
     subscription: { touched: true, error: true, value: true },
   })
-  const handleChange = (e) => change(props.name, e.target.value)
+  const handleChange = (e) => {
+    console.log("hit =>", e.target.checked)
+    change(props.name, e.target.checked)
+  }
 
   return (
-    <MUITextField
+    <MUICheckbox
       error={error && touched}
-      variant='outlined'
-      fullWidth={true}
       autoComplete={props.name}
       onBlur={(e) => onBlur(e)}
       onFocus={onFocus}
       onChange={handleChange}
-      className={classes.textField}
+      className={classes.checkbox}
       {...props}
     />
   )

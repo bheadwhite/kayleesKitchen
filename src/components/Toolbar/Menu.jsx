@@ -3,7 +3,7 @@ import { Menu as MUIMenu, IconButton, makeStyles, MenuItem } from "@material-ui/
 import { Menu as MenuIcon } from "@material-ui/icons"
 import useAuth from "hooks/useAuth"
 import { signOut } from "fire/services"
-import { withRouter } from "react-router-dom"
+import { useHistory } from "react-router-dom"
 
 const useStyles = makeStyles((theme) => ({
   menuButton: {},
@@ -14,28 +14,23 @@ const Menu = (props) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const [open, setOpen] = useState(false)
   const { user } = useAuth()
+  const history = useHistory()
 
   const handleOpen = (e) => {
     anchorEl == null && e.target != null ? setAnchorEl(e.target) : setAnchorEl(null)
     setOpen((a) => !a)
   }
-  const handleLogin = () => {
+  const goTo = (location) => {
     handleOpen()
-    props.history.push("/login")
+    history.push(location)
   }
-  const handleRecipe = () => {
-    handleOpen()
-    props.history.push("/recipes")
-  }
-  const handleCreateRecipe = () => {
-    handleOpen()
-    props.history.push("/recipes/new")
-  }
+  const handleLogin = () => goTo("/login")
+  const handleRecipe = () => goTo("/recipes")
+  const handleCreateRecipe = () => goTo("/recipes/new")
 
   const handleSignOut = () => {
-    handleOpen()
     signOut()
-      .then(props.history.push("/login"))
+      .then(() => goTo("/login"))
       .catch((e) => console.log(e))
   }
 
@@ -80,4 +75,4 @@ const Menu = (props) => {
   )
 }
 
-export default withRouter(Menu)
+export default Menu
