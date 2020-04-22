@@ -3,7 +3,7 @@ import { Switch, Route } from "react-router-dom"
 import { makeStyles } from "@material-ui/core"
 import clsx from "clsx"
 import useAuth from "./hooks/useAuth"
-import { Recipes, Login, Register, CreateRecipe } from "./views"
+import { Recipes, Login, Register, NewRecipe } from "./views"
 import { ToastContainer } from "react-toastify"
 import Toolbar from "components/Toolbar"
 import { Redirect } from "react-router-dom"
@@ -40,7 +40,7 @@ function App() {
       <div className={classes.pageWrapper}>
         <Switch>
           <Restricted path='/recipes' exact component={Recipes} />
-          <Restricted path='/recipes/new' exact component={CreateRecipe} />
+          <Restricted path='/recipes/new' exact component={NewRecipe} />
           <Route path='/login' component={Login} />
           <Route path='/register' component={Register} />
           <Restricted path='/*' component={Recipes} />

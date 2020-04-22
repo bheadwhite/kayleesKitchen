@@ -21,15 +21,18 @@ const TextField = (props) => {
   }
 
   return (
-    <MUICheckbox
-      error={error && touched}
-      autoComplete={props.name}
-      onBlur={(e) => onBlur(e)}
-      onFocus={onFocus}
-      onChange={handleChange}
-      className={classes.checkbox}
-      {...props}
-    />
+    <React.Fragment>
+      {props.label && <label>{props.label}:</label>}
+      <MUICheckbox
+        error={error && touched}
+        autoComplete={props.name}
+        onBlur={(e) => onBlur(e)}
+        onFocus={onFocus}
+        onChange={handleChange}
+        className={classes.checkbox}
+        {...props}
+      />
+    </React.Fragment>
   )
 }
 
