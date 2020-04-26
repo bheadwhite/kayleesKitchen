@@ -12,8 +12,13 @@ const useStyles = makeStyles((theme) => ({
   },
   optional: { color: "rgba(0,0,0,0.4)" },
   ingredient: {
+    display: "flex",
+    alignItems: "center",
     "& svg": {
       cursor: "pointer",
+    },
+    "& button": {
+      padding: 0,
     },
   },
   emptySpace: {
@@ -21,7 +26,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const initState = { name: "", amount: "", optional: false, unique: false }
+let initState = { name: "", amount: "", optional: false, unique: false }
 
 const NewIngredientForm = () => {
   const classes = useStyles()
@@ -39,9 +44,12 @@ const NewIngredientForm = () => {
   }
 
   const handleAddNewIngredient = ({ name, amount, optional, unique }, cb) => {
-    setIngredients((a) => [...a, { name, amount, optional, special: unique }])
-    cb()
+    if (name.length > 0) {
+      setIngredients((a) => [...a, { name, amount, optional, special: unique }])
+      cb()
+    }
   }
+
   const deleteIngredient = (index) => {
     const clone = Array.from(ingredients)
     clone.splice(index, 1)
@@ -56,9 +64,16 @@ const NewIngredientForm = () => {
   }
 
   const handleNewSection = (name, cb) => {
+    if (name.length < 1) return
     const clone = Array.from(directions)
     clone.push({ type: "section", text: name })
-    clone.push({ type: "step", text: "" })
+    setDirections(clone)
+    cb()
+  }
+  const handleNewStep = (nextStep, cb) => {
+    if (nextStep?.length == null && nextStep?.length < 1) return
+    const clone = Array.from(directions)
+    clone.push({ type: "step", text: nextStep })
     setDirections(clone)
     cb()
   }
@@ -74,9 +89,12 @@ const NewIngredientForm = () => {
         optional: editItem?.optional ?? false,
         unique: editItem?.unique ?? false,
         section: "",
+        nextStep: "",
       }}>
       {({ handleSubmit, values, errors, form: { initialize } }) => {
         console.log("finalform values", JSON.stringify(values, undefined, 2))
+        initState = { ...initState, ...values }
+
         return (
           <form
             onSubmit={(e) => {
@@ -108,8 +126,15 @@ const NewIngredientForm = () => {
                     </span>
                     <span>{` - ${e.amount}`}</span>
                     {e.optional && <span className={classes.optional}> (optional) </span>}
-                    <Edit onClick={() => setEditItem(() => ({ ...e, position: i }))} />
-                    <Delete onClick={() => deleteIngredient(i)} />
+
+                    <Button
+                      onClick={() => setEditItem(() => ({ ...e, position: i }))}
+                      style={{ marginLeft: "1rem" }}>
+                      <Edit />
+                    </Button>
+                    <Button onClick={() => deleteIngredient(i)}>
+                      <Delete />
+                    </Button>
                   </div>
                 )
               })
@@ -131,8 +156,7 @@ const NewIngredientForm = () => {
             {editItem == null ? (
               <Button
                 onClick={() => {
-                  const { title } = values
-                  handleAddNewIngredient(values, () => initialize({ ...initState, title }))
+                  handleAddNewIngredient(values, () => initialize(initState))
                 }}>
                 Add
               </Button>
@@ -145,28 +169,87 @@ const NewIngredientForm = () => {
             <div>Directions:</div>
             {directions.length > 0 ? (
               directions.map((direction, index) => {
-                if (direction.type === "section") {
-                  return <div>{direction.text}</div>
-                } else {
+                const isLast = index === directions.length - 1
+                const isSection = direction.type === "section"
+                let isStepBeforeASection = false
+                if (!isLast) {
+                  isStepBeforeASection =
+                    direction.type === "step" && directions[index + 1].type === "section"
+                }
+
+                if (isLast) {
+                  //sections
+                  if (isSection) {
+                    return (
+                      <div key={`${direction.text}-${index}`}>
+                        <div>{direction.text}</div>
+                        <TextField
+                          name={`nextStep-${index}`}
+                          placeholder='Next step'
+                          value={values[`nextStep-${index}`]}
+                        />
+                        <Button
+                          onClick={() =>
+                            handleNewStep(values.nextStep, () => initialize(initState))
+                          }>
+                          Add Step
+                        </Button>
+                      </div>
+                    )
+                  } else {
+                    return (
+                      <div key={`${direction.text}-${index}`}>
+                        <div>- {direction.text}</div>
+                        <TextField
+                          name={`nextStep-${index}`}
+                          placeholder='Next step'
+                          value={values[`nextStep-${index}`]}
+                        />
+                        <Button
+                          onClick={() =>
+                            handleNewStep(values.nextStep, () => initialize(initState))
+                          }>
+                          Add Step
+                        </Button>
+                      </div>
+                    )
+                  }
+                } else if (isStepBeforeASection) {
                   return (
-                    <div key={direction.name}>
-                      <TextField name='nextStep' placeholder='add new step' />
+                    <div key={`${direction.text}-${index}`}>
+                      <div>- {direction.text}</div>
+                      <TextField
+                        name={`nextStep-${index}`}
+                        placeholder='Next step'
+                        value={values[`nextStep-${index}`]}
+                      />
+                      <Button
+                        onClick={() => handleNewStep(values.nextStep, () => initialize(initState))}>
+                        Add Step
+                      </Button>
                     </div>
                   )
+                } else {
+                  if (isSection) {
+                    //return a normal section
+                    return <div key={`${direction.text}-${index}`}>{direction.text}</div>
+                  } else {
+                    //return a normal step
+                    return <div key={`${direction.text}-${index}`}>- {direction.text}</div>
+                  }
                 }
               })
             ) : (
               <div>--</div>
             )}
-            <TextField name='section' placeholder='section' value={values.section} />
+            <div>
+              <TextField name='section' placeholder='New Section Name' value={values.section} />
+            </div>
             <Button
               onClick={() => {
-                const { title, directions } = values
-                handleNewSection(values.section, () =>
-                  initialize({ ...initState, title, section: "" })
-                )
+                handleNewSection(values.section, () => initialize(initState))
               }}>
-              Add New Section
+              Add Section
             </Button>
           </form>
         )
