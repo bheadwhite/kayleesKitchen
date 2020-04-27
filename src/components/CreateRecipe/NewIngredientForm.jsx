@@ -34,6 +34,7 @@ const NewIngredientForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [directions, setDirections] = useState([])
   const [ingredients, setIngredients] = useState([])
+  const [toggleNewSection, setToggleNewSection] = useState(false)
 
   const onSubmit = (values) => {
     console.log(values)
@@ -63,18 +64,28 @@ const NewIngredientForm = () => {
     setIngredients(clone)
   }
 
-  const handleNewSection = (name, cb) => {
+  const handleSection = (name, cb) => {
     if (name.length < 1) return
     const clone = Array.from(directions)
-    clone.push({ type: "section", text: name })
+    clone.push([
+      { type: "section", text: name },
+      { type: "addNextStep", text: "add new step" },
+    ])
     setDirections(clone)
+    handleToggleNewSection()
     cb()
   }
-  const handleNewStep = (nextStep, cb) => {
+  const handleToggleNewSection = () => setToggleNewSection((a) => !a)
+
+  const handleNewStep = (nextStep, index, cb) => {
     if (nextStep?.length == null && nextStep?.length < 1) return
-    const clone = Array.from(directions)
-    clone.push({ type: "step", text: nextStep })
-    setDirections(clone)
+    const clonedSection = Array.from(directions[index])
+    const clonedDir = Array.from(directions)
+
+    clonedSection.splice(clonedSection.length - 1, 0, { type: "step", text: nextStep })
+    clonedDir.splice(index, 1, clonedSection)
+
+    setDirections(clonedDir)
     cb()
   }
 
@@ -168,89 +179,52 @@ const NewIngredientForm = () => {
             )}
             <div>Directions:</div>
             {directions.length > 0 ? (
-              directions.map((direction, index) => {
-                const isLast = index === directions.length - 1
-                const isSection = direction.type === "section"
-                let isStepBeforeASection = false
-                if (!isLast) {
-                  isStepBeforeASection =
-                    direction.type === "step" && directions[index + 1].type === "section"
-                }
-
-                if (isLast) {
-                  //sections
+              directions.map((sectionArray, index) =>
+                sectionArray.map((direction, i) => {
+                  const isSection = direction.type === "section"
+                  const isStep = direction.type === "step"
+                  const isAddNextStep = direction.type === "addNextStep"
                   if (isSection) {
+                    return <div key={direction.type + i}>Section: {direction.text}</div>
+                  } else if (isStep) {
+                    return <div key={direction.type + i}>Step: {direction.text}</div>
+                  } else if (isAddNextStep) {
                     return (
-                      <div key={`${direction.text}-${index}`}>
-                        <div>{direction.text}</div>
+                      <div key={direction.type + i}>
                         <TextField
                           name={`nextStep-${index}`}
-                          placeholder='Next step'
-                          value={values[`nextStep-${index}`]}
+                          fullWidth={false}
+                          placeholder='type next step'
                         />
                         <Button
-                          onClick={() =>
-                            handleNewStep(values.nextStep, () => initialize(initState))
-                          }>
-                          Add Step
-                        </Button>
-                      </div>
-                    )
-                  } else {
-                    return (
-                      <div key={`${direction.text}-${index}`}>
-                        <div>- {direction.text}</div>
-                        <TextField
-                          name={`nextStep-${index}`}
-                          placeholder='Next step'
-                          value={values[`nextStep-${index}`]}
-                        />
-                        <Button
-                          onClick={() =>
-                            handleNewStep(values.nextStep, () => initialize(initState))
-                          }>
+                          onClick={() => {
+                            handleNewStep(values[`nextStep-${index}`], index, () =>
+                              initialize(initState)
+                            )
+                          }}>
                           Add Step
                         </Button>
                       </div>
                     )
                   }
-                } else if (isStepBeforeASection) {
-                  return (
-                    <div key={`${direction.text}-${index}`}>
-                      <div>- {direction.text}</div>
-                      <TextField
-                        name={`nextStep-${index}`}
-                        placeholder='Next step'
-                        value={values[`nextStep-${index}`]}
-                      />
-                      <Button
-                        onClick={() => handleNewStep(values.nextStep, () => initialize(initState))}>
-                        Add Step
-                      </Button>
-                    </div>
-                  )
-                } else {
-                  if (isSection) {
-                    //return a normal section
-                    return <div key={`${direction.text}-${index}`}>{direction.text}</div>
-                  } else {
-                    //return a normal step
-                    return <div key={`${direction.text}-${index}`}>- {direction.text}</div>
-                  }
-                }
-              })
+                })
+              )
             ) : (
               <div>--</div>
             )}
-            <div>
-              <TextField name='section' placeholder='New Section Name' value={values.section} />
-            </div>
-            <Button
-              onClick={() => {
-                handleNewSection(values.section, () => initialize(initState))
-              }}>
-              Add Section
-            </Button>
+            {toggleNewSection ? (
+              <div>
+                <TextField name='section' placeholder='New Section Name' value={values.section} />
+                <Button
+                  onClick={() => {
+                    handleSection(values.section, () => initialize(initState))
+                  }}>
+                  Add
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={handleToggleNewSection}>Add New Section</Button>
+            )}
           </form>
         )
       }}
