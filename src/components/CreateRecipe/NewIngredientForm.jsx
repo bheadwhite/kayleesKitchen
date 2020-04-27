@@ -206,6 +206,8 @@ const NewIngredientForm = () => {
                         </Button>
                       </div>
                     )
+                  } else {
+                    return null
                   }
                 })
               )
@@ -225,6 +227,7 @@ const NewIngredientForm = () => {
             ) : (
               <Button onClick={handleToggleNewSection}>Add New Section</Button>
             )}
+            {isSubmitting && <div>submitting</div>}
           </form>
         )
       }}
