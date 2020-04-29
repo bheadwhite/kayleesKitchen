@@ -7,8 +7,12 @@ import { toast } from "react-toastify"
 import { makeStyles } from "@material-ui/core"
 
 const useStyles = makeStyles((theme) => ({
+  title: {
+    fontWeight: 700,
+  },
   recipeName: {
     fontWeight: 500,
+    marginRight: theme.spacing(1),
   },
   optional: { color: "rgba(0,0,0,0.4)" },
   ingredient: {
@@ -21,8 +25,54 @@ const useStyles = makeStyles((theme) => ({
       padding: 0,
     },
   },
+  directionsContainer: {
+    "& svg": {
+      cursor: "pointer",
+    },
+    "& button": {
+      padding: 0,
+    },
+  },
+  directionsTitle: {
+    fontWeight: 700,
+  },
   emptySpace: {
     height: 30,
+  },
+  section: {
+    fontWeight: 600,
+    color: "blue",
+  },
+  nextStepFields: {
+    display: "flex",
+    alignItems: "center",
+    "& > div": {
+      marginRight: theme.spacing(1),
+    },
+  },
+  addSectionFields: {
+    display: "flex",
+    alignItems: "center",
+    "& > div": {
+      marginRight: theme.spacing(1),
+    },
+  },
+  addIngredientFields: {
+    display: "flex",
+    alignItems: "center",
+    "& > div": {
+      marginRight: theme.spacing(1),
+    },
+  },
+  ingredientsTitle: {
+    fontWeight: 700,
+  },
+  addIngredientContainer: {
+    background: "rgba(0, 0, 0, 0.05)",
+    padding: theme.spacing(1),
+  },
+  ingredientsList: {
+    padding: theme.spacing(1),
   },
 }))
 
@@ -31,6 +81,7 @@ let initState = { name: "", amount: "", optional: false, unique: false }
 const NewIngredientForm = () => {
   const classes = useStyles()
   const [editItem, setEditItem] = useState(null)
+  const [editDirectionItem, setEditDirectionItem] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [directions, setDirections] = useState([])
   const [ingredients, setIngredients] = useState([])
@@ -89,6 +140,10 @@ const NewIngredientForm = () => {
     cb()
   }
 
+  const deleteDirection = (index, i) => {
+    console.log("deleting directionnn", index, i)
+  }
+
   return (
     <Form
       onSubmit={onSubmit}
@@ -104,7 +159,6 @@ const NewIngredientForm = () => {
       }}>
       {({ handleSubmit, values, errors, form: { initialize } }) => {
         console.log("finalform values", JSON.stringify(values, undefined, 2))
-        initState = { ...initState, ...values }
 
         return (
           <form
@@ -121,112 +175,151 @@ const NewIngredientForm = () => {
                 handleSubmit(values)
               }
             }}>
-            title:
+            <div className={classes.title}>Title:</div>
             <div>
               <TextField name='title' />
             </div>
-            Ingredients:
-            {ingredients.length > 0 ? (
-              ingredients.map((e, i) => {
-                return (
-                  <div key={e.name + i + e.amount} className={classes.ingredient}>
-                    <span
-                      className={classes.recipeName}
-                      style={{ color: e.special ? "red" : "green" }}>
-                      {e.name}
-                    </span>
-                    <span>{` - ${e.amount}`}</span>
-                    {e.optional && <span className={classes.optional}> (optional) </span>}
+            <div className={classes.ingredientsTitle}>Ingredients:</div>
+            <div className={classes.ingredientsList}>
+              {ingredients.length > 0 ? (
+                ingredients.map((e, i) => {
+                  return (
+                    <div key={e.name + i + e.amount} className={classes.ingredient}>
+                      <span
+                        className={classes.recipeName}
+                        style={{ color: e.special ? "red" : "green" }}>
+                        {`${e.name} `}
+                      </span>
+                      <span>{` - ${e.amount}`}</span>
+                      {e.optional && <span className={classes.optional}> (optional) </span>}
 
-                    <Button
-                      onClick={() => setEditItem(() => ({ ...e, position: i }))}
-                      style={{ marginLeft: "1rem" }}>
-                      <Edit />
-                    </Button>
-                    <Button onClick={() => deleteIngredient(i)}>
-                      <Delete />
-                    </Button>
-                  </div>
-                )
-              })
-            ) : (
-              <div className={classes.emptySpace}></div>
-            )}
-            <div>
-              <div>Add Ingredient:</div>
-              <TextField name='name' value={values.name} fullWidth={false} placeholder='Name' />
-              <TextField
-                name='amount'
-                value={values.amount}
-                fullWidth={false}
-                placeholder='Amount'
-              />
-            </div>
-            <Checkbox name='optional' checked={values.optional} label='optional' />
-            <Checkbox name='unique' checked={values.unique} label='unique' />
-            {editItem == null ? (
-              <Button
-                onClick={() => {
-                  handleAddNewIngredient(values, () => initialize(initState))
-                }}>
-                Add
-              </Button>
-            ) : (
-              <React.Fragment>
-                <Button onClick={() => updateIngredient(values)}>UpdateItem</Button>
-                <Button onClick={() => setEditItem(null)}>Cancel</Button>
-              </React.Fragment>
-            )}
-            <div>Directions:</div>
-            {directions.length > 0 ? (
-              directions.map((sectionArray, index) =>
-                sectionArray.map((direction, i) => {
-                  const isSection = direction.type === "section"
-                  const isStep = direction.type === "step"
-                  const isAddNextStep = direction.type === "addNextStep"
-                  if (isSection) {
-                    return <div key={direction.type + i}>Section: {direction.text}</div>
-                  } else if (isStep) {
-                    return <div key={direction.type + i}>Step: {direction.text}</div>
-                  } else if (isAddNextStep) {
-                    return (
-                      <div key={direction.type + i}>
-                        <TextField
-                          name={`nextStep-${index}`}
-                          fullWidth={false}
-                          placeholder='type next step'
-                        />
-                        <Button
-                          onClick={() => {
-                            handleNewStep(values[`nextStep-${index}`], index, () =>
-                              initialize(initState)
-                            )
-                          }}>
-                          Add Step
-                        </Button>
-                      </div>
-                    )
-                  } else {
-                    return null
-                  }
+                      <Button
+                        onClick={() => setEditItem(() => ({ ...e, position: i }))}
+                        style={{ marginLeft: "1rem" }}>
+                        <Edit />
+                      </Button>
+                      <Button onClick={() => deleteIngredient(i)}>
+                        <Delete />
+                      </Button>
+                    </div>
+                  )
                 })
-              )
-            ) : (
-              <div>--</div>
-            )}
-            {toggleNewSection ? (
+              ) : (
+                <div className={classes.emptySpace}></div>
+              )}
+            </div>
+            <div className={classes.addIngredientContainer}>
+              <div>Add Ingredient:</div>
               <div>
-                <TextField name='section' placeholder='New Section Name' value={values.section} />
-                <Button
-                  onClick={() => {
-                    handleSection(values.section, () => initialize(initState))
-                  }}>
-                  Add
-                </Button>
+                <Checkbox name='optional' checked={values.optional} label='optional' />
+                <Checkbox name='unique' checked={values.unique} label='unique' />
               </div>
-            ) : (
-              <Button onClick={handleToggleNewSection}>Add New Section</Button>
-            )}
+              <div className={classes.addIngredientFields}>
+                <TextField name='name' value={values.name} fullWidth={false} placeholder='Name' />
+                <TextField
+                  name='amount'
+                  value={values.amount}
+                  fullWidth={false}
+                  placeholder='Amount'
+                />
+                {editItem == null ? (
+                  <Button
+                    onClick={() => {
+                      handleAddNewIngredient(values, () => initialize(initState))
+                    }}>
+                    Add Ingredient
+                  </Button>
+                ) : (
+                  <React.Fragment>
+                    <Button onClick={() => updateIngredient(values)}>UpdateItem</Button>
+                    <Button onClick={() => setEditItem(null)}>Cancel</Button>
+                  </React.Fragment>
+                )}
+              </div>
+            </div>
+            <div className={classes.directionsTitle}>Directions:</div>
+            <div className={classes.directionsContainer}>
+              {directions.length > 0 ? (
+                directions.map((sectionArray, index) =>
+                  sectionArray.map((direction, i) => {
+                    const isSection = direction.type === "section"
+                    const isStep = direction.type === "step"
+                    const isAddNextStep = direction.type === "addNextStep"
+                    if (isSection) {
+                      return (
+                        <div key={i} className={classes.section}>
+                          {direction.text}
+                          <Button
+                            onClick={() =>
+                              setEditDirectionItem(() => ({ ...direction, position: i }))
+                            }
+                            style={{ marginLeft: "1rem" }}>
+                            <Edit />
+                          </Button>
+                          <Button onClick={() => deleteDirection(index, i)}>
+                            <Delete />
+                          </Button>
+                        </div>
+                      )
+                    } else if (isStep) {
+                      return (
+                        <div key={i} className={classes.step}>
+                          - {direction.text}
+                          <Button
+                            onClick={() =>
+                              setEditDirectionItem(() => ({ ...direction, position: i }))
+                            }
+                            style={{ marginLeft: "1rem" }}>
+                            <Edit />
+                          </Button>
+                          <Button onClick={() => deleteDirection(index, i)}>
+                            <Delete />
+                          </Button>
+                        </div>
+                      )
+                    } else if (isAddNextStep) {
+                      return (
+                        <div key={i} className={classes.nextStepFields}>
+                          <TextField
+                            name={`nextStep-${index}`}
+                            fullWidth={false}
+                            placeholder='type next step'
+                          />
+                          <Button
+                            onClick={() => {
+                              handleNewStep(values[`nextStep-${index}`], index, () =>
+                                initialize(initState)
+                              )
+                            }}>
+                            Add Step
+                          </Button>
+                        </div>
+                      )
+                    } else {
+                      return null
+                    }
+                  })
+                )
+              ) : (
+                <div>--</div>
+              )}
+            </div>
+            <div className={classes.addSectionFields}>
+              {toggleNewSection ? (
+                <React.Fragment>
+                  <TextField name='section' placeholder='New Section Name' value={values.section} />
+                  <Button
+                    onClick={() => {
+                      handleSection(values.section, () => initialize(initState))
+                    }}>
+                    Add
+                  </Button>
+                  <Button onClick={handleToggleNewSection}>Cancel</Button>
+                </React.Fragment>
+              ) : (
+                <Button onClick={handleToggleNewSection}>Add New Section</Button>
+              )}
+            </div>
             {isSubmitting && <div>submitting</div>}
           </form>
         )
