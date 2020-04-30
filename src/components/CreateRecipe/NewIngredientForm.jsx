@@ -5,6 +5,7 @@ import { Checkbox, TextField } from "components/finalForm"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
 import { makeStyles } from "@material-ui/core"
+import { confirm } from "components/ConfirmModal"
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -153,6 +154,16 @@ const NewIngredientForm = () => {
     const clonedDirections = directions.slice()
     if (directions[index][i].type === "section") {
       console.log("this is a section your deleting, are you sure?")
+      confirm({
+        title: "Warning!",
+        body: "Are you sure you want to delete this section?",
+        okText: "Yes",
+        cancelText: "No",
+        onConfirm: () => {
+          clonedDirections.splice(index, 1)
+        },
+        onCancel: () => {},
+      })
     } else {
       clonedDirections[index].splice(i, 1)
     }
