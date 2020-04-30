@@ -153,8 +153,9 @@ const NewIngredientForm = () => {
     const clonedDirections = directions.slice()
     if (directions[index][i].type === "section") {
       console.log("this is a section your deleting, are you sure?")
+    } else {
+      clonedDirections[index].splice(i, 1)
     }
-    clonedDirections[index].splice(i, 1)
     setDirections(clonedDirections)
   }
 
