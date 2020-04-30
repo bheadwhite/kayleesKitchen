@@ -76,8 +76,6 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-let initState = { name: "", amount: "", optional: false, unique: false }
-
 const NewIngredientForm = () => {
   const classes = useStyles()
   const [editItem, setEditItem] = useState(null)
@@ -87,9 +85,20 @@ const NewIngredientForm = () => {
   const [ingredients, setIngredients] = useState([])
   const [toggleNewSection, setToggleNewSection] = useState(false)
 
+  const getInitSteps = () => {
+    if (directions.length < 1) return { "nextStep-0": "" }
+    const obj = {}
+    for (let i = 0; i < directions.length; i++) {
+      obj[`nextStep-${i}`] = ""
+    }
+    return obj
+  }
+  const initState = { name: "", amount: "", optional: false, unique: false, ...getInitSteps() }
+
   const onSubmit = (values) => {
     console.log(values)
   }
+
   const validate = () => {
     const errors = {}
     return errors
@@ -141,7 +150,12 @@ const NewIngredientForm = () => {
   }
 
   const deleteDirection = (index, i) => {
-    console.log("deleting directionnn", index, i)
+    const clonedDirections = directions.slice()
+    if (directions[index][i].type === "section") {
+      console.log("this is a section your deleting, are you sure?")
+    }
+    clonedDirections[index].splice(i, 1)
+    setDirections(clonedDirections)
   }
 
   return (
@@ -155,7 +169,7 @@ const NewIngredientForm = () => {
         optional: editItem?.optional ?? false,
         unique: editItem?.unique ?? false,
         section: "",
-        nextStep: "",
+        ...getInitSteps(),
       }}>
       {({ handleSubmit, values, errors, form: { initialize } }) => {
         console.log("finalform values", JSON.stringify(values, undefined, 2))
@@ -284,6 +298,7 @@ const NewIngredientForm = () => {
                             name={`nextStep-${index}`}
                             fullWidth={false}
                             placeholder='type next step'
+                            value={values[`nextStep-${index}`]}
                           />
                           <Button
                             onClick={() => {
@@ -321,6 +336,7 @@ const NewIngredientForm = () => {
               )}
             </div>
             {isSubmitting && <div>submitting</div>}
+            <Button>Submit Recipe</Button>
           </form>
         )
       }}
