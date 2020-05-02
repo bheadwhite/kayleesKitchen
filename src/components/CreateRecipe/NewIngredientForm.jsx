@@ -1,11 +1,12 @@
 import React, { useState } from "react"
-import { Edit, Delete } from "@material-ui/icons"
+import { Edit, Delete, Warning } from "@material-ui/icons"
 import { Button } from "components"
 import { Checkbox, TextField } from "components/finalForm"
+import theme from "theme"
+import { Dialog } from "@material-ui/core"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
 import { makeStyles } from "@material-ui/core"
-import { confirm } from "components/ConfirmModal"
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -75,22 +76,34 @@ const useStyles = makeStyles((theme) => ({
   ingredientsList: {
     padding: theme.spacing(1),
   },
+  container: {
+    padding: theme.spacing(1.5),
+  },
 }))
 
 const NewIngredientForm = () => {
   const classes = useStyles()
   const [editItem, setEditItem] = useState(null)
-  const [editDirectionItem, setEditDirectionItem] = useState(null)
+  const [editStepIndexItems, setEditStepIndexItems] = useState([])
+  const [editSectionIndexItem, setEditSectionIndexItem] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [directions, setDirections] = useState([])
+  const [indexToDelete, setIndexToDelete] = useState(null)
   const [ingredients, setIngredients] = useState([])
   const [toggleNewSection, setToggleNewSection] = useState(false)
+  const [modal, setModal] = useState(false)
 
   const getInitSteps = () => {
     if (directions.length < 1) return { "nextStep-0": "" }
     const obj = {}
+    let editStepIndex = 0
     for (let i = 0; i < directions.length; i++) {
-      obj[`nextStep-${i}`] = ""
+      if (editStepIndexItems.length && editStepIndexItems[0].outerIndex === i) {
+        obj[`nextStep-${i}`] = editStepIndexItems[editStepIndex].text
+        editStepIndex++
+      } else {
+        obj[`nextStep-${i}`] = ""
+      }
     }
     return obj
   }
@@ -110,6 +123,13 @@ const NewIngredientForm = () => {
       setIngredients((a) => [...a, { name, amount, optional, special: unique }])
       cb()
     }
+  }
+
+  const handleUpdateSection = (value) => {
+    const clonedDirections = directions.slice()
+    clonedDirections[editSectionIndexItem.index][0].text = value
+    setDirections(clonedDirections)
+    setEditSectionIndexItem(null)
   }
 
   const deleteIngredient = (index) => {
@@ -145,25 +165,26 @@ const NewIngredientForm = () => {
 
     clonedSection.splice(clonedSection.length - 1, 0, { type: "step", text: nextStep })
     clonedDir.splice(index, 1, clonedSection)
-
+    // setEditStepIndexItems([])
     setDirections(clonedDir)
     cb()
   }
+  const addStepIndexItem = (stepIndexItem) => {
+    const clone = editStepIndexItems.slice()
+    clone.push(stepIndexItem)
+
+    clone.sort((a, b) => a.outerIndex - b.outerIndex)
+    setEditStepIndexItems(clone)
+  }
+  const handleConfirmDeleteModal = () => setModal((a) => !a)
 
   const deleteDirection = (index, i) => {
     const clonedDirections = directions.slice()
-    if (directions[index][i].type === "section") {
-      console.log("this is a section your deleting, are you sure?")
-      confirm({
-        title: "Warning!",
-        body: "Are you sure you want to delete this section?",
-        okText: "Yes",
-        cancelText: "No",
-        onConfirm: () => {
-          clonedDirections.splice(index, 1)
-        },
-        onCancel: () => {},
-      })
+    if (index == null && typeof indexToDelete === "number") {
+      handleConfirmDeleteModal()
+      clonedDirections.splice(indexToDelete, 1)
+      setDirections(clonedDirections)
+      setIndexToDelete(null)
     } else {
       clonedDirections[index].splice(i, 1)
     }
@@ -180,7 +201,7 @@ const NewIngredientForm = () => {
         directions,
         optional: editItem?.optional ?? false,
         unique: editItem?.unique ?? false,
-        section: "",
+        section: editSectionIndexItem?.text ?? "",
         ...getInitSteps(),
       }}>
       {({ handleSubmit, values, errors, form: { initialize } }) => {
@@ -231,7 +252,7 @@ const NewIngredientForm = () => {
                   )
                 })
               ) : (
-                <div className={classes.emptySpace}></div>
+                <div className={classes.emptySpace}>--</div>
               )}
             </div>
             <div className={classes.addIngredientContainer}>
@@ -271,18 +292,21 @@ const NewIngredientForm = () => {
                     const isSection = direction.type === "section"
                     const isStep = direction.type === "step"
                     const isAddNextStep = direction.type === "addNextStep"
+                    const text = direction.text
                     if (isSection) {
                       return (
                         <div key={i} className={classes.section}>
                           {direction.text}
                           <Button
-                            onClick={() =>
-                              setEditDirectionItem(() => ({ ...direction, position: i }))
-                            }
+                            onClick={() => setEditSectionIndexItem(() => ({ text, index }))}
                             style={{ marginLeft: "1rem" }}>
                             <Edit />
                           </Button>
-                          <Button onClick={() => deleteDirection(index, i)}>
+                          <Button
+                            onClick={() => {
+                              setIndexToDelete(index)
+                              handleConfirmDeleteModal()
+                            }}>
                             <Delete />
                           </Button>
                         </div>
@@ -292,9 +316,7 @@ const NewIngredientForm = () => {
                         <div key={i} className={classes.step}>
                           - {direction.text}
                           <Button
-                            onClick={() =>
-                              setEditDirectionItem(() => ({ ...direction, position: i }))
-                            }
+                            onClick={() => addStepIndexItem({ text, outerIndex: index, index: i })}
                             style={{ marginLeft: "1rem" }}>
                             <Edit />
                           </Button>
@@ -332,15 +354,24 @@ const NewIngredientForm = () => {
               )}
             </div>
             <div className={classes.addSectionFields}>
-              {toggleNewSection ? (
+              {toggleNewSection || editSectionIndexItem != null ? (
                 <React.Fragment>
                   <TextField name='section' placeholder='New Section Name' value={values.section} />
-                  <Button
-                    onClick={() => {
-                      handleSection(values.section, () => initialize(initState))
-                    }}>
-                    Add
-                  </Button>
+                  {editSectionIndexItem != null ? (
+                    <Button
+                      onClick={() => {
+                        handleUpdateSection(values.section, () => initialize(initState))
+                      }}>
+                      Update
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        handleSection(values.section, () => initialize(initState))
+                      }}>
+                      Add
+                    </Button>
+                  )}
                   <Button onClick={handleToggleNewSection}>Cancel</Button>
                 </React.Fragment>
               ) : (
@@ -349,6 +380,22 @@ const NewIngredientForm = () => {
             </div>
             {isSubmitting && <div>submitting</div>}
             <Button>Submit Recipe</Button>
+            <Dialog
+              open={modal}
+              id='confirm-dialog'
+              onClose={handleConfirmDeleteModal}
+              title='delete section?'>
+              <div className={classes.container}>
+                <Warning />
+                <p>Are you sure you want to delete this section?</p>
+                <Button
+                  style={{ marginRight: theme.spacing(1) }}
+                  onClick={handleConfirmDeleteModal}>
+                  No
+                </Button>
+                <Button onClick={() => deleteDirection(null)}>Yes</Button>
+              </div>
+            </Dialog>
           </form>
         )
       }}
