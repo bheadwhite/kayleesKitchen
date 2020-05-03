@@ -10,6 +10,7 @@ export default class NewRecipeController {
   setTitle(title) {
     this.title = title
   }
+
   //ingredients
   getIngredients() {
     return this.ingredients.slice()
