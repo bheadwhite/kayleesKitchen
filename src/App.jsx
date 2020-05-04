@@ -9,6 +9,7 @@ import Toolbar from "components/Toolbar"
 import { Redirect } from "react-router-dom"
 import { CircularProgress } from "@material-ui/core"
 import "react-toastify/dist/ReactToastify.css"
+import { useNewRecipe } from "controllers/newRecipe"
 
 const useStyles = makeStyles((theme) => ({
   app: {
@@ -33,6 +34,9 @@ const useStyles = makeStyles((theme) => ({
 
 function App() {
   const classes = useStyles()
+  const newRecipe = useNewRecipe()
+  newRecipe.addSection("Bake1")
+  console.log("app.jsx", newRecipe.directions)
 
   return (
     <div className={clsx("Kitchen Recipes", classes.app)}>

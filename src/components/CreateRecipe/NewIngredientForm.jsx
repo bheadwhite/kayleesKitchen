@@ -1,5 +1,6 @@
 import React, { useState } from "react"
 import { Edit, Delete, Warning } from "@material-ui/icons"
+import { useNewRecipe } from "controllers/newRecipe"
 import { Button } from "components"
 import { Checkbox, TextField } from "components/finalForm"
 import theme from "theme"
@@ -92,6 +93,8 @@ const NewIngredientForm = () => {
   const [ingredients, setIngredients] = useState([])
   const [toggleNewSection, setToggleNewSection] = useState(false)
   const [modal, setModal] = useState(false)
+  const usedRecipe = useNewRecipe()
+  console.log("new ingred form", usedRecipe.directions)
 
   const getInitSteps = () => {
     if (directions.length < 1) return { "nextStep-0": "" }

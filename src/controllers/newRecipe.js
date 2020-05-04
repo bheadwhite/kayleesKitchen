@@ -1,4 +1,5 @@
-export default class NewRecipeController {
+import React from "react"
+export default class NewRecipe {
   title = ""
   directions = []
   ingredients = []
@@ -71,4 +72,12 @@ export default class NewRecipeController {
     clone[sectionIndex].slice(stepIndex, 1, { type: "step", text: stepText })
     this.setDirections(clone)
   }
+  onStepChanged
+  onDirectionsChanged
+  onSectionChanged
 }
+
+const recipe = new NewRecipe()
+
+export const RecipeContext = React.createContext(recipe)
+export const useNewRecipe = () => React.useContext(RecipeContext)

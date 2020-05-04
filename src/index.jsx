@@ -5,12 +5,17 @@ import { BrowserRouter as Router } from "react-router-dom"
 import { ThemeProvider } from "@material-ui/core"
 import App from "./App"
 import theme from "theme"
+import NewRecipe, { RecipeContext } from "controllers/newRecipe"
+
+const recipe = new NewRecipe()
 
 ReactDOM.render(
   <ThemeProvider theme={theme}>
-    <Router>
-      <App />
-    </Router>
+    <RecipeContext.Provider value={recipe}>
+      <Router>
+        <App />
+      </Router>
+    </RecipeContext.Provider>
   </ThemeProvider>,
   document.getElementById("root")
 )
