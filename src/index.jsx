@@ -5,9 +5,10 @@ import { BrowserRouter as Router } from "react-router-dom"
 import { ThemeProvider } from "@material-ui/core"
 import App from "./App"
 import theme from "theme"
-import NewRecipe, { RecipeContext } from "controllers/newRecipe"
+import RecipeController, { RecipeContext } from "controllers/RecipeController"
 
-const recipe = new NewRecipe()
+console.log("instance")
+const recipe = new RecipeController()
 
 ReactDOM.render(
   <ThemeProvider theme={theme}>

@@ -30,7 +30,6 @@ const TextField = (props) => {
     <MUITextField
       error={error && touched}
       variant='outlined'
-      fullWidth={true}
       autoComplete={props.name}
       onBlur={(e) => onBlur(e)}
       onFocus={onFocus}

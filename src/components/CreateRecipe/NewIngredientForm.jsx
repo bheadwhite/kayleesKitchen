@@ -13,21 +13,6 @@ const useStyles = makeStyles((theme) => ({
   title: {
     fontWeight: 700,
   },
-  recipeName: {
-    fontWeight: 500,
-    marginRight: theme.spacing(1),
-  },
-  optional: { color: "rgba(0,0,0,0.4)" },
-  ingredient: {
-    display: "flex",
-    alignItems: "center",
-    "& svg": {
-      cursor: "pointer",
-    },
-    "& button": {
-      padding: 0,
-    },
-  },
   directionsContainer: {
     "& svg": {
       cursor: "pointer",
@@ -39,9 +24,7 @@ const useStyles = makeStyles((theme) => ({
   directionsTitle: {
     fontWeight: 700,
   },
-  emptySpace: {
-    height: 30,
-  },
+  emptySpace: {},
   section: {
     fontWeight: 600,
     color: "blue",
@@ -60,22 +43,8 @@ const useStyles = makeStyles((theme) => ({
       marginRight: theme.spacing(1),
     },
   },
-  addIngredientFields: {
-    display: "flex",
-    alignItems: "center",
-    "& > div": {
-      marginRight: theme.spacing(1),
-    },
-  },
   ingredientsTitle: {
     fontWeight: 700,
-  },
-  addIngredientContainer: {
-    background: "rgba(0, 0, 0, 0.05)",
-    padding: theme.spacing(1),
-  },
-  ingredientsList: {
-    padding: theme.spacing(1),
   },
   container: {
     padding: theme.spacing(1.5),
@@ -94,7 +63,6 @@ const NewIngredientForm = () => {
   const [toggleNewSection, setToggleNewSection] = useState(false)
   const [modal, setModal] = useState(false)
   const usedRecipe = useNewRecipe()
-  console.log("new ingred form", usedRecipe.directions)
 
   const getInitSteps = () => {
     if (directions.length < 1) return { "nextStep-0": "" }
@@ -110,6 +78,7 @@ const NewIngredientForm = () => {
     }
     return obj
   }
+
   const initState = { name: "", amount: "", optional: false, unique: false, ...getInitSteps() }
 
   const onSubmit = (values) => {
@@ -225,68 +194,6 @@ const NewIngredientForm = () => {
                 handleSubmit(values)
               }
             }}>
-            <div className={classes.title}>Title:</div>
-            <div>
-              <TextField name='title' />
-            </div>
-            <div className={classes.ingredientsTitle}>Ingredients:</div>
-            <div className={classes.ingredientsList}>
-              {ingredients.length > 0 ? (
-                ingredients.map((e, i) => {
-                  return (
-                    <div key={e.name + i + e.amount} className={classes.ingredient}>
-                      <span
-                        className={classes.recipeName}
-                        style={{ color: e.special ? "red" : "green" }}>
-                        {`${e.name} `}
-                      </span>
-                      <span>{` - ${e.amount}`}</span>
-                      {e.optional && <span className={classes.optional}> (optional) </span>}
-
-                      <Button
-                        onClick={() => setEditItem(() => ({ ...e, position: i }))}
-                        style={{ marginLeft: "1rem" }}>
-                        <Edit />
-                      </Button>
-                      <Button onClick={() => deleteIngredient(i)}>
-                        <Delete />
-                      </Button>
-                    </div>
-                  )
-                })
-              ) : (
-                <div className={classes.emptySpace}>--</div>
-              )}
-            </div>
-            <div className={classes.addIngredientContainer}>
-              <div>Add Ingredient:</div>
-              <div>
-                <Checkbox name='optional' checked={values.optional} label='optional' />
-                <Checkbox name='unique' checked={values.unique} label='unique' />
-              </div>
-              <div className={classes.addIngredientFields}>
-                <TextField name='name' value={values.name} fullWidth={false} placeholder='Name' />
-                <TextField
-                  name='amount'
-                  value={values.amount}
-                  fullWidth={false}
-                  placeholder='Amount'
-                />
-                {editItem == null ? (
-                  <Button
-                    onClick={() => {
-                      handleAddNewIngredient(values, () => initialize(initState))
-                    }}>
-                    Add Ingredient
-                  </Button>
-                ) : (
-                  <React.Fragment>
-                    <Button onClick={() => updateIngredient(values)}>UpdateItem</Button>
-                    <Button onClick={() => setEditItem(null)}>Cancel</Button>
-                  </React.Fragment>
-                )}
-              </div>
-            </div>
             <div className={classes.directionsTitle}>Directions:</div>
             <div className={classes.directionsContainer}>
               {directions.length > 0 ? (
