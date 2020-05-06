@@ -74,6 +74,11 @@ export default class RecipeController {
     this.directions = directions
     this.directionsSubject.next(directions)
   }
+  setEditSection(index) {
+    console.log("hit controller", this.directions[index].sectionTitle)
+    this.editSection = this.directions[index].sectionTitle
+    this.editSectionSubject.next(this.directions[index].sectionTitle)
+  }
   deleteStep(sectionIndex, indexOfStep) {
     const clone = this.directions.slice()
     clone[sectionIndex].steps.splice(indexOfStep, 1)
@@ -105,6 +110,12 @@ export default class RecipeController {
     const clone = this.directions.slice()
     clone[sectionIndex].steps.splice(stepIndex, 1, stepText)
     this.setDirections(clone)
+  }
+
+  setEditSteps(sectionIndex, stepIndex) {
+    const clone = this.getDirections.map(() => "")
+    clone.splice(sectionIndex, 1, this.directions[sectionIndex].steps[stepIndex])
+    this.editStepsSubject.next(clone)
   }
   // onStepChanged
   // onDirectionsChanged

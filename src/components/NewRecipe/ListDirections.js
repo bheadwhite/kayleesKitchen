@@ -12,9 +12,7 @@ const useStyles = makeStyles((theme) => ({
     "& svg": {
       cursor: "pointer",
     },
-    "& button": {
-      padding: 0,
-    },
+    "& button": {},
   },
 }))
 
@@ -22,15 +20,31 @@ const ListDirections = () => {
   const directions = useDirections()
   const { values } = useFormState()
   const classes = useStyles()
-  const { initialize, reset } = useForm()
+  const { reset } = useForm()
   const controller = useRecipeController()
 
   const handleAddSection = () => {
     controller.addNewSection(values.section)
     reset()
   }
+  const handleEditSection = (index) => {
+    controller.setEditSection(index)
+    reset()
+  }
+  const handleDeleteSection = (index) => {
+    controller.deleteSection(index)
+  }
 
-  console.log(directions)
+  const handleNewStep = (index) => {
+    controller.addNewStep(index, values[`nextStep-${index}`])
+    reset()
+  }
+  const handleEditStep = (sectionIndex, stepIndex) => {
+    controller.setEditSteps(sectionIndex, stepIndex)
+  }
+  const handleDeleteStep = (sectionIndex, stepIndex) => {
+    controller.deleteStep(sectionIndex, stepIndex)
+  }
 
   return (
     <>
@@ -40,22 +54,37 @@ const ListDirections = () => {
           directions.map(({ sectionTitle, steps }, index) => {
             return (
               <div key={`${sectionTitle}`}>
-                <div>{sectionTitle}</div>
+                <div>
+                  {sectionTitle}
+                  <Button onClick={() => handleEditSection(index)} style={{ marginLeft: "1rem" }}>
+                    <Edit />
+                  </Button>
+                  <Button onClick={() => handleDeleteSection(index)}>
+                    <Delete />
+                  </Button>
+                </div>
                 {steps.map((step, i) => {
-                  return <div key={i}>{step}</div>
+                  return (
+                    <div key={i}>
+                      {step}
+                      <Button
+                        onClick={() => handleEditStep(index, i)}
+                        style={{ marginLeft: "1rem" }}>
+                        <Edit />
+                      </Button>
+                      <Button onClick={() => handleDeleteStep(index, i)}>
+                        <Delete />
+                      </Button>
+                    </div>
+                  )
                 })}
                 <TextField
                   name={`nextStep-${index}`}
                   fullWidth={false}
                   placeholder='type next step'
-                  value={values[`nextStep-${index}`]}
+                  value={values[`nextStep-${index}`] ?? ""}
                 />
-                <Button
-                  onClick={() => {
-                    // handleNewStep(values[`nextStep-${index}`], index, () => initialize(initState))
-                  }}>
-                  Add Step
-                </Button>
+                <Button onClick={() => handleNewStep(index)}>Add Step</Button>
               </div>
             )
           })

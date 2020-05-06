@@ -9,6 +9,8 @@ import { Form } from "react-final-form"
 import { toast } from "react-toastify"
 import { makeStyles } from "@material-ui/core"
 import useEditIngredient from "hooks/useEditIngredient"
+import useEditSection from "hooks/useEditSection"
+import useEditSteps from "hooks/useEditSteps"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
 
 const useStyles = makeStyles((theme) => ({}))
@@ -20,6 +22,8 @@ const CreateNewRecipe = () => {
   const [indexToDelete, setIndexToDelete] = useState(null)
   const [modal, setModal] = useState(false)
   const editIngredient = useEditIngredient()
+  const editSection = useEditSection()
+  const editSteps = useEditSteps()
   // const controller = useRecipeController()
 
   const onSubmit = () => {
@@ -30,6 +34,15 @@ const CreateNewRecipe = () => {
     return errors
   }
   const handleConfirmDeleteModal = () => setModal((a) => !a)
+  const getSteps = () => {
+    console.log("loading steps...")
+    const steps = {}
+    for (let i = 0; i <= directions.length; i++) {
+      console.log(editSteps, editSteps[i])
+      steps[`nextStep-${i}`] = editSteps[i] || ""
+    }
+    return steps
+  }
 
   const deleteDirection = (index, i) => {
     const clonedDirections = directions.slice()
@@ -54,10 +67,11 @@ const CreateNewRecipe = () => {
         directions,
         optional: editIngredient.optional,
         unique: editIngredient.unique,
-        section: "",
-        // ...getInitSteps(),
+        section: editSection,
+        ...getSteps(),
       }}>
       {({ handleSubmit, values, errors }) => {
+        console.log("values", JSON.stringify(values, 2, undefined))
         return (
           <form
             onSubmit={(e) => {
