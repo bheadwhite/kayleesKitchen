@@ -5,17 +5,36 @@ const default_editIngredient = { name: "", amount: "", optional: false, unique: 
 
 export default class RecipeController {
   title = ""
-  directions = []
+  directions = [
+    {
+      sectionTitle: "Bake",
+      steps: [
+        "do the 1st Bake thing",
+        "do the 2nd Bake thing",
+        "do the 3rd Bake thing",
+        "do the 4th Bake thing",
+      ],
+      editStep: null,
+    },
+    {
+      sectionTitle: "Serve",
+      steps: [
+        "do the 1st Serve thing",
+        "do the 2nd Serve thing",
+        "do the 3rd Serve thing",
+        "do the 4th Serve thing",
+      ],
+      editStep: null,
+    },
+  ]
   ingredients = [
     { name: "testing1", amount: "1 cup", optional: false, unique: false },
-    { name: "testing2", amount: "1 cup", optional: false, unique: false },
-    { name: "testing3", amount: "1 cup", optional: false, unique: false },
+    { name: "testing2", amount: "1 cup", optional: true, unique: false },
+    { name: "testing3", amount: "1 cup", optional: false, unique: true },
   ]
   directionsSubject = new Subject()
   ingredientsSubject = new Subject()
 
-  editSteps = []
-  editStepsSubject = new Subject()
   editIngredient = default_editIngredient
   editIngredientSubject = new Subject()
   editSection = ""
@@ -112,10 +131,25 @@ export default class RecipeController {
     this.setDirections(clone)
   }
 
-  setEditSteps(sectionIndex, stepIndex) {
-    const clone = this.getDirections.map(() => "")
-    clone.splice(sectionIndex, 1, this.directions[sectionIndex].steps[stepIndex])
-    this.editStepsSubject.next(clone)
+  setEditStep(sectionIndex, stepIndex) {
+    const clone = this.getDirections()
+    clone[sectionIndex].editStep = stepIndex
+    this.setDirections(clone)
+  }
+
+  clearEditStep(sectionIndex) {
+    const clone = this.getDirections()
+    clone[sectionIndex].editStep = null
+    this.setDirections(clone)
+  }
+
+  updateSectionStep(sectionIndex, values) {
+    const clone = this.getDirections()
+    const section = clone[sectionIndex]
+    const stepIndex = section.editStep
+    section.steps.splice(stepIndex, 1, values[`nextStep-${sectionIndex}`])
+    section.editStep = null
+    this.setDirections(clone)
   }
   // onStepChanged
   // onDirectionsChanged

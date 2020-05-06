@@ -8,9 +8,9 @@ import { Dialog } from "@material-ui/core"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
 import { makeStyles } from "@material-ui/core"
+import useDirections from "hooks/useDirections"
 import useEditIngredient from "hooks/useEditIngredient"
 import useEditSection from "hooks/useEditSection"
-import useEditSteps from "hooks/useEditSteps"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
 
 const useStyles = makeStyles((theme) => ({}))
@@ -18,12 +18,11 @@ const useStyles = makeStyles((theme) => ({}))
 const CreateNewRecipe = () => {
   const classes = useStyles()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [directions, setDirections] = useState([])
   const [indexToDelete, setIndexToDelete] = useState(null)
   const [modal, setModal] = useState(false)
   const editIngredient = useEditIngredient()
   const editSection = useEditSection()
-  const editSteps = useEditSteps()
+  const directions = useDirections()
   // const controller = useRecipeController()
 
   const onSubmit = () => {
@@ -34,27 +33,28 @@ const CreateNewRecipe = () => {
     return errors
   }
   const handleConfirmDeleteModal = () => setModal((a) => !a)
+
   const getSteps = () => {
-    console.log("loading steps...")
     const steps = {}
-    for (let i = 0; i <= directions.length; i++) {
-      console.log(editSteps, editSteps[i])
-      steps[`nextStep-${i}`] = editSteps[i] || ""
-    }
+    directions.forEach((section, i) => {
+      if (section.editStep != null) {
+        steps[`nextStep-${i}`] = section.steps[section.editStep]
+      }
+    })
     return steps
   }
 
   const deleteDirection = (index, i) => {
-    const clonedDirections = directions.slice()
-    if (index == null && typeof indexToDelete === "number") {
-      handleConfirmDeleteModal()
-      clonedDirections.splice(indexToDelete, 1)
-      setDirections(clonedDirections)
-      setIndexToDelete(null)
-    } else {
-      clonedDirections[index].splice(i, 1)
-    }
-    setDirections(clonedDirections)
+    //   const clonedDirections = directions.slice()
+    //   if (index == null && typeof indexToDelete === "number") {
+    //     handleConfirmDeleteModal()
+    //     clonedDirections.splice(indexToDelete, 1)
+    //     setDirections(clonedDirections)
+    //     setIndexToDelete(null)
+    //   } else {
+    //     clonedDirections[index].splice(i, 1)
+    //   }
+    //   setDirections(clonedDirections)
   }
 
   return (
@@ -71,7 +71,6 @@ const CreateNewRecipe = () => {
         ...getSteps(),
       }}>
       {({ handleSubmit, values, errors }) => {
-        console.log("values", JSON.stringify(values, 2, undefined))
         return (
           <form
             onSubmit={(e) => {

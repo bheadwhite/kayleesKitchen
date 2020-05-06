@@ -20,26 +20,30 @@ const ListDirections = () => {
   const directions = useDirections()
   const { values } = useFormState()
   const classes = useStyles()
-  const { reset, initialize } = useForm()
+  const { reset } = useForm()
   const controller = useRecipeController()
 
   const handleAddSection = () => {
     controller.addNewSection(values.section)
   }
   const handleEditSection = (index) => {
-    initialize
     controller.setEditSection(index)
   }
   const handleDeleteSection = (index) => {
     controller.deleteSection(index)
   }
+  const updateSectionStep = (index) => {
+    controller.updateSectionStep(index, values)
+  }
+  const clearEditStep = (index) => {
+    controller.clearEditStep(index)
+  }
 
   const handleNewStep = (index) => {
     controller.addNewStep(index, values[`nextStep-${index}`])
-    reset()
   }
   const handleEditStep = (sectionIndex, stepIndex) => {
-    controller.setEditSteps(sectionIndex, stepIndex)
+    controller.setEditStep(sectionIndex, stepIndex)
   }
   const handleDeleteStep = (sectionIndex, stepIndex) => {
     controller.deleteStep(sectionIndex, stepIndex)
@@ -50,9 +54,16 @@ const ListDirections = () => {
       <div className={classes.directionsTitle}>Directions:</div>
       <div className={classes.directionsList}>
         {directions.length > 0 ? (
-          directions.map(({ sectionTitle, steps }, index) => {
+          directions.map(({ sectionTitle, steps, editStep }, index) => {
             return (
-              <div key={`${sectionTitle}`}>
+              <div
+                key={`${sectionTitle}`}
+                style={{
+                  border: "1px solid black",
+                  borderRadius: "4px",
+                  marginBottom: "2rem",
+                  padding: "1rem",
+                }}>
                 <div>
                   {sectionTitle}
                   <Button onClick={() => handleEditSection(index)} style={{ marginLeft: "1rem" }}>
@@ -79,11 +90,18 @@ const ListDirections = () => {
                 })}
                 <TextField
                   name={`nextStep-${index}`}
-                  fullWidth={false}
+                  fullWidth
                   placeholder='type next step'
                   value={values[`nextStep-${index}`] ?? ""}
                 />
-                <Button onClick={() => handleNewStep(index)}>Add Step</Button>
+                {editStep == null ? (
+                  <Button onClick={() => handleNewStep(index)}>Add Step</Button>
+                ) : (
+                  <>
+                    <Button onClick={() => updateSectionStep(index)}>Update Step</Button>
+                    <Button onClick={() => clearEditStep(index)}>Cancel</Button>
+                  </>
+                )}
               </div>
             )
           })
