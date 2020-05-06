@@ -52,7 +52,7 @@ const ListIngredients = () => {
               <div key={ingredient.name + i + ingredient.amount} className={classes.ingredient}>
                 <span
                   className={classes.recipeName}
-                  style={{ color: ingredient.special ? "red" : "green" }}>
+                  style={{ color: ingredient.unique ? "red" : "green" }}>
                   {`${ingredient.name} `}
                 </span>
                 <span>{` - ${ingredient.amount}`}</span>

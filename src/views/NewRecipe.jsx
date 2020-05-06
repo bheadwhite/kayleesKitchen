@@ -9,7 +9,7 @@ import { Form } from "react-final-form"
 import { toast } from "react-toastify"
 import { makeStyles } from "@material-ui/core"
 import useEditIngredient from "hooks/useEditIngredient"
-import { AddIngredient, ListIngredients } from "components/NewRecipe"
+import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
 
 const useStyles = makeStyles((theme) => ({}))
 
@@ -21,7 +21,6 @@ const CreateNewRecipe = () => {
   const [modal, setModal] = useState(false)
   const editIngredient = useEditIngredient()
   // const controller = useRecipeController()
-  console.log("rendered form", editIngredient)
 
   const onSubmit = () => {
     console.log("submitting")
@@ -53,13 +52,12 @@ const CreateNewRecipe = () => {
         name: editIngredient.name,
         amount: editIngredient.amount,
         directions,
-        optional: false,
-        unique: false,
+        optional: editIngredient.optional,
+        unique: editIngredient.unique,
         section: "",
         // ...getInitSteps(),
       }}>
       {({ handleSubmit, values, errors }) => {
-        // console.log(JSON.stringify(values, 2, undefined))
         return (
           <form
             onSubmit={(e) => {
@@ -80,6 +78,7 @@ const CreateNewRecipe = () => {
             </div>
             <ListIngredients />
             <AddIngredient />
+            <ListDirections />
             <Dialog
               open={modal}
               id='confirm-dialog'

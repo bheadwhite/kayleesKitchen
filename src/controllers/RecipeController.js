@@ -1,15 +1,15 @@
 import React from "react"
 import { Subject } from "rxjs"
 
-const default_editIngredient = { name: "", amount: "" }
+const default_editIngredient = { name: "", amount: "", optional: false, unique: false }
 
 export default class RecipeController {
   title = ""
   directions = []
   ingredients = [
-    { name: "testing1", amount: "1 cup" },
-    { name: "testing2", amount: "1 cup" },
-    { name: "testing3", amount: "1 cup" },
+    { name: "testing1", amount: "1 cup", optional: false, unique: false },
+    { name: "testing2", amount: "1 cup", optional: false, unique: false },
+    { name: "testing3", amount: "1 cup", optional: false, unique: false },
   ]
   directionsSubject = new Subject()
   ingredientsSubject = new Subject()
@@ -50,10 +50,10 @@ export default class RecipeController {
     this.setIngredients(clone)
     this.resetEditIngredient()
   }
-  updateIngredient({ name, amount }) {
+  updateIngredient({ name, amount, ...props }) {
     const clone = this.ingredients.slice()
     const index = clone.findIndex((e) => e.name === this.editIngredient.name)
-    clone.splice(index, 1, { name, amount })
+    clone.splice(index, 1, { name, amount, optional: props["optional"], unique: props["unique"] })
     this.resetEditIngredient()
     this.setIngredients(clone)
   }

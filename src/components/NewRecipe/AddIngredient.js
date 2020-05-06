@@ -1,5 +1,5 @@
 import React from "react"
-import { useFormState, useForm } from "react-final-form"
+import { useFormState } from "react-final-form"
 import useEditIngredient from "hooks/useEditIngredient"
 import { useRecipeController } from "controllers/RecipeController"
 import { Checkbox, TextField } from "components/finalForm"
@@ -23,7 +23,6 @@ const useStyles = makeStyles((theme) => ({
 const AddIngredient = () => {
   const controller = useRecipeController()
   const editIngredient = useEditIngredient()
-  const { initialize, reset } = useForm()
   const { values } = useFormState()
   const classes = useStyles()
 
