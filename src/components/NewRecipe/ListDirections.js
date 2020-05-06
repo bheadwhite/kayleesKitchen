@@ -20,16 +20,15 @@ const ListDirections = () => {
   const directions = useDirections()
   const { values } = useFormState()
   const classes = useStyles()
-  const { reset } = useForm()
+  const { reset, initialize } = useForm()
   const controller = useRecipeController()
 
   const handleAddSection = () => {
     controller.addNewSection(values.section)
-    reset()
   }
   const handleEditSection = (index) => {
+    initialize
     controller.setEditSection(index)
-    reset()
   }
   const handleDeleteSection = (index) => {
     controller.deleteSection(index)
