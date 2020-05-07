@@ -54,3 +54,12 @@ export const getRecipes = () =>
       rej(new Error(error))
     }
   })
+
+export const addRecipe = (recipe) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await recipesRef.add(recipe))
+    } catch (e) {
+      rej(e)
+    }
+  })

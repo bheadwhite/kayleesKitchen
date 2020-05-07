@@ -54,7 +54,6 @@ const Register = (props) => {
         }, 4000)
       })
       .catch((err) => {
-        console.log(err)
         toast.error(err.message)
       })
       .finally(() => {

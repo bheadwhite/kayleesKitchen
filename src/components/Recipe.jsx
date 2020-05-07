@@ -16,33 +16,27 @@ const Recipe = ({ recipe }) => {
   const { ingredients, directions } = recipe
 
   if (typeof recipe === "undefined") return null
+  console.log(recipe)
   return (
     <div>
       <h1 className={classes.title}>{recipe.title}</h1>
       <p>{recipe.description}</p>
       {recipe.contributor != null && <p>Contributed by: {recipe.contributor}</p>}
       <Ingredients ingredients={ingredients} />
-      {directions?.map(({ type, text }, index) => {
-        if (type === "section") {
-          return (
+      {directions?.map((section, index) => {
+        return (
+          <div key={index}>
             <h3 key={index} style={{ color: "blue" }}>
-              {text}
+              {section.sectionTitle}
             </h3>
-          )
-        } else if (type === "step") {
-          return (
-            <div key={index}>
-              <input type='checkbox' style={{ cursor: "pointer" }} />
-              <p style={{ display: "inline" }}> - {text}</p>
-            </div>
-          )
-        } else {
-          return (
-            <p key={index} style={{ color: "red" }}>
-              {text}
-            </p>
-          )
-        }
+            {section.steps.map((step, i) => (
+              <div key={i}>
+                <input type='checkbox' style={{ cursor: "pointer" }} />
+                <p style={{ display: "inline" }}> - {step}</p>
+              </div>
+            ))}
+          </div>
+        )
       })}
     </div>
   )

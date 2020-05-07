@@ -30,7 +30,7 @@ const Ingredients = ({ ingredients }) => {
             <span
               style={{
                 fontWeight: 500,
-                color: ingredient.special ? "red" : "green",
+                color: ingredient.unique ? "red" : "green",
                 cursor: "pointer",
               }}
               onClick={() => handleCheckedIngredient(`${ingredient.name}-${index}`)}>

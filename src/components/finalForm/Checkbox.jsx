@@ -16,7 +16,6 @@ const TextField = (props) => {
     subscription: { touched: true, error: true, value: true },
   })
   const handleChange = (e) => {
-    console.log("hit =>", e.target.checked)
     change(props.name, e.target.checked)
   }
 

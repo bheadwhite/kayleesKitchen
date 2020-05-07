@@ -8,7 +8,6 @@ const useEditIngredient = () => {
   useEffect(() => {
     const subscription = controller.editIngredientSubject.subscribe({
       next(editIngredient) {
-        console.log(editIngredient)
         setEditIngredient(editIngredient)
       },
     })

@@ -1,5 +1,5 @@
 import React from "react"
-import { useFormState } from "react-final-form"
+import { useFormState, useForm } from "react-final-form"
 import useEditIngredient from "hooks/useEditIngredient"
 import { useRecipeController } from "controllers/RecipeController"
 import { Checkbox, TextField } from "components/finalForm"
@@ -23,11 +23,15 @@ const useStyles = makeStyles((theme) => ({
 const AddIngredient = () => {
   const controller = useRecipeController()
   const editIngredient = useEditIngredient()
+  const { reset } = useForm()
   const { values } = useFormState()
   const classes = useStyles()
 
   const updateIngredient = () => controller.updateIngredient(values)
-  const addIngredient = () => controller.addIngredient(values)
+  const addIngredient = () => {
+    controller.addIngredient(values)
+    reset()
+  }
   const resetEditIngredient = () => controller.resetEditIngredient()
 
   return (
@@ -40,7 +44,7 @@ const AddIngredient = () => {
       <div className={classes.addIngredientFields}>
         <TextField name='name' value={values.name} placeholder='Name' />
         <TextField name='amount' value={values.amount} placeholder='Amount' />
-        {editIngredient.name === "" ? (
+        {editIngredient?.name === "" ? (
           <Button onClick={addIngredient}>Add Ingredient</Button>
         ) : (
           <React.Fragment>

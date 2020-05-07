@@ -37,7 +37,7 @@ export default class RecipeController {
 
   editIngredient = default_editIngredient
   editIngredientSubject = new Subject()
-  editSection = ""
+  editSection = null
   editSectionSubject = new Subject()
 
   setTitle(title) {
@@ -67,7 +67,6 @@ export default class RecipeController {
     const clone = this.ingredients.slice()
     clone.push({ name, amount })
     this.setIngredients(clone)
-    this.resetEditIngredient()
   }
   updateIngredient({ name, amount, ...props }) {
     const clone = this.ingredients.slice()
@@ -94,9 +93,8 @@ export default class RecipeController {
     this.directionsSubject.next(directions)
   }
   setEditSection(index) {
-    console.log("hit controller", this.directions[index].sectionTitle)
-    this.editSection = this.directions[index].sectionTitle
-    this.editSectionSubject.next(this.directions[index].sectionTitle)
+    this.editSection = index
+    this.editSectionSubject.next(index)
   }
   deleteStep(sectionIndex, indexOfStep) {
     const clone = this.directions.slice()
@@ -118,11 +116,14 @@ export default class RecipeController {
     clone.push({ sectionTitle, steps: [] })
     this.setDirections(clone)
   }
-  updateSectionTitle(index, sectionTitle) {
+  updateSectionTitle(sectionTitle) {
     const clone = this.directions.slice()
+    const index = this.editSection
     const steps = clone[index].steps
-    clone.splice(index, 1, { sectionTitle, ...steps })
+    clone.splice(index, 1, { sectionTitle, steps })
     this.setDirections(clone)
+    this.editSection = null
+    this.editSectionSubject.next(null)
   }
 
   updateStep(sectionIndex, stepIndex, stepText) {

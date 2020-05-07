@@ -7,7 +7,6 @@ import App from "./App"
 import theme from "theme"
 import RecipeController, { RecipeContext } from "controllers/RecipeController"
 
-console.log("instance")
 const recipe = new RecipeController()
 
 ReactDOM.render(
