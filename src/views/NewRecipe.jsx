@@ -6,6 +6,7 @@ import { toast } from "react-toastify"
 import useDirections from "hooks/useDirections"
 import useEditIngredient from "hooks/useEditIngredient"
 import { addRecipe } from "fire/services"
+import ReactSelect from "react-select"
 import useEditSection from "hooks/useEditSection"
 import useIngredients from "hooks/useIngredients"
 import { makeStyles } from "@material-ui/core"
@@ -20,6 +21,11 @@ const useStyles = makeStyles((theme) => ({
     background: "rgba(0, 0, 0, 0.05)",
     padding: theme.spacing(2),
     marginTop: theme.spacing(2),
+    marginBottom: 200,
+  },
+  select: {
+    maxWidth: 400,
+    background: "white",
   },
 }))
 
@@ -31,6 +37,11 @@ const CreateNewRecipe = () => {
   const directions = useDirections()
   const ingredients = useIngredients()
   const { user } = useAuth()
+  const [myRecipes, setMyRecipes] = useState([])
+
+  const handleRecipe = (value) => {
+    console.log("handling my own recipe", value)
+  }
 
   const onSubmit = ({ directions, title }) => {
     const dirs = directions.map((e) => {
@@ -57,11 +68,12 @@ const CreateNewRecipe = () => {
     ;(async () => {
       if (user != null) {
         try {
+          console.log(user.email)
           const recipes = await getRecipesByEmail(user.email)
-          recipes.docs.forEach((e) => {
-            console.log(e)
-          })
-        } catch (e) {}
+          setMyRecipes(recipes.docs)
+        } catch (e) {
+          console.log("error pulling your recipes", e)
+        }
       }
     })()
   }, [user])
@@ -96,6 +108,26 @@ const CreateNewRecipe = () => {
               }
             }}>
             <div>
+              <ReactSelect
+                onChange={handleRecipe}
+                defaultValue=''
+                className={classes.select}
+                placeholder='edit one of your existing recipes...'
+                styles={{ menuPortal: (base) => ({ ...base, zIndex: 999 }) }}
+                menuPortalTarget={document.body}
+                options={myRecipes.map((recipe, index) => {
+                  const data = recipe.data()
+                  if (data != null) {
+                    data.id = recipe.id
+                    return {
+                      label: data.title,
+                      value: data,
+                    }
+                  } else {
+                    return null
+                  }
+                })}
+              />
               <TextField name='title' fullWidth label='Recipe Title' />
             </div>
             <ListIngredients />
