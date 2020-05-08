@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import useDirections from "hooks/useDirections"
 import { Button } from "components"
 import { Warning } from "@material-ui/icons"
@@ -49,7 +49,15 @@ const ListDirections = () => {
   const [confirmModal, setConfirmModal] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState()
 
-  const addSection = () => controller.addNewSection(values.section)
+  useEffect(() => {
+    if (_editSection >= 0 && typeof _editSection === "number" && newSection === false) {
+      toggleNewSection()
+    } else if (_editSection == null && newSection === true) {
+      toggleNewSection()
+    }
+  }, [_editSection, newSection])
+
+  const addSection = () => controller.addNewSection("New Section")
   const updateSection = () => controller.updateSectionTitle(values.section)
   const editSection = (index) => controller.setEditSection(index)
   const cancelEditSection = () => controller.setEditSection(null)
@@ -144,7 +152,7 @@ const ListDirections = () => {
           )}
         </>
       ) : (
-        <Button onClick={toggleNewSection}>Add New Section</Button>
+        <Button onClick={addSection}>Add New Section</Button>
       )}
       <Dialog
         open={confirmModal}

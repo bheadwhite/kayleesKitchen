@@ -24,7 +24,10 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 500,
     marginRight: theme.spacing(1),
   },
-  optional: { color: "rgba(0,0,0,0.4)" },
+  optional: {
+    marginLeft: theme.spacing(1),
+    color: "rgba(0,0,0,0.4)",
+  },
   emptySpace: {
     height: 30,
   },

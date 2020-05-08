@@ -63,9 +63,9 @@ export default class RecipeController {
     clone.splice(index, 1)
     this.setIngredients(clone)
   }
-  addIngredient({ name, amount }) {
+  addIngredient({ name, amount, unique, optional }) {
     const clone = this.ingredients.slice()
-    clone.push({ name, amount })
+    clone.push({ name, amount, unique, optional })
     this.setIngredients(clone)
   }
   updateIngredient({ name, amount, ...props }) {
@@ -152,9 +152,7 @@ export default class RecipeController {
     section.editStep = null
     this.setDirections(clone)
   }
-  // onStepChanged
-  // onDirectionsChanged
-  // onSectionChanged
+  onPulledRecipe(recipe) {}
 }
 
 const recipe = new RecipeController()

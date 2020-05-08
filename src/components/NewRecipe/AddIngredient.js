@@ -45,7 +45,9 @@ const AddIngredient = () => {
         <TextField name='name' value={values.name} placeholder='Name' />
         <TextField name='amount' value={values.amount} placeholder='Amount' />
         {editIngredient?.name === "" ? (
-          <Button onClick={addIngredient}>Add Ingredient</Button>
+          <Button onClick={addIngredient} style={{ whitespace: "nowrap" }}>
+            Add Ingredient
+          </Button>
         ) : (
           <React.Fragment>
             <Button onClick={updateIngredient}>UpdateItem</Button>

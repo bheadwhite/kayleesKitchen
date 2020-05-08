@@ -55,7 +55,26 @@ export const getRecipes = () =>
     }
   })
 
+export const getRecipesByEmail = (email) =>
+  new Promise(async (res, rej) => {
+    try {
+      const docs = await recipesRef.where("email", "==", email).get()
+      res(docs)
+    } catch (error) {
+      rej(new Error(error))
+    }
+  })
+
 export const addRecipe = (recipe) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await recipesRef.add(recipe))
+    } catch (e) {
+      rej(e)
+    }
+  })
+
+export const getRecipeById = (recipe) =>
   new Promise(async (res, rej) => {
     try {
       res(await recipesRef.add(recipe))
