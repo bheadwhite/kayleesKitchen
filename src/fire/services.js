@@ -36,6 +36,15 @@ export const addUser = (user) =>
     }
   })
 
+export const getUser = (email) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await userRef.where("email", "==", email).get())
+    } catch (error) {
+      rej(new Error(error))
+    }
+  })
+
 export const signOut = () =>
   new Promise(async (res, rej) => {
     try {
