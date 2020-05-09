@@ -10,7 +10,6 @@ const useUsersRecipes = () => {
   if (user != null) {
     recipesRef.where("email", "==", user.email).onSnapshot((snapShot) => {
       if (recipes.length !== snapShot.docs.length) {
-        console.log("setting updated recipe")
         setRecipes(snapShot.docs)
       }
     })

@@ -16,7 +16,6 @@ const Recipe = ({ recipe }) => {
   const { ingredients, directions } = recipe
 
   if (typeof recipe === "undefined") return null
-  console.log(recipe)
   return (
     <div>
       <h1 className={classes.title}>{recipe.title}</h1>

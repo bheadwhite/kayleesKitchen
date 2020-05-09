@@ -33,7 +33,7 @@ const useStyles = makeStyles((theme) => ({
 const CreateNewRecipe = () => {
   const [, setIsSubmitting] = useState(false)
   const classes = useStyles()
-  const [editRecipeTitle, setEditRecipeTitle] = useState(undefined)
+  const [editMode, setEditMode] = useState(false)
   const controller = useRecipeController()
   const editIngredient = useEditIngredient()
   const editSection = useEditSection()
@@ -58,11 +58,11 @@ const CreateNewRecipe = () => {
 
   const handleOnPulledRecipe = ({ value }) => {
     controller.onPulledRecipe(value)
-    setEditRecipeTitle(value.title)
+    setEditMode(true)
   }
   const handleCancelEditMode = () => {
     controller.newRecipe()
-    setEditRecipeTitle(undefined)
+    setEditMode(false)
   }
 
   const onSubmit = async ({ directions, title }) => {
@@ -73,7 +73,6 @@ const CreateNewRecipe = () => {
     })
     //handle if editing existing
     if (id.length > 0) {
-      console.log("update", directions, title, id)
       try {
         await updateRecipeById(id, { title, ingredients, directions: dirs })
         toast.success("Your recipe has been updated.")
@@ -85,6 +84,7 @@ const CreateNewRecipe = () => {
       toast.success("Your recipe has been added.")
     }
     controller.newRecipe()
+    setEditMode(false)
   }
   const validate = () => {
     const errors = {}
@@ -137,8 +137,8 @@ const CreateNewRecipe = () => {
             <div>
               <ReactSelect
                 onChange={handleOnPulledRecipe}
-                defaultValue={editRecipeTitle ?? ""}
-                value={editRecipeTitle ?? ""}
+                defaultValue=''
+                value={editMode ? values.title : ""}
                 className={classes.select}
                 placeholder='edit one of your existing recipes...'
                 styles={{ menuPortal: (base) => ({ ...base, zIndex: 999 }) }}
@@ -151,14 +151,15 @@ const CreateNewRecipe = () => {
             <AddIngredient />
             <ListDirections />
             <div className={classes.submitContainer}>
-              {editRecipeTitle != null ? (
+              {editMode && (
                 <>
                   <Button onClick={handleCancelEditMode}>Cancel</Button>
                   <Button type='submit'>Update Recipe</Button>
                 </>
-              ) : (
-                <Button type='submit'>Submit Recipe</Button>
               )}
+              <Button type='submit' style={{ display: editMode ? "none" : "inline" }}>
+                Submit Recipe
+              </Button>
             </div>
           </form>
         )
