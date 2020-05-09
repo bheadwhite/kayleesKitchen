@@ -9,6 +9,7 @@ import useEditSection from "hooks/useEditSection"
 import useIngredients from "hooks/useIngredients"
 import useDirections from "hooks/useDirections"
 import useEditIngredient from "hooks/useEditIngredient"
+import useAuth from "hooks/useAuth"
 import { useRecipeController } from "controllers/RecipeController"
 import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
@@ -39,6 +40,7 @@ const CreateNewRecipe = () => {
   const editSection = useEditSection()
   const directions = useDirections()
   const ingredients = useIngredients()
+  const { user } = useAuth()
   const usersRecipes = useUsersRecipes().map((recipe) => {
     const data = recipe.data()
     if (data != null) {
@@ -80,14 +82,23 @@ const CreateNewRecipe = () => {
         console.log("error updating recipe", e)
       }
     } else {
-      await addRecipe({ title, ingredients, directions: dirs })
+      await addRecipe({ title, ingredients, directions: dirs, email: user.email })
       toast.success("Your recipe has been added.")
     }
     controller.newRecipe()
     setEditMode(false)
   }
-  const validate = () => {
+  const validate = (values) => {
     const errors = {}
+    if (values.title.length < 1) {
+      errors.title = "A recipe title is required."
+    }
+    if (ingredients.length < 1) {
+      errors.ingredients = "Please submit at least one ingredient."
+    }
+    if (values.directions.length < 1) {
+      errors.directions = "At least one direction is required."
+    }
     return errors
   }
   const getSteps = () => {
@@ -119,6 +130,7 @@ const CreateNewRecipe = () => {
           <form
             onSubmit={(e) => {
               e.preventDefault()
+              controller.setTitle(values.title)
               if (shouldNotSubmitAndFocusInputs(values, controller)) {
                 reset()
                 return
@@ -128,7 +140,7 @@ const CreateNewRecipe = () => {
               if (recipeErrors.length > 0) {
                 recipeErrors.forEach((error) => {
                   setIsSubmitting(false)
-                  toast.info(e)
+                  toast.info(error)
                 })
               } else {
                 handleSubmit(values)
