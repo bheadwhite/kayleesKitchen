@@ -13,6 +13,7 @@ import { useRecipeController } from "controllers/RecipeController"
 import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
 import useUsersRecipes from "hooks/useUsersRecipes"
+import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 
 const useStyles = makeStyles((theme) => ({
   submitContainer: {
@@ -32,6 +33,7 @@ const useStyles = makeStyles((theme) => ({
 const CreateNewRecipe = () => {
   const [, setIsSubmitting] = useState(false)
   const classes = useStyles()
+  const [editRecipeTitle, setEditRecipeTitle] = useState(undefined)
   const controller = useRecipeController()
   const editIngredient = useEditIngredient()
   const editSection = useEditSection()
@@ -50,8 +52,13 @@ const CreateNewRecipe = () => {
     }
   })
 
-  const handleRecipe = (value) => {
-    console.log("handling my own recipe", value)
+  const handleOnPulledRecipe = ({ value }) => {
+    controller.onPulledRecipe(value)
+    setEditRecipeTitle(value.title)
+  }
+  const handleCancelEditMode = () => {
+    controller.newRecipe()
+    setEditRecipeTitle(undefined)
   }
 
   const onSubmit = async ({ directions, title }) => {
@@ -76,41 +83,28 @@ const CreateNewRecipe = () => {
     return steps
   }
 
+  const defaultInitValues = {
+    title: controller.getTitle() || "",
+    name: editIngredient?.name ?? "",
+    amount: editIngredient?.amount ?? "",
+    directions,
+    optional: editIngredient?.optional ?? false,
+    unique: editIngredient?.unique ?? false,
+    section: directions[editSection]?.sectionTitle ?? "",
+    ...getSteps(),
+  }
+
   return (
-    <Form
-      onSubmit={onSubmit}
-      validate={validate}
-      initialValues={{
-        name: editIngredient?.name ?? "",
-        amount: editIngredient?.amount ?? "",
-        directions,
-        optional: editIngredient?.optional ?? false,
-        unique: editIngredient?.unique ?? false,
-        section: directions[editSection]?.sectionTitle ?? "",
-        ...getSteps(),
-      }}>
-      {({ handleSubmit, values, errors, form: { reset } }) => {
+    <Form onSubmit={onSubmit} validate={validate} initialValues={defaultInitValues}>
+      {({ handleSubmit, values, errors, form: { reset, initialize } }) => {
+        console.log("values", JSON.stringify(values, undefined, 2))
         return (
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              const activeE = document.activeElement
-              if (activeE.type === "text") {
-                if (activeE.name.match(/name|amount/gi)) {
-                  controller.addIngredient(values)
-                  reset()
-                  document.getElementById("nameInput").focus()
-                  return
-                } else if (activeE.name.match(/section/gi)) {
-                  controller.updateSectionTitle(values.section)
-                  return
-                } else if (activeE.name.match(/nextStep/gi)) {
-                  const name = activeE.name
-                  const index = Number(activeE.name.slice(activeE.name.indexOf("-") + 1))
-                  controller.addNewStep(index, values[name])
-                  document.getElementById(name).focus()
-                  return
-                }
+              if (shouldNotSubmitAndFocusInputs(values, controller)) {
+                reset()
+                return
               }
               const recipeErrors = Object.values(errors)
               setIsSubmitting(true)
@@ -125,21 +119,29 @@ const CreateNewRecipe = () => {
             }}>
             <div>
               <ReactSelect
-                onChange={handleRecipe}
-                defaultValue=''
+                onChange={handleOnPulledRecipe}
+                defaultValue={editRecipeTitle ?? ""}
+                value={editRecipeTitle ?? ""}
                 className={classes.select}
                 placeholder='edit one of your existing recipes...'
                 styles={{ menuPortal: (base) => ({ ...base, zIndex: 999 }) }}
                 menuPortalTarget={document.body}
                 options={usersRecipes}
               />
-              <TextField name='title' fullWidth label='Recipe Title' />
+              <TextField name='title' fullWidth label='Recipe Title' value={values.title} />
             </div>
             <ListIngredients />
             <AddIngredient />
             <ListDirections />
             <div className={classes.submitContainer}>
-              <Button type='submit'>Submit Recipe</Button>
+              {editRecipeTitle != null ? (
+                <>
+                  <Button onClick={handleCancelEditMode}>Cancel</Button>
+                  <Button type='submit'>Update Recipe</Button>
+                </>
+              ) : (
+                <Button type='submit'>Submit Recipe</Button>
+              )}
             </div>
           </form>
         )

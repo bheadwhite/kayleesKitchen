@@ -10,6 +10,7 @@ import { useFormState } from "react-final-form"
 import { makeStyles } from "@material-ui/core"
 import { useRecipeController } from "controllers/RecipeController"
 import useEditSection from "hooks/useEditSection"
+import clsx from "clsx"
 
 const useStyles = makeStyles((theme) => ({
   directionsList: {
@@ -68,7 +69,13 @@ const ListDirections = () => {
 
   // sectionRef.current.querySelector("input").value = ""
   // sectionRef.current.querySelector("input").focus()
-  const addSection = () => controller.addNewSection("New Section")
+  const addSection = () => {
+    controller.addNewSection("New Section")
+    setTimeout(() => {
+      const list = document.getElementsByClassName("directions-list")[0]
+      list.lastElementChild.querySelector("input").focus()
+    }, 0)
+  }
   const updateSection = () => controller.updateSectionTitle(values.section)
   const editSection = (index) => controller.setEditSection(index)
   const cancelEditSection = () => controller.setEditSection(null)
@@ -103,7 +110,7 @@ const ListDirections = () => {
   return (
     <>
       <div className={classes.directionsTitle}>Directions:</div>
-      <div className={classes.directionsList}>
+      <div className={clsx(classes.directionsList, "directions-list")}>
         {directions.length > 0 ? (
           directions.map(({ sectionTitle, steps, editStep: _editStep }, index) => {
             return (
@@ -140,7 +147,9 @@ const ListDirections = () => {
                     value={values[`nextStep-${index}`] ?? ""}
                   />
                   {_editStep == null ? (
-                    <Button onClick={() => newStep(index)}>Add Step</Button>
+                    <Button onClick={() => newStep(index)}>
+                      <span id='add-step'>Add Step</span>
+                    </Button>
                   ) : (
                     <>
                       <Button onClick={() => updateStep(index)}>Update Step</Button>
@@ -171,7 +180,9 @@ const ListDirections = () => {
             </>
           ) : (
             <>
-              <Button onClick={addSection}>Add</Button>
+              <Button onClick={addSection}>
+                <span id='add-section'>Add</span>
+              </Button>
               <Button onClick={toggleNewSection}>Cancel</Button>
             </>
           )}

@@ -4,6 +4,7 @@ import { Subject } from "rxjs"
 const default_editIngredient = { name: "", amount: "", optional: false, unique: false }
 
 export default class RecipeController {
+  id = ""
   title = ""
   directions = [
     // {
@@ -43,12 +44,28 @@ export default class RecipeController {
   setTitle(title) {
     this.title = title
   }
+  getTitle() {
+    return this.title
+  }
+  newRecipe() {
+    this.id = ""
+    this.setTitle("")
+    this.setDirections([])
+    this.setIngredients([])
+    this.editSection = null
+    this.editSectionSubject.next(null)
+    this.editIngredient = default_editIngredient
+    this.editIngredientSubject.next(null)
+  }
   //ingredients
   getIngredients() {
     return this.ingredients.slice()
   }
   getEditIngredient() {
     return this.editIngredient
+  }
+  getId() {
+    return this.id
   }
   setIngredients(ingredients) {
     this.ingredients = ingredients
@@ -126,12 +143,6 @@ export default class RecipeController {
     this.editSectionSubject.next(null)
   }
 
-  updateStep(sectionIndex, stepIndex, stepText) {
-    const clone = this.directions.slice()
-    clone[sectionIndex].steps.splice(stepIndex, 1, stepText)
-    this.setDirections(clone)
-  }
-
   setEditStep(sectionIndex, stepIndex) {
     const clone = this.getDirections()
     clone[sectionIndex].editStep = stepIndex
@@ -152,7 +163,15 @@ export default class RecipeController {
     section.editStep = null
     this.setDirections(clone)
   }
-  onPulledRecipe(recipe) {}
+  onPulledRecipe(recipe) {
+    const clonedDirs = recipe.directions.slice().map((section) => ({ ...section, editStep: null }))
+    const ingredients = recipe.ingredients.slice()
+
+    this.id = recipe.id
+    this.setTitle(recipe.title)
+    this.setDirections(clonedDirs)
+    this.setIngredients(ingredients)
+  }
 }
 
 const recipe = new RecipeController()
