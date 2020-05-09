@@ -15,7 +15,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const TextField = (props) => {
+const TextField = React.forwardRef((props, ref) => {
   const classes = useStyles()
   const { change } = useForm()
   const {
@@ -28,16 +28,18 @@ const TextField = (props) => {
 
   return (
     <MUITextField
+      id={props.id}
       error={error && touched}
       variant='outlined'
       autoComplete={props.name}
       onBlur={(e) => onBlur(e)}
+      ref={ref}
       onFocus={onFocus}
       onChange={handleChange}
       className={classes.textField}
       {...props}
     />
   )
-}
+})
 
 export default TextField

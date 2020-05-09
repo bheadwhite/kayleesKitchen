@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from "react"
+import React, { useState } from "react"
 import { TextField } from "components/finalForm"
 import { Button } from "components"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
-import useDirections from "hooks/useDirections"
-import useEditIngredient from "hooks/useEditIngredient"
 import { addRecipe } from "fire/services"
 import ReactSelect from "react-select"
 import useEditSection from "hooks/useEditSection"
 import useIngredients from "hooks/useIngredients"
+import useDirections from "hooks/useDirections"
+import useEditIngredient from "hooks/useEditIngredient"
+import { useRecipeController } from "controllers/RecipeController"
 import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
-import useAuth from "hooks/useAuth"
-import { getRecipe, getRecipesByEmail } from "fire/services"
+import useUsersRecipes from "hooks/useUsersRecipes"
 
 const useStyles = makeStyles((theme) => ({
   submitContainer: {
@@ -32,23 +32,35 @@ const useStyles = makeStyles((theme) => ({
 const CreateNewRecipe = () => {
   const [, setIsSubmitting] = useState(false)
   const classes = useStyles()
+  const controller = useRecipeController()
   const editIngredient = useEditIngredient()
   const editSection = useEditSection()
   const directions = useDirections()
   const ingredients = useIngredients()
-  const { user } = useAuth()
-  const [myRecipes, setMyRecipes] = useState([])
+  const usersRecipes = useUsersRecipes().map((recipe) => {
+    const data = recipe.data()
+    if (data != null) {
+      data.id = recipe.id
+      return {
+        label: data.title,
+        value: data,
+      }
+    } else {
+      return null
+    }
+  })
 
   const handleRecipe = (value) => {
     console.log("handling my own recipe", value)
   }
 
-  const onSubmit = ({ directions, title }) => {
+  const onSubmit = async ({ directions, title }) => {
     const dirs = directions.map((e) => {
       delete e.editStep
       return e
     })
-    addRecipe({ title, ingredients, directions: dirs }).then((e) => console.log("ok"))
+    await addRecipe({ title, ingredients, directions: dirs })
+    console.log("submitted")
   }
   const validate = () => {
     const errors = {}
@@ -64,20 +76,6 @@ const CreateNewRecipe = () => {
     return steps
   }
 
-  useEffect(() => {
-    ;(async () => {
-      if (user != null) {
-        try {
-          console.log(user.email)
-          const recipes = await getRecipesByEmail(user.email)
-          setMyRecipes(recipes.docs)
-        } catch (e) {
-          console.log("error pulling your recipes", e)
-        }
-      }
-    })()
-  }, [user])
-
   return (
     <Form
       onSubmit={onSubmit}
@@ -91,11 +89,29 @@ const CreateNewRecipe = () => {
         section: directions[editSection]?.sectionTitle ?? "",
         ...getSteps(),
       }}>
-      {({ handleSubmit, values, errors }) => {
+      {({ handleSubmit, values, errors, form: { reset } }) => {
         return (
           <form
             onSubmit={(e) => {
               e.preventDefault()
+              const activeE = document.activeElement
+              if (activeE.type === "text") {
+                if (activeE.name.match(/name|amount/gi)) {
+                  controller.addIngredient(values)
+                  reset()
+                  document.getElementById("nameInput").focus()
+                  return
+                } else if (activeE.name.match(/section/gi)) {
+                  controller.updateSectionTitle(values.section)
+                  return
+                } else if (activeE.name.match(/nextStep/gi)) {
+                  const name = activeE.name
+                  const index = Number(activeE.name.slice(activeE.name.indexOf("-") + 1))
+                  controller.addNewStep(index, values[name])
+                  document.getElementById(name).focus()
+                  return
+                }
+              }
               const recipeErrors = Object.values(errors)
               setIsSubmitting(true)
               if (recipeErrors.length > 0) {
@@ -115,18 +131,7 @@ const CreateNewRecipe = () => {
                 placeholder='edit one of your existing recipes...'
                 styles={{ menuPortal: (base) => ({ ...base, zIndex: 999 }) }}
                 menuPortalTarget={document.body}
-                options={myRecipes.map((recipe, index) => {
-                  const data = recipe.data()
-                  if (data != null) {
-                    data.id = recipe.id
-                    return {
-                      label: data.title,
-                      value: data,
-                    }
-                  } else {
-                    return null
-                  }
-                })}
+                options={usersRecipes}
               />
               <TextField name='title' fullWidth label='Recipe Title' />
             </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import useDirections from "hooks/useDirections"
 import { Button } from "components"
 import { Warning } from "@material-ui/icons"
@@ -45,6 +45,8 @@ const ListDirections = () => {
   const classes = useStyles()
   const controller = useRecipeController()
   const _editSection = useEditSection()
+  const stepRef = useRef()
+  const sectionRef = useRef()
   const [newSection, setNewSection] = useState(false)
   const [confirmModal, setConfirmModal] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState()
@@ -52,20 +54,35 @@ const ListDirections = () => {
   useEffect(() => {
     if (_editSection >= 0 && typeof _editSection === "number" && newSection === false) {
       toggleNewSection()
+      setTimeout(() => {
+        const ref = sectionRef.current.querySelector("input")
+        if (ref.value === "New Section") {
+          ref.focus()
+          ref.value = ""
+        }
+      }, 0)
     } else if (_editSection == null && newSection === true) {
       toggleNewSection()
     }
   }, [_editSection, newSection])
 
+  // sectionRef.current.querySelector("input").value = ""
+  // sectionRef.current.querySelector("input").focus()
   const addSection = () => controller.addNewSection("New Section")
   const updateSection = () => controller.updateSectionTitle(values.section)
   const editSection = (index) => controller.setEditSection(index)
   const cancelEditSection = () => controller.setEditSection(null)
   const deleteSection = () => controller.deleteSection(deleteIndex)
 
-  const newStep = (index) => controller.addNewStep(index, values[`nextStep-${index}`])
+  const newStep = (index) => {
+    controller.addNewStep(index, values[`nextStep-${index}`])
+    stepRef.current.querySelector("input").focus()
+  }
   const cancelStep = (index) => controller.clearEditStep(index)
-  const updateStep = (index) => controller.updateSectionStep(index, values)
+  const updateStep = (index) => {
+    controller.updateSectionStep(index, values)
+    stepRef.current.querySelector("input").focus()
+  }
   const editStep = (sectionIndex, stepIndex) => controller.setEditStep(sectionIndex, stepIndex)
   const deleteStep = (sectionIndex, stepIndex) => controller.deleteStep(sectionIndex, stepIndex)
 
@@ -115,9 +132,11 @@ const ListDirections = () => {
                 })}
                 <div className={classes.nextStepFields}>
                   <TextField
+                    id={`nextStep-${index}`}
                     name={`nextStep-${index}`}
                     fullWidth
                     placeholder='type next step'
+                    ref={stepRef}
                     value={values[`nextStep-${index}`] ?? ""}
                   />
                   {_editStep == null ? (
@@ -138,7 +157,13 @@ const ListDirections = () => {
       </div>
       {newSection ? (
         <>
-          <TextField name='section' placeholder='New Section Name' value={values.section} />
+          <TextField
+            id='sectionInput'
+            name='section'
+            placeholder='New Section Name'
+            ref={sectionRef}
+            value={values.section}
+          />
           {_editSection != null ? (
             <>
               <Button onClick={updateSection}>Update</Button>
