@@ -1,10 +1,20 @@
 import { useEffect, useState } from "react"
 import { getRecipesByEmail } from "fire/services"
+import { recipesRef } from "fire/firebase"
 import useAuth from "hooks/useAuth"
 
 const useUsersRecipes = () => {
   const [recipes, setRecipes] = useState([])
   const { user } = useAuth()
+
+  if (user != null) {
+    recipesRef.where("email", "==", user.email).onSnapshot((snapShot) => {
+      if (recipes.length !== snapShot.docs.length) {
+        console.log("setting updated recipe")
+        setRecipes(snapShot.docs)
+      }
+    })
+  }
 
   useEffect(() => {
     ;(async () => {

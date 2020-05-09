@@ -66,7 +66,7 @@ const Menu = (props) => {
         </CleanMenu>
       ) : (
         <CleanMenu>
-          <MenuItem onClick={handleCreateRecipe}>Create New Recipe</MenuItem>
+          <MenuItem onClick={handleCreateRecipe}>Recipe Editor</MenuItem>
           <MenuItem onClick={handleRecipe}>Recipes</MenuItem>
           <MenuItem onClick={handleSignOut}>Signout</MenuItem>
         </CleanMenu>

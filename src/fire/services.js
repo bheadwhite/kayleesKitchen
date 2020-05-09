@@ -82,3 +82,12 @@ export const getRecipeById = (recipe) =>
       rej(e)
     }
   })
+
+export const updateRecipeById = (id, recipe) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await recipesRef.doc(id).update(recipe))
+    } catch (e) {
+      rej(e)
+    }
+  })

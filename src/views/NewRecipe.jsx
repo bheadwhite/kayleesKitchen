@@ -1,9 +1,9 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { TextField } from "components/finalForm"
 import { Button } from "components"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
-import { addRecipe } from "fire/services"
+import { addRecipe, updateRecipeById } from "fire/services"
 import ReactSelect from "react-select"
 import useEditSection from "hooks/useEditSection"
 import useIngredients from "hooks/useIngredients"
@@ -52,6 +52,10 @@ const CreateNewRecipe = () => {
     }
   })
 
+  useEffect(() => {
+    return () => controller.newRecipe()
+  }, [controller])
+
   const handleOnPulledRecipe = ({ value }) => {
     controller.onPulledRecipe(value)
     setEditRecipeTitle(value.title)
@@ -62,12 +66,25 @@ const CreateNewRecipe = () => {
   }
 
   const onSubmit = async ({ directions, title }) => {
+    const id = controller.getId()
     const dirs = directions.map((e) => {
       delete e.editStep
       return e
     })
-    await addRecipe({ title, ingredients, directions: dirs })
-    console.log("submitted")
+    //handle if editing existing
+    if (id.length > 0) {
+      console.log("update", directions, title, id)
+      try {
+        await updateRecipeById(id, { title, ingredients, directions: dirs })
+        toast.success("Your recipe has been updated.")
+      } catch (e) {
+        console.log("error updating recipe", e)
+      }
+    } else {
+      await addRecipe({ title, ingredients, directions: dirs })
+      toast.success("Your recipe has been added.")
+    }
+    controller.newRecipe()
   }
   const validate = () => {
     const errors = {}
@@ -96,8 +113,8 @@ const CreateNewRecipe = () => {
 
   return (
     <Form onSubmit={onSubmit} validate={validate} initialValues={defaultInitValues}>
-      {({ handleSubmit, values, errors, form: { reset, initialize } }) => {
-        console.log("values", JSON.stringify(values, undefined, 2))
+      {({ handleSubmit, values, errors, form: { reset } }) => {
+        // console.log("values", JSON.stringify(values, undefined, 2))
         return (
           <form
             onSubmit={(e) => {
