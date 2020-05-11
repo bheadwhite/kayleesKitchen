@@ -3,7 +3,7 @@ import { TextField } from "components/finalForm"
 import { Button } from "components"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
-import { addRecipe, updateRecipeById } from "fire/services"
+import { addRecipe, updateRecipeById, uploadImageToRecipeId } from "fire/services"
 import ReactSelect from "react-select"
 import useEditSection from "hooks/useEditSection"
 import useIngredients from "hooks/useIngredients"
@@ -77,7 +77,15 @@ const RecipeEditor = () => {
     //handle if editing existing
     if (id.length > 0) {
       try {
-        await updateRecipeById(id, { title, ingredients, directions: dirs })
+        if (controller.getImageBuffer() != null) {
+          await uploadImageToRecipeId(controller.getImageBuffer(), user.email, id)
+        }
+        await updateRecipeById(id, {
+          title,
+          ingredients,
+          directions: dirs,
+          contributor: user.displayName,
+        })
         toast.success("Your recipe has been updated.")
       } catch (e) {
         console.log("error updating recipe", e)

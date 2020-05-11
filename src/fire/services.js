@@ -108,3 +108,12 @@ export const uploadRecipeEditorImage = (file, name) =>
       rej(e)
     }
   })
+
+export const uploadImageToRecipeId = (file, name, recipeId) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await storageRef.ref().child(`${name}/${recipeId}.png`).put(file))
+    } catch (e) {
+      rej(e)
+    }
+  })

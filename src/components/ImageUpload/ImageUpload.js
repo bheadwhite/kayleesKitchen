@@ -13,7 +13,8 @@ const ImageUpload = () => {
   const url = useRecipeImage()
 
   const onChange = async (e) => {
-    const file = await e.target.files[0].arrayBuffer()
+    const file = await e.target.files[0]
+    controller.setImageBuffer(file)
     uploadRecipeEditorImage(file, user.email)
       .then((e) => e.ref.getDownloadURL())
       .then((url) => {

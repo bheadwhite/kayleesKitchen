@@ -64,6 +64,12 @@ export default class RecipeController {
     this.image = img
     this.imageSubject.next(img)
   }
+  setImageBuffer(buffer) {
+    this.imageBuffer = buffer
+  }
+  getImageBuffer() {
+    return this.imageBuffer
+  }
   //ingredients
   getIngredients() {
     return this.ingredients.slice()
