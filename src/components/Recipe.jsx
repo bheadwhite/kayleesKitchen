@@ -8,6 +8,11 @@ const useStyles = makeStyles((theme) => ({
       fontSize: 25,
     },
   },
+  img: {
+    justifyContent: "center",
+    display: "flex",
+    alignItems: "center",
+  },
 }))
 
 const Recipe = ({ recipe }) => {
@@ -20,6 +25,11 @@ const Recipe = ({ recipe }) => {
   return (
     <div>
       <h1 className={classes.title}>{recipe.title}</h1>
+      <div className={classes.img}>
+        {recipe?.image != null && (
+          <img src={recipe.image} alt='recipe preview' style={{ maxHeight: 200 }} />
+        )}
+      </div>
       <p>{recipe.description}</p>
       {recipe?.contributor != null && <p>Contributed by: {recipe.contributor}</p>}
       <Ingredients ingredients={ingredients} />

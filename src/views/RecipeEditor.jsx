@@ -77,27 +77,32 @@ const RecipeEditor = () => {
     //handle if editing existing
     if (id.length > 0) {
       try {
+        let response
         if (controller.getImageBuffer() != null) {
-          await uploadImageToRecipeId(controller.getImageBuffer(), user.email, id)
+          const storage = await uploadImageToRecipeId(controller.getImageBuffer(), user.email, id)
+          response = await storage.ref.getDownloadURL()
         }
         await updateRecipeById(id, {
           title,
           ingredients,
           directions: dirs,
           contributor: user.displayName,
+          image: response,
         })
+
         toast.success("Your recipe has been updated.")
       } catch (e) {
         console.log("error updating recipe", e)
       }
     } else {
-      await addRecipe({
+      const recipe = await addRecipe({
         title,
         ingredients,
         directions: dirs,
         email: user.email,
         contributor: user.displayName,
       })
+      debugger
       toast.success("Your recipe has been added.")
     }
     controller.newRecipe()
