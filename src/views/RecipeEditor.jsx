@@ -15,6 +15,7 @@ import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
 import useUsersRecipes from "hooks/useUsersRecipes"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
+import { ImageUpload } from "components/ImageUpload"
 
 const useStyles = makeStyles((theme) => ({
   submitContainer: {
@@ -31,7 +32,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const CreateNewRecipe = () => {
+const RecipeEditor = () => {
   const [, setIsSubmitting] = useState(false)
   const classes = useStyles()
   const [editMode, setEditMode] = useState(false)
@@ -82,7 +83,13 @@ const CreateNewRecipe = () => {
         console.log("error updating recipe", e)
       }
     } else {
-      await addRecipe({ title, ingredients, directions: dirs, email: user.email })
+      await addRecipe({
+        title,
+        ingredients,
+        directions: dirs,
+        email: user.email,
+        contributor: user.displayName,
+      })
       toast.success("Your recipe has been added.")
     }
     controller.newRecipe()
@@ -101,6 +108,7 @@ const CreateNewRecipe = () => {
     }
     return errors
   }
+
   const getSteps = () => {
     const steps = {}
     directions.forEach((section, i) => {
@@ -113,6 +121,7 @@ const CreateNewRecipe = () => {
 
   const defaultInitValues = {
     title: controller.getTitle() || "",
+    image: controller?.image || "",
     name: editIngredient?.name ?? "",
     amount: editIngredient?.amount ?? "",
     directions,
@@ -125,7 +134,7 @@ const CreateNewRecipe = () => {
   return (
     <Form onSubmit={onSubmit} validate={validate} initialValues={defaultInitValues}>
       {({ handleSubmit, values, errors, form: { reset } }) => {
-        // console.log("values", JSON.stringify(values, undefined, 2))
+        console.log("values", JSON.stringify(values, undefined, 2))
         return (
           <form
             onSubmit={(e) => {
@@ -159,6 +168,7 @@ const CreateNewRecipe = () => {
               />
               <TextField name='title' fullWidth label='Recipe Title' value={values.title} />
             </div>
+            <ImageUpload />
             <ListIngredients />
             <AddIngredient />
             <ListDirections />
@@ -180,4 +190,4 @@ const CreateNewRecipe = () => {
   )
 }
 
-export default CreateNewRecipe
+export default RecipeEditor

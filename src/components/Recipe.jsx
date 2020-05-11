@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from "react"
+import React from "react"
 import { makeStyles } from "@material-ui/core"
 import Ingredients from "./Ingredients"
-import { getUser } from "fire/services"
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -13,17 +12,6 @@ const useStyles = makeStyles((theme) => ({
 
 const Recipe = ({ recipe }) => {
   const classes = useStyles()
-  const [contributor, setContributor] = useState({ firstName: "", lastName: "" })
-
-  useEffect(() => {
-    ;(async () => {
-      if (recipe?.email != null) {
-        const user = await getUser(recipe.email)
-        const obj = user.docs[0].data()
-        setContributor(obj)
-      }
-    })()
-  }, [recipe])
 
   if (recipe == null) return null
   const { ingredients, directions } = recipe
@@ -33,9 +21,7 @@ const Recipe = ({ recipe }) => {
     <div>
       <h1 className={classes.title}>{recipe.title}</h1>
       <p>{recipe.description}</p>
-      {recipe.email != null && (
-        <p>Contributed by: {contributor.firstName + " " + contributor.lastName}</p>
-      )}
+      {recipe?.contributor != null && <p>Contributed by: {recipe.contributor}</p>}
       <Ingredients ingredients={ingredients} />
       {directions?.map((section, index) => {
         return (

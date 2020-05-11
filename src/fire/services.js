@@ -1,4 +1,4 @@
-import { authRef, userRef, recipesRef } from "./firebase"
+import { authRef, userRef, recipesRef, storageRef } from "./firebase"
 
 export const loginWithEmail = ({ email, password }) =>
   new Promise(async (res, rej) => {
@@ -96,6 +96,14 @@ export const updateRecipeById = (id, recipe) =>
   new Promise(async (res, rej) => {
     try {
       res(await recipesRef.doc(id).update(recipe))
+    } catch (e) {
+      rej(e)
+    }
+  })
+export const uploadRecipeEditorImage = (file, name) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await storageRef.ref().child(`${name}/recipeEditor.png`).put(file))
     } catch (e) {
       rej(e)
     }
