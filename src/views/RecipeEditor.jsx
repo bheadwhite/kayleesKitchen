@@ -95,14 +95,19 @@ const RecipeEditor = () => {
         console.log("error updating recipe", e)
       }
     } else {
-      const recipe = await addRecipe({
+      const recipeRef = await addRecipe({
         title,
         ingredients,
         directions: dirs,
         email: user.email,
         contributor: user.displayName,
       })
-      debugger
+
+      const storage = await uploadImageToRecipeId(
+        controller.getImageBuffer(),
+        user.email,
+        recipeRef.id
+      )
       toast.success("Your recipe has been added.")
     }
     controller.newRecipe()
