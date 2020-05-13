@@ -26,7 +26,7 @@ const Recipe = ({ recipe }) => {
     <div>
       <h1 className={classes.title}>{recipe.title}</h1>
       <div className={classes.img}>
-        {recipe?.image != null && (
+        {recipe?.image != null && recipe?.image.length > 1 && (
           <img src={recipe.image} alt='recipe preview' style={{ maxHeight: 200 }} />
         )}
       </div>

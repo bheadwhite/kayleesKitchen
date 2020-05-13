@@ -77,10 +77,10 @@ const RecipeEditor = () => {
     //handle if editing existing
     if (id.length > 0) {
       try {
-        let response
+        let response = ""
         if (controller.getImageBuffer() != null) {
           const storage = await uploadImageToRecipeId(controller.getImageBuffer(), user.email, id)
-          response = await storage.ref.getDownloadURL()
+          response = (await storage.ref.getDownloadURL()) ?? ""
         }
         await updateRecipeById(id, {
           title,
