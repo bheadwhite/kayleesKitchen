@@ -37,12 +37,10 @@ const ListIngredients = () => {
   const controller = useRecipeController()
   const ingredients = useIngredients()
   const classes = useStyles()
-  const { reset } = useForm()
   const setEditIngredient = (ingredient) => controller.setEditIngredient(ingredient)
   const deleteIngredient = (i) => {
     controller.deleteIngredient(i)
     controller.resetEditIngredient()
-    reset()
   }
 
   return (

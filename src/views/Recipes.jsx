@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react"
 import Recipe from "../components/Recipe"
 import { makeStyles } from "@material-ui/core"
 import ReactSelect from "react-select"
-import { getRecipes } from "fire/services"
+import { recipesRef } from "fire/firebase"
 
 const useStyles = makeStyles((theme) => ({
   recipes: {
@@ -27,10 +27,17 @@ const Recipes = () => {
   }
 
   useEffect(() => {
-    ;(async () => {
-      const recipes = await getRecipes()
-      setMyRecipes(recipes.docs)
-    })()
+    recipesRef.onSnapshot((snapShot) => {
+      setMyRecipes(
+        snapShot.docs.sort((a, b) => {
+          if (a.data().title > b.data().title) {
+            return 1
+          } else {
+            return -1
+          }
+        })
+      )
+    })
   }, [])
 
   return (
@@ -40,7 +47,7 @@ const Recipes = () => {
         defaultValue=''
         className={classes.select}
         placeholder='Select a Recipe...'
-        options={myRecipes.map((recipe, index) => {
+        options={myRecipes.map((recipe) => {
           const data = recipe.data()
           if (data != null) {
             data.id = recipe.id

@@ -6,38 +6,14 @@ const default_editIngredient = { name: "", amount: "", optional: false, unique: 
 export default class RecipeController {
   id = ""
   title = ""
-  image = null
-  imageSubject = new Subject()
-  directions = [
-    // {
-    //   sectionTitle: "Bake",
-    //   steps: [
-    //     "do the 1st Bake thing",
-    //     "do the 2nd Bake thing",
-    //     "do the 3rd Bake thing",
-    //     "do the 4th Bake thing",
-    //   ],
-    //   editStep: null,
-    // },
-    // {
-    //   sectionTitle: "Serve",
-    //   steps: [
-    //     "do the 1st Serve thing",
-    //     "do the 2nd Serve thing",
-    //     "do the 3rd Serve thing",
-    //     "do the 4th Serve thing",
-    //   ],
-    //   editStep: null,
-    // },
-  ]
-  ingredients = [
-    // { name: "testing1", amount: "1 cup", optional: false, unique: false },
-    // { name: "testing2", amount: "1 cup", optional: true, unique: false },
-    // { name: "testing3", amount: "1 cup", optional: false, unique: true },
-  ]
+  imageUrl = null
+  imageUrlSubject = new Subject()
+  imageFile = null
+  imageFileSubject = new Subject()
+  directions = []
+  ingredients = []
   directionsSubject = new Subject()
   ingredientsSubject = new Subject()
-
   editIngredient = default_editIngredient
   editIngredientSubject = new Subject()
   editSection = null
@@ -52,7 +28,8 @@ export default class RecipeController {
   newRecipe() {
     this.id = ""
     this.setTitle("")
-    this.setImage(null)
+    this.setImageUrl(null)
+    this.setImageFile(null)
     this.setDirections([])
     this.setIngredients([])
     this.editSection = null
@@ -60,15 +37,16 @@ export default class RecipeController {
     this.editIngredient = default_editIngredient
     this.editIngredientSubject.next(null)
   }
-  setImage(img) {
-    this.image = img
-    this.imageSubject.next(img)
+  setImageUrl(url) {
+    this.imageUrl = url
+    this.imageUrlSubject.next(url)
   }
-  setImageBuffer(buffer) {
-    this.imageBuffer = buffer
+  setImageFile(file) {
+    this.imageFile = file
+    this.imageFileSubject.next(file)
   }
-  getImageBuffer() {
-    return this.imageBuffer
+  getImageFile() {
+    return this.imageFile
   }
   //ingredients
   getIngredients() {
@@ -109,15 +87,12 @@ export default class RecipeController {
     this.editIngredient = default_editIngredient
     this.editIngredientSubject.next(default_editIngredient)
   }
-  // directions
   getDirections() {
     return this.directions.slice()
   }
-
   getEditSteps() {
     return this.editSteps.slice()
   }
-
   setDirections(directions) {
     this.directions = directions
     this.directionsSubject.next(directions)
@@ -186,7 +161,6 @@ export default class RecipeController {
     this.setIngredients(ingredients)
   }
 }
-
 const recipe = new RecipeController()
 export const RecipeContext = React.createContext(recipe)
 export const useRecipeController = () => React.useContext(RecipeContext)

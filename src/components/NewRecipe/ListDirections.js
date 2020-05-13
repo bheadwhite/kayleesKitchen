@@ -57,9 +57,8 @@ const ListDirections = () => {
       toggleNewSection()
       setTimeout(() => {
         const ref = sectionRef.current.querySelector("input")
-        if (ref.value === "New Section") {
+        if (ref.value === "") {
           ref.focus()
-          ref.value = ""
         }
       }, 0)
     } else if (_editSection == null && newSection === true) {
@@ -70,7 +69,7 @@ const ListDirections = () => {
   // sectionRef.current.querySelector("input").value = ""
   // sectionRef.current.querySelector("input").focus()
   const addSection = () => {
-    controller.addNewSection("New Section")
+    controller.addNewSection("")
     setTimeout(() => {
       const list = document.getElementsByClassName("directions-list")[0]
       list.lastElementChild.querySelector("input").focus()
@@ -116,13 +115,15 @@ const ListDirections = () => {
             return (
               <div key={`${sectionTitle}-${index}`} className={classes.sectionContainer}>
                 <div className={classes.section}>
-                  {sectionTitle}
+                  {sectionTitle == "" ? "New Section Title" : sectionTitle}
                   <Button onClick={() => editSection(index)} style={{ marginLeft: "1rem" }}>
                     <Edit />
                   </Button>
-                  <Button onClick={() => handleDeleteSection(index)}>
-                    <Delete />
-                  </Button>
+                  {sectionTitle !== "" && (
+                    <Button onClick={() => handleDeleteSection(index)}>
+                      <Delete />
+                    </Button>
+                  )}
                 </div>
                 {steps.map((step, i) => {
                   return (

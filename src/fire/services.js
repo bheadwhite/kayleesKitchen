@@ -117,3 +117,12 @@ export const uploadImageToRecipeId = (file, name, recipeId) =>
       rej(e)
     }
   })
+
+export const getImageUrlByEmailId = (email, recipeId) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await storageRef.ref(`${email}/${recipeId}.png`).getDownloadURL())
+    } catch (e) {
+      rej(e)
+    }
+  })
