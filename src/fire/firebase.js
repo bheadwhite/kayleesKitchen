@@ -1,6 +1,8 @@
 import * as firebase from "firebase/app"
 import "firebase/firestore"
 import "firebase/auth"
+import "firebase/storage"
+import "firebase/analytics"
 
 const config = {
   apiKey: process.env.REACT_APP_API_KEY,
@@ -13,9 +15,11 @@ const config = {
   measurementId: process.env.REACT_APP_MEASUREMENT_ID,
 }
 firebase.initializeApp(config)
-// firebase.analytics()
+firebase.analytics()
 
 const firestoreRef = firebase.firestore()
+export const storageRef = firebase.storage()
 export const authRef = firebase.auth()
+
 export const userRef = firestoreRef.collection("users")
 export const recipesRef = firestoreRef.collection("recipes")

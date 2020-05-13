@@ -6,6 +6,8 @@ const default_editIngredient = { name: "", amount: "", optional: false, unique: 
 export default class RecipeController {
   id = ""
   title = ""
+  image = null
+  imageSubject = new Subject()
   directions = [
     // {
     //   sectionTitle: "Bake",
@@ -50,12 +52,23 @@ export default class RecipeController {
   newRecipe() {
     this.id = ""
     this.setTitle("")
+    this.setImage(null)
     this.setDirections([])
     this.setIngredients([])
     this.editSection = null
     this.editSectionSubject.next(null)
     this.editIngredient = default_editIngredient
     this.editIngredientSubject.next(null)
+  }
+  setImage(img) {
+    this.image = img
+    this.imageSubject.next(img)
+  }
+  setImageBuffer(buffer) {
+    this.imageBuffer = buffer
+  }
+  getImageBuffer() {
+    return this.imageBuffer
   }
   //ingredients
   getIngredients() {

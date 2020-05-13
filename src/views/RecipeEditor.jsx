@@ -3,7 +3,7 @@ import { TextField } from "components/finalForm"
 import { Button } from "components"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
-import { addRecipe, updateRecipeById } from "fire/services"
+import { addRecipe, updateRecipeById, uploadImageToRecipeId } from "fire/services"
 import ReactSelect from "react-select"
 import useEditSection from "hooks/useEditSection"
 import useIngredients from "hooks/useIngredients"
@@ -15,6 +15,7 @@ import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
 import useUsersRecipes from "hooks/useUsersRecipes"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
+import { ImageUpload } from "components/ImageUpload"
 
 const useStyles = makeStyles((theme) => ({
   submitContainer: {
@@ -31,7 +32,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const CreateNewRecipe = () => {
+const RecipeEditor = () => {
   const [, setIsSubmitting] = useState(false)
   const classes = useStyles()
   const [editMode, setEditMode] = useState(false)
@@ -76,13 +77,37 @@ const CreateNewRecipe = () => {
     //handle if editing existing
     if (id.length > 0) {
       try {
-        await updateRecipeById(id, { title, ingredients, directions: dirs })
+        let response = ""
+        if (controller.getImageBuffer() != null) {
+          const storage = await uploadImageToRecipeId(controller.getImageBuffer(), user.email, id)
+          response = (await storage.ref.getDownloadURL()) ?? ""
+        }
+        await updateRecipeById(id, {
+          title,
+          ingredients,
+          directions: dirs,
+          contributor: user.displayName,
+          image: response,
+        })
+
         toast.success("Your recipe has been updated.")
       } catch (e) {
         console.log("error updating recipe", e)
       }
     } else {
-      await addRecipe({ title, ingredients, directions: dirs, email: user.email })
+      const recipeRef = await addRecipe({
+        title,
+        ingredients,
+        directions: dirs,
+        email: user.email,
+        contributor: user.displayName,
+      })
+
+      const storage = await uploadImageToRecipeId(
+        controller.getImageBuffer(),
+        user.email,
+        recipeRef.id
+      )
       toast.success("Your recipe has been added.")
     }
     controller.newRecipe()
@@ -101,6 +126,7 @@ const CreateNewRecipe = () => {
     }
     return errors
   }
+
   const getSteps = () => {
     const steps = {}
     directions.forEach((section, i) => {
@@ -113,6 +139,7 @@ const CreateNewRecipe = () => {
 
   const defaultInitValues = {
     title: controller.getTitle() || "",
+    image: controller?.image || "",
     name: editIngredient?.name ?? "",
     amount: editIngredient?.amount ?? "",
     directions,
@@ -125,7 +152,7 @@ const CreateNewRecipe = () => {
   return (
     <Form onSubmit={onSubmit} validate={validate} initialValues={defaultInitValues}>
       {({ handleSubmit, values, errors, form: { reset } }) => {
-        // console.log("values", JSON.stringify(values, undefined, 2))
+        console.log("values", JSON.stringify(values, undefined, 2))
         return (
           <form
             onSubmit={(e) => {
@@ -159,6 +186,7 @@ const CreateNewRecipe = () => {
               />
               <TextField name='title' fullWidth label='Recipe Title' value={values.title} />
             </div>
+            <ImageUpload />
             <ListIngredients />
             <AddIngredient />
             <ListDirections />
@@ -180,4 +208,4 @@ const CreateNewRecipe = () => {
   )
 }
 
-export default CreateNewRecipe
+export default RecipeEditor

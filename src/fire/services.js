@@ -1,4 +1,4 @@
-import { authRef, userRef, recipesRef } from "./firebase"
+import { authRef, userRef, recipesRef, storageRef } from "./firebase"
 
 export const loginWithEmail = ({ email, password }) =>
   new Promise(async (res, rej) => {
@@ -31,6 +31,15 @@ export const addUser = (user) =>
         await userRef.add(clone)
       }
       res(createAuthUser(user.email, user.password))
+    } catch (error) {
+      rej(new Error(error))
+    }
+  })
+
+export const getUser = (email) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await userRef.where("email", "==", email).get())
     } catch (error) {
       rej(new Error(error))
     }
@@ -87,6 +96,23 @@ export const updateRecipeById = (id, recipe) =>
   new Promise(async (res, rej) => {
     try {
       res(await recipesRef.doc(id).update(recipe))
+    } catch (e) {
+      rej(e)
+    }
+  })
+export const uploadRecipeEditorImage = (file, name) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await storageRef.ref().child(`${name}/recipeEditor.png`).put(file))
+    } catch (e) {
+      rej(e)
+    }
+  })
+
+export const uploadImageToRecipeId = (file, name, recipeId) =>
+  new Promise(async (res, rej) => {
+    try {
+      res(await storageRef.ref().child(`${name}/${recipeId}.png`).put(file))
     } catch (e) {
       rej(e)
     }
