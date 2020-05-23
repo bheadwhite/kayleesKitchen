@@ -2,6 +2,7 @@ import React, { useState } from "react"
 import { Menu as MUIMenu, IconButton, makeStyles, MenuItem } from "@material-ui/core"
 import { Menu as MenuIcon } from "@material-ui/icons"
 import useAuth from "hooks/useAuth"
+import useAuthState from "hooks/useAuthState"
 import { signOut } from "fire/services"
 import { useHistory } from "react-router-dom"
 
@@ -10,6 +11,7 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 const Menu = (props) => {
+  const authState = useAuthState()
   const classes = useStyles()
   const [anchorEl, setAnchorEl] = useState(null)
   const [open, setOpen] = useState(false)
@@ -60,7 +62,7 @@ const Menu = (props) => {
         onClick={handleOpen}>
         <MenuIcon />
       </IconButton>
-      {user == null ? (
+      {authState != "loggedIn" ? (
         <CleanMenu>
           <MenuItem onClick={handleLogin}>Login</MenuItem>
         </CleanMenu>

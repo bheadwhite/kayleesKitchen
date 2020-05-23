@@ -67,7 +67,7 @@ export default class Authentication {
       this.state = value
       this.stateSubject.next(this.state)
 
-      return this.firebaseAuth
+      this.firebaseAuth
         .signInWithEmailAndPassword(email, password)
         .then(() => {
           const { value } = this.stateMachine.transition(this.state, "logInSuccess")
@@ -77,14 +77,14 @@ export default class Authentication {
           this.currentUser = this.firebaseAuth.currentUser
           this.userSubject.next(this.currentUser)
         })
-        .catch(() => {
+        .catch((e) => {
+          debugger
           const { value } = this.stateMachine.transition(this.state, "logInError")
           this.state = value
           this.stateSubject.next(this.state)
+          return Promise.reject(e.message)
         })
     }
-
-    return Promise.resolve("Blah")
   }
 
   logOut() {
@@ -105,11 +105,12 @@ export default class Authentication {
           this.currentUser = this.firebaseAuth.currentUser
           this.userSubject.next(this.currentUser)
         })
-        .catch(() => {
+        .catch((e) => {
           const { value } = this.stateMachine.transition(this.state, "logOutError")
           this.state = value
 
           this.stateSubject.next(this.state)
+          return Promise.reject(e)
         })
     }
 

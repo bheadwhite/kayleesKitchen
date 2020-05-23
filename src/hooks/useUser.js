@@ -7,7 +7,7 @@ const useAuthState = () => {
 
   useEffect(() => {
     const subscription = auth.onUserChange((user) => {
-      setState(user)
+      setUser(user)
     })
     return () => subscription.unsubscribe()
   }, [auth])

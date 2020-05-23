@@ -47,9 +47,13 @@ const Login = (props) => {
   const auth = useAuth()
 
   const onSubmit = (values) => {
-    auth.logIn(values.email, values.password).then(() => {
-      props.history.push("/recipes")
-    })
+    auth
+      .logIn(values.email, values.password)
+      .then(() => props.history.push("/recipes"))
+      .catch((e) => {
+        debugger
+        toast.error(e)
+      })
   }
   const handleRegister = () => {
     props.history.push("/register")
@@ -58,7 +62,7 @@ const Login = (props) => {
   return (
     <div className={classes.login}>
       <Form onSubmit={onSubmit}>
-        {({ handleSubmit, values }) => {
+        {({ handleSubmit }) => {
           return (
             <form onSubmit={handleSubmit}>
               <Paper className={classes.paper}>
