@@ -9,31 +9,31 @@ export default class RecipeController {
   image = null
   imageSubject = new Subject()
   directions = [
-    // {
-    //   sectionTitle: "Bake",
-    //   steps: [
-    //     "do the 1st Bake thing",
-    //     "do the 2nd Bake thing",
-    //     "do the 3rd Bake thing",
-    //     "do the 4th Bake thing",
-    //   ],
-    //   editStep: null,
-    // },
-    // {
-    //   sectionTitle: "Serve",
-    //   steps: [
-    //     "do the 1st Serve thing",
-    //     "do the 2nd Serve thing",
-    //     "do the 3rd Serve thing",
-    //     "do the 4th Serve thing",
-    //   ],
-    //   editStep: null,
-    // },
+    {
+      sectionTitle: "Bake",
+      steps: [
+        "do the 1st Bake thing",
+        "do the 2nd Bake thing",
+        "do the 3rd Bake thing",
+        "do the 4th Bake thing",
+      ],
+      editStep: null,
+    },
+    {
+      sectionTitle: "Serve",
+      steps: [
+        "do the 1st Serve thing",
+        "do the 2nd Serve thing",
+        "do the 3rd Serve thing",
+        "do the 4th Serve thing",
+      ],
+      editStep: null,
+    },
   ]
   ingredients = [
-    // { name: "testing1", amount: "1 cup", optional: false, unique: false },
-    // { name: "testing2", amount: "1 cup", optional: true, unique: false },
-    // { name: "testing3", amount: "1 cup", optional: false, unique: true },
+    { name: "testing1", amount: "1 cup", optional: false, unique: false },
+    { name: "testing2", amount: "1 cup", optional: true, unique: false },
+    { name: "testing3", amount: "1 cup", optional: false, unique: true },
   ]
   directionsSubject = new Subject()
   ingredientsSubject = new Subject()

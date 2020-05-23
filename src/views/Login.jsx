@@ -6,6 +6,7 @@ import { Button } from "components"
 import { makeStyles } from "@material-ui/core"
 import { loginWithEmail } from "fire/services"
 import { toast } from "react-toastify"
+import useAuth from "hooks/useAuth"
 
 const useStyles = makeStyles((theme) => ({
   login: {
@@ -43,15 +44,12 @@ const useStyles = makeStyles((theme) => ({
 
 const Login = (props) => {
   const classes = useStyles()
+  const auth = useAuth()
 
   const onSubmit = (values) => {
-    loginWithEmail(values)
-      .then((response) => {
-        props.history.push("/recipes")
-      })
-      .catch((error) => {
-        toast.error(error.message)
-      })
+    auth.logIn(values.email, values.password).then(() => {
+      props.history.push("/recipes")
+    })
   }
   const handleRegister = () => {
     props.history.push("/register")
