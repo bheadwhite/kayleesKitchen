@@ -67,7 +67,7 @@ export default class Authentication {
       this.state = value
       this.stateSubject.next(this.state)
 
-      this.firebaseAuth
+      return this.firebaseAuth
         .signInWithEmailAndPassword(email, password)
         .then(() => {
           const { value } = this.stateMachine.transition(this.state, "logInSuccess")
@@ -78,7 +78,6 @@ export default class Authentication {
           this.userSubject.next(this.currentUser)
         })
         .catch((e) => {
-          debugger
           const { value } = this.stateMachine.transition(this.state, "logInError")
           this.state = value
           this.stateSubject.next(this.state)

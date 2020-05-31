@@ -4,7 +4,6 @@ import { Form } from "react-final-form"
 import { TextField } from "components/finalForm"
 import { Button } from "components"
 import { makeStyles } from "@material-ui/core"
-import { loginWithEmail } from "fire/services"
 import { toast } from "react-toastify"
 import useAuth from "hooks/useAuth"
 
@@ -51,7 +50,6 @@ const Login = (props) => {
       .logIn(values.email, values.password)
       .then(() => props.history.push("/recipes"))
       .catch((e) => {
-        debugger
         toast.error(e)
       })
   }

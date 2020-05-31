@@ -2,8 +2,8 @@ import React, { useState } from "react"
 import { Menu as MUIMenu, IconButton, makeStyles, MenuItem } from "@material-ui/core"
 import { Menu as MenuIcon } from "@material-ui/icons"
 import useAuth from "hooks/useAuth"
+import { toast } from "react-toastify"
 import useAuthState from "hooks/useAuthState"
-import { signOut } from "fire/services"
 import { useHistory } from "react-router-dom"
 
 const useStyles = makeStyles((theme) => ({
@@ -15,7 +15,7 @@ const Menu = (props) => {
   const classes = useStyles()
   const [anchorEl, setAnchorEl] = useState(null)
   const [open, setOpen] = useState(false)
-  const { user } = useAuth()
+  const auth = useAuth()
   const history = useHistory()
 
   const handleOpen = (e) => {
@@ -31,9 +31,10 @@ const Menu = (props) => {
   const handleCreateRecipe = () => goTo("/recipes/new")
 
   const handleSignOut = () => {
-    signOut()
+    auth
+      .logOut()
       .then(() => goTo("/login"))
-      .catch((e) => console.log(e))
+      .catch((e) => toast.error(e))
   }
 
   const CleanMenu = ({ children }) => (
