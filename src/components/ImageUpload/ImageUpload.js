@@ -2,12 +2,12 @@ import React from "react"
 import { Button } from "components"
 import { uploadRecipeEditorImage } from "fire/services"
 import useRecipeImage from "hooks/useRecipeImage"
-import useAuth from "hooks/useAuth"
+import useUser from "hooks/useUser"
 import { useForm } from "react-final-form"
 import { useRecipeController } from "controllers/RecipeController"
 
 const ImageUpload = () => {
-  const { user } = useAuth()
+  const user = useUser()
   const { change } = useForm()
   const controller = useRecipeController()
   const url = useRecipeImage()

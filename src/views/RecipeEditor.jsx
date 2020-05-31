@@ -9,7 +9,7 @@ import useEditSection from "hooks/useEditSection"
 import useIngredients from "hooks/useIngredients"
 import useDirections from "hooks/useDirections"
 import useEditIngredient from "hooks/useEditIngredient"
-import useAuth from "hooks/useAuth"
+import useUser from "hooks/useUser"
 import { useRecipeController } from "controllers/RecipeController"
 import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
@@ -41,7 +41,7 @@ const RecipeEditor = () => {
   const editSection = useEditSection()
   const directions = useDirections()
   const ingredients = useIngredients()
-  const { user } = useAuth()
+  const user = useUser()
   const usersRecipes = useUsersRecipes().map((recipe) => {
     const data = recipe.data()
     if (data != null) {

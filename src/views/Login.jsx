@@ -66,8 +66,8 @@ const Login = (props) => {
               <Paper className={classes.paper}>
                 <div style={{ width: "100%", maxWidth: 400 }}>
                   <h2>Please sign in.</h2>
-                  <TextField name='email' label='Email' />
-                  <TextField name='password' label='Password' type='password' />
+                  <TextField name='email' label='Email' fullWidth />
+                  <TextField name='password' label='Password' type='password' fullWidth />
                   <div>
                     <Button onClick={handleRegister}>Register</Button>
                     <Button type='submit'>Submit</Button>
