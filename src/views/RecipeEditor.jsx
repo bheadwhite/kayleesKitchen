@@ -10,7 +10,7 @@ import {
   getImageUrlByEmailId,
 } from "fire/services"
 import ReactSelect from "react-select"
-import { useEditSection, useIngredients, useDirections, useAuth, useUsersRecipes } from "hooks"
+import { useEditSection, useIngredients, useDirections, useUser, useUsersRecipes } from "hooks"
 import { useRecipeController } from "controllers/RecipeController"
 import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
@@ -40,7 +40,7 @@ const RecipeEditor = () => {
   const editSection = useEditSection()
   const directions = useDirections()
   const ingredients = useIngredients()
-  const { user } = useAuth()
+  const user = useUser()
   const usersRecipes = useUsersRecipes().map((recipe) => {
     const data = recipe.data()
     if (data != null) {
