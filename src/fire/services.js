@@ -1,24 +1,10 @@
 import { authRef, userRef, recipesRef, storageRef } from "./firebase"
 
 export const loginWithEmail = ({ email, password }) =>
-  new Promise(async (res, rej) => {
-    try {
-      const response = authRef.signInWithEmailAndPassword(email, password)
-      res(response)
-    } catch (error) {
-      rej(new Error(error))
-    }
-  })
+  Promise.resolve(authRef.signInWithEmailAndPassword(email, password))
 
 export const createAuthUser = (email, password) =>
-  new Promise(async (res, rej) => {
-    try {
-      const response = authRef.createUserWithEmailAndPassword(email, password)
-      res(response)
-    } catch (error) {
-      rej(new Error(error))
-    }
-  })
+  Promise.resolve(authRef.createUserWithEmailAndPassword(email, password))
 
 export const addUser = (user) =>
   new Promise(async (res, rej) => {
@@ -36,93 +22,28 @@ export const addUser = (user) =>
     }
   })
 
-export const getUser = (email) =>
-  new Promise(async (res, rej) => {
-    try {
-      res(await userRef.where("email", "==", email).get())
-    } catch (error) {
-      rej(new Error(error))
-    }
-  })
+export const getUser = (email) => Promise.resolve(userRef.where("email", "==", email).get())
 
-export const signOut = () =>
-  new Promise(async (res, rej) => {
-    try {
-      res(authRef.signOut())
-    } catch (error) {
-      rej(new Error(error))
-    }
-  })
+export const signOut = () => Promise.resolve(authRef.signOut())
 
-export const getRecipes = () =>
-  new Promise(async (res, rej) => {
-    try {
-      const docs = await recipesRef.get()
-      res(docs)
-    } catch (error) {
-      rej(new Error(error))
-    }
-  })
+export const getRecipes = () => Promise.resolve(recipesRef.get())
 
 export const getRecipesByEmail = (email) =>
-  new Promise(async (res, rej) => {
-    try {
-      const docs = await recipesRef.where("email", "==", email).get()
-      res(docs)
-    } catch (error) {
-      rej(new Error(error))
-    }
-  })
+  Promise.resolve(recipesRef.where("email", "==", email).get())
 
-export const addRecipe = (recipe) =>
-  new Promise(async (res, rej) => {
-    try {
-      res(await recipesRef.add(recipe))
-    } catch (e) {
-      rej(e)
-    }
-  })
+export const addRecipe = (recipe) => Promise.resolve(recipesRef.add(recipe))
 
-export const getRecipeById = (recipe) =>
-  new Promise(async (res, rej) => {
-    try {
-      res(await recipesRef.add(recipe))
-    } catch (e) {
-      rej(e)
-    }
-  })
+export const getRecipeById = (recipe) => Promise.resolve(recipesRef.add(recipe))
 
-export const updateRecipeById = (id, recipe) =>
-  new Promise(async (res, rej) => {
-    try {
-      res(await recipesRef.doc(id).update(recipe))
-    } catch (e) {
-      rej(e)
-    }
-  })
+export const updateRecipeById = (id, recipe) => Promise.resolve(recipesRef.doc(id).update(recipe))
+
 export const uploadRecipeEditorImage = (file, name) =>
-  new Promise(async (res, rej) => {
-    try {
-      res(await storageRef.ref().child(`${name}/recipeEditor.png`).put(file))
-    } catch (e) {
-      rej(e)
-    }
-  })
+  Promise.resolve(storageRef.ref().child(`${name}/recipeEditor.png`).put(file))
 
 export const uploadImageToRecipeId = (file, name, recipeId) =>
-  new Promise(async (res, rej) => {
-    try {
-      res(await storageRef.ref().child(`${name}/${recipeId}.png`).put(file))
-    } catch (e) {
-      rej(e)
-    }
-  })
+  Promise.resolve(storageRef.ref().child(`${name}/${recipeId}.png`).put(file))
 
 export const getImageUrlByEmailId = (email, recipeId) =>
-  new Promise(async (res, rej) => {
-    try {
-      res(await storageRef.ref(`${email}/${recipeId}.png`).getDownloadURL())
-    } catch (e) {
-      rej(e)
-    }
-  })
+  Promise.resolve(storageRef.ref(`${email}/${recipeId}.png`).getDownloadURL())
+
+export const deleteRecipeById = (id) => Promise.resolve(recipesRef.doc(id).delete())

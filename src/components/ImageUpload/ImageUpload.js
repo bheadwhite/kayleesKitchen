@@ -1,15 +1,18 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Button } from "components"
 import { uploadRecipeEditorImage } from "fire/services"
 import { useRecipeUrl, useUser } from "hooks"
 import { useForm } from "react-final-form"
 import { useRecipeController } from "controllers/RecipeController"
+import { CircularProgress } from "@material-ui/core"
 
 const ImageUpload = () => {
   const user = useUser()
   const { change } = useForm()
   const controller = useRecipeController()
   const url = useRecipeUrl()
+  const [loadingUrl, setLoadingUrl] = useState(true)
+  const [loaded, setLoaded] = useState(false)
 
   const onChange = async (e) => {
     const file = await e.target.files[0]
@@ -29,6 +32,16 @@ const ImageUpload = () => {
     controller.setImageUrl(null)
   }
 
+  useEffect(() => {
+    if (url !== loadingUrl) {
+      setLoadingUrl(url)
+      setLoaded(false)
+    }
+    if (url == null && !loaded) {
+      setLoaded(true)
+    }
+  }, [url, loaded, loadingUrl])
+
   return (
     <div className='upload picture'>
       <input
@@ -47,7 +60,17 @@ const ImageUpload = () => {
       <Button onClick={removeImage} style={{ display: url == null && "none" }}>
         Cancel
       </Button>
-      <div>{url != null && <img src={url} alt='recipe preview' style={{ maxHeight: 200 }} />}</div>
+      <div>
+        {url != null && (
+          <img
+            src={url}
+            alt='recipe preview'
+            style={{ maxHeight: 200, display: loaded ? "block" : "none" }}
+            onLoad={() => setLoaded(true)}
+          />
+        )}
+      </div>
+      <div>{!loaded && <CircularProgress />}</div>
     </div>
   )
 }

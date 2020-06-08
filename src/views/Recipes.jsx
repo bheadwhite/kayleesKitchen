@@ -30,7 +30,7 @@ const Recipes = () => {
     recipesRef.onSnapshot((snapShot) => {
       setMyRecipes(
         snapShot.docs.sort((a, b) => {
-          if (a.data().title > b.data().title) {
+          if (a.data().title.toLowerCase() > b.data().title.toLowerCase()) {
             return 1
           } else {
             return -1

@@ -3,11 +3,14 @@ import { TextField } from "components/finalForm"
 import { Button } from "components"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
+import { Warning } from "@material-ui/icons"
+import theme from "theme"
 import {
   addRecipe,
   updateRecipeById,
   uploadImageToRecipeId,
   getImageUrlByEmailId,
+  deleteRecipeById,
 } from "fire/services"
 import ReactSelect from "react-select"
 import {
@@ -19,23 +22,30 @@ import {
   useEditIngredient,
 } from "hooks"
 import { useRecipeController } from "controllers/RecipeController"
-import { makeStyles } from "@material-ui/core"
+import { makeStyles, Dialog } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 import { ImageUpload } from "components/ImageUpload"
 
 const useStyles = makeStyles((theme) => ({
+  container: {
+    padding: theme.spacing(1.5),
+  },
   submitContainer: {
     display: "flex",
     justifyContent: "flex-end",
     background: "rgba(0, 0, 0, 0.05)",
     padding: theme.spacing(2),
     marginTop: theme.spacing(2),
-    marginBottom: 200,
   },
   select: {
     maxWidth: 400,
     background: "white",
+    marginBottom: ".3rem",
+  },
+  delete: {
+    marginTop: 80,
+    marginBottom: 200,
   },
 }))
 
@@ -44,8 +54,9 @@ const RecipeEditor = () => {
   const classes = useStyles()
   const [editMode, setEditMode] = useState(false)
   const controller = useRecipeController()
+  const [confirmModal, setConfirmModal] = useState(false)
   const editSection = useEditSection()
-  const editIngredient = useEditIngredient()
+  useEditIngredient()
   const directions = useDirections()
   const ingredients = useIngredients()
   const user = useUser()
@@ -62,17 +73,19 @@ const RecipeEditor = () => {
     }
   })
 
-  console.log("edititem", editIngredient)
-
   useEffect(() => {
     return () => controller.newRecipe()
   }, [controller])
 
   const handleOnPulledRecipe = ({ value }) => {
     controller.onPulledRecipe(value)
-    getImageUrlByEmailId(user.email, value.id)
-      .then((url) => controller.setImageUrl(url))
-      .catch((e) => console.log("error", e))
+    if (value.image != null && value.image.length > 0) {
+      getImageUrlByEmailId(user.email, value.id)
+        .then((url) => controller.setImageUrl(url))
+        .catch((e) => console.log("error", e))
+    } else {
+      controller.setImageUrl(undefined)
+    }
     setEditMode(true)
   }
   const handleCancelEditMode = () => {
@@ -80,55 +93,77 @@ const RecipeEditor = () => {
     setEditMode(false)
   }
 
-  const onSubmit = async ({ directions, title }) => {
-    const id = controller.getId()
-    const dirs = directions.map((e) => {
-      delete e.editStep
-      return e
+  const toggleConfirmModal = () => setConfirmModal((a) => !a)
+
+  const handleDelete = () =>
+    deleteRecipeById(controller.getId()).then(() => {
+      toast.success("Recipe has been deleted.")
+      controller.newRecipe()
+      setEditMode(false)
     })
-    if (id.length > 0) {
-      try {
-        let response
-        if (controller.getImageFile() != null) {
-          const storage = await uploadImageToRecipeId(controller.getImageFile(), user.email, id)
-          response = await storage.ref.getDownloadURL()
+  const confirmDeleteRecipe = () => {
+    toggleConfirmModal()
+    handleDelete()
+  }
+
+  const onSubmit = async ({ directions, title }) => {
+    try {
+      const id = controller.getId()
+      const storage =
+        controller.getImageFile() != null
+          ? await uploadImageToRecipeId(controller.getImageFile(), user.email, id)
+          : null
+      const imgUrl = storage != null ? await storage.ref.getDownloadURL() : ""
+      const dirs = directions.map((e) => {
+        delete e.editStep
+        return e
+      })
+
+      if (id.length > 0) {
+        if (imgUrl.length > 0) {
           await updateRecipeById(id, {
             title,
             ingredients,
             directions: dirs,
             contributor: user.displayName,
-            image: response,
+            image: imgUrl,
+          })
+        } else {
+          await updateRecipeById(id, {
+            title,
+            ingredients,
+            directions: dirs,
+            contributor: user.displayName,
           })
         }
-        await updateRecipeById(id, {
+        toast.success("Your recipe has been updated.")
+      } else {
+        const recipeRef = await addRecipe({
           title,
           ingredients,
           directions: dirs,
+          email: user.email,
           contributor: user.displayName,
+          image: imgUrl,
         })
-
-        toast.success("Your recipe has been updated.")
-      } catch (e) {
-        console.log("error updating recipe", e)
+        if (controller.getImageFile() != null) {
+          await uploadImageToRecipeId(controller.getImageFile(), user.email, recipeRef.id)
+        }
+        toast.success("Your recipe has been added.")
       }
-    } else {
-      const recipeRef = await addRecipe({
-        title,
-        ingredients,
-        directions: dirs,
-        email: user.email,
-        contributor: user.displayName,
-      })
-
-      await uploadImageToRecipeId(controller.getImageFile(), user.email, recipeRef.id)
-      toast.success("Your recipe has been added.")
+      setTimeout(() => {
+        if (editMode) {
+          setEditMode(false)
+        }
+        controller.newRecipe()
+      }, 1000)
+    } catch (e) {
+      toast.error(e)
     }
-    controller.newRecipe()
-    setEditMode(false)
   }
   const validate = (values) => {
     const errors = {}
-    if (values.title.length < 1) {
+    if (values.title.ength < 1) {
       errors.title = "A recipe title is required."
     }
     if (ingredients.length < 1) {
@@ -141,7 +176,6 @@ const RecipeEditor = () => {
   }
 
   const getSteps = () => {
-    console.log("init form: steps")
     const steps = {}
     directions.forEach((section, i) => {
       if (section.editStep != null) {
@@ -170,8 +204,6 @@ const RecipeEditor = () => {
       initialValues={defaultInitValues}
       destroyOnUnregister={true}>
       {({ handleSubmit, values, errors, form: { change } }) => {
-        console.log("values", JSON.stringify(values, undefined, 2))
-        console.log("currentEdit", controller.getEditIngredient())
         return (
           <form
             onSubmit={(e) => {
@@ -217,16 +249,30 @@ const RecipeEditor = () => {
             <AddIngredient />
             <ListDirections />
             <div className={classes.submitContainer}>
-              {editMode && (
-                <>
-                  <Button onClick={handleCancelEditMode}>Cancel</Button>
-                  <Button type='submit'>Update Recipe</Button>
-                </>
-              )}
-              <Button type='submit' style={{ display: editMode ? "none" : "inline" }}>
-                Submit Recipe
-              </Button>
+              {editMode && <Button onClick={handleCancelEditMode}>Cancel</Button>}
+              <Button type='submit'>{editMode ? "Update Recipe" : "Submit Recipe"}</Button>
             </div>
+            <div className={classes.delete}>
+              {editMode && (
+                <Button onClick={toggleConfirmModal} danger='true'>
+                  Delete
+                </Button>
+              )}
+            </div>
+            <Dialog
+              open={confirmModal}
+              id='confirm-dialog'
+              onClose={toggleConfirmModal}
+              title='delete section?'>
+              <div className={classes.container}>
+                <Warning />
+                <p>Are you sure you want to delete this Recipe?</p>
+                <Button style={{ marginRight: theme.spacing(1) }} onClick={toggleConfirmModal}>
+                  No
+                </Button>
+                <Button onClick={confirmDeleteRecipe}>Yes</Button>
+              </div>
+            </Dialog>
           </form>
         )
       }}

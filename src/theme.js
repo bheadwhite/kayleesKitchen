@@ -8,6 +8,7 @@ const theme = createMuiTheme({
       grayBorder: "#c4c4c4",
       turquoise: "#0d4a4d",
       white: "#fff",
+      red: "#d62727",
     },
   },
   spacing: 5,

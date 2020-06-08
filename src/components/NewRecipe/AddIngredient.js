@@ -56,7 +56,7 @@ const AddIngredient = () => {
           ref={addIngredientRef}
         />
         <TextField id='ingred-amt' name='amount' value={values.amount} placeholder='Amount' />
-        {editIngredient?.name === "" ? (
+        {editIngredient?.name === "" || editIngredient == null ? (
           <Button onClick={addIngredient} style={{ whitespace: "nowrap" }}>
             <span id='add-ingredient'>Add Ingredient</span>
           </Button>

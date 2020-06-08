@@ -118,12 +118,16 @@ const ListDirections = () => {
             return (
               <div key={`${sectionTitle}-${index}`} className={classes.sectionContainer}>
                 <div className={classes.section}>
-                  {sectionTitle === "" ? "Add Section Title" : sectionTitle}
+                  {sectionTitle === "" ? (
+                    <span style={{ color: "lightgrey" }}>Add a Section Title</span>
+                  ) : (
+                    sectionTitle
+                  )}
                   <Button onClick={() => editSection(index)} style={{ marginLeft: "1rem" }}>
-                    <Edit />
+                    Edit Title
                   </Button>
-                  <Button onClick={() => handleDeleteSection(index)}>
-                    <Delete />
+                  <Button onClick={() => handleDeleteSection(index)} danger='true'>
+                    Delete Section
                   </Button>
                 </div>
                 {steps.map((step, i) => {
@@ -133,7 +137,7 @@ const ListDirections = () => {
                       <Button onClick={() => editStep(index, i)} style={{ marginLeft: "1rem" }}>
                         <Edit />
                       </Button>
-                      <Button onClick={() => deleteStep(index, i)}>
+                      <Button onClick={() => deleteStep(index, i)} danger='true'>
                         <Delete />
                       </Button>
                       <Button onClick={() => moveStepUp(index, i)}>
@@ -177,7 +181,7 @@ const ListDirections = () => {
           <TextField
             id='sectionInput'
             name='section'
-            placeholder='New Section Name'
+            placeholder='New Section Title'
             ref={sectionRef}
             value={values.section}
           />
