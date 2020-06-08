@@ -4,7 +4,7 @@ import { Button } from "components"
 import { Warning } from "@material-ui/icons"
 import theme from "theme"
 import { Dialog } from "@material-ui/core"
-import { Edit, Delete } from "@material-ui/icons"
+import { Edit, Delete, ArrowUpward, ArrowDownward } from "@material-ui/icons"
 import { TextField } from "components/finalForm"
 import { useFormState } from "react-final-form"
 import { makeStyles } from "@material-ui/core"
@@ -57,9 +57,8 @@ const ListDirections = () => {
       toggleNewSection()
       setTimeout(() => {
         const ref = sectionRef.current.querySelector("input")
-        if (ref.value === "New Section") {
+        if (ref.value === "") {
           ref.focus()
-          ref.value = ""
         }
       }, 0)
     } else if (_editSection == null && newSection === true) {
@@ -70,7 +69,7 @@ const ListDirections = () => {
   // sectionRef.current.querySelector("input").value = ""
   // sectionRef.current.querySelector("input").focus()
   const addSection = () => {
-    controller.addNewSection("New Section")
+    controller.addNewSection("")
     setTimeout(() => {
       const list = document.getElementsByClassName("directions-list")[0]
       list.lastElementChild.querySelector("input").focus()
@@ -92,6 +91,9 @@ const ListDirections = () => {
   }
   const editStep = (sectionIndex, stepIndex) => controller.setEditStep(sectionIndex, stepIndex)
   const deleteStep = (sectionIndex, stepIndex) => controller.deleteStep(sectionIndex, stepIndex)
+  const moveStepUp = (sectionIndex, stepIndex) => controller.moveStepUpOne(sectionIndex, stepIndex)
+  const moveStepDown = (sectionIndex, stepIndex) =>
+    controller.moveStepDownOne(sectionIndex, stepIndex)
 
   const toggleNewSection = () => setNewSection((a) => !a)
   const toggleConfirmModal = () => setConfirmModal((a) => !a)
@@ -116,7 +118,7 @@ const ListDirections = () => {
             return (
               <div key={`${sectionTitle}-${index}`} className={classes.sectionContainer}>
                 <div className={classes.section}>
-                  {sectionTitle}
+                  {sectionTitle === "" ? "Add Section Title" : sectionTitle}
                   <Button onClick={() => editSection(index)} style={{ marginLeft: "1rem" }}>
                     <Edit />
                   </Button>
@@ -133,6 +135,12 @@ const ListDirections = () => {
                       </Button>
                       <Button onClick={() => deleteStep(index, i)}>
                         <Delete />
+                      </Button>
+                      <Button onClick={() => moveStepUp(index, i)}>
+                        <ArrowUpward />
+                      </Button>
+                      <Button onClick={() => moveStepDown(index, i)}>
+                        <ArrowDownward />
                       </Button>
                     </div>
                   )

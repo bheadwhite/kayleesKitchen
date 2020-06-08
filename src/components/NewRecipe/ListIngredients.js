@@ -4,7 +4,6 @@ import { makeStyles } from "@material-ui/core"
 import { Button } from "components"
 import { Edit, Delete } from "@material-ui/icons"
 import { useRecipeController } from "controllers/RecipeController"
-import { useForm } from "react-final-form"
 
 const useStyles = makeStyles((theme) => ({
   ingredientsList: {
@@ -37,12 +36,10 @@ const ListIngredients = () => {
   const controller = useRecipeController()
   const ingredients = useIngredients()
   const classes = useStyles()
-  const { reset } = useForm()
   const setEditIngredient = (ingredient) => controller.setEditIngredient(ingredient)
   const deleteIngredient = (i) => {
     controller.deleteIngredient(i)
     controller.resetEditIngredient()
-    reset()
   }
 
   return (

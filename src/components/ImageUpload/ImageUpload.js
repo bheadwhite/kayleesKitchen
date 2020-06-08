@@ -1,24 +1,23 @@
 import React from "react"
 import { Button } from "components"
 import { uploadRecipeEditorImage } from "fire/services"
-import useRecipeImage from "hooks/useRecipeImage"
-import useAuth from "hooks/useAuth"
+import { useRecipeUrl, useUser } from "hooks"
 import { useForm } from "react-final-form"
 import { useRecipeController } from "controllers/RecipeController"
 
 const ImageUpload = () => {
-  const { user } = useAuth()
+  const user = useUser()
   const { change } = useForm()
   const controller = useRecipeController()
-  const url = useRecipeImage()
+  const url = useRecipeUrl()
 
   const onChange = async (e) => {
     const file = await e.target.files[0]
-    controller.setImageBuffer(file)
+    controller.setImageFile(file)
     uploadRecipeEditorImage(file, user.email)
       .then((e) => e.ref.getDownloadURL())
       .then((url) => {
-        controller.setImage(url)
+        controller.setImageUrl(url)
         change("image", url)
       })
       .catch((e) => console.log("error", e))
@@ -26,7 +25,8 @@ const ImageUpload = () => {
 
   const removeImage = () => {
     change("image", null)
-    controller.setImage(null)
+    controller.setImageFile(null)
+    controller.setImageUrl(null)
   }
 
   return (
@@ -43,10 +43,10 @@ const ImageUpload = () => {
         <Button component='span' size='large' color='primary'>
           Upload Image
         </Button>
-        <Button onClick={removeImage} style={{ display: url == null && "none" }}>
-          Cancel
-        </Button>
       </label>
+      <Button onClick={removeImage} style={{ display: url == null && "none" }}>
+        Cancel
+      </Button>
       <div>{url != null && <img src={url} alt='recipe preview' style={{ maxHeight: 200 }} />}</div>
     </div>
   )

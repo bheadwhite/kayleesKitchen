@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react"
 import { useRecipeController } from "controllers/RecipeController"
 
-const useRecipeImage = () => {
+const useRecipeUrl = () => {
   const recipeController = useRecipeController()
   const [url, setUrl] = useState(recipeController.image)
 
   useEffect(() => {
-    const subscription = recipeController.imageSubject.subscribe({
+    const subscription = recipeController.imageUrlSubject.subscribe({
       next(url) {
         setUrl(url)
       },
@@ -17,4 +17,4 @@ const useRecipeImage = () => {
   return url
 }
 
-export default useRecipeImage
+export default useRecipeUrl

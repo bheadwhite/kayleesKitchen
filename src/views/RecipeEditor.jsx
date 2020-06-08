@@ -3,17 +3,24 @@ import { TextField } from "components/finalForm"
 import { Button } from "components"
 import { Form } from "react-final-form"
 import { toast } from "react-toastify"
-import { addRecipe, updateRecipeById, uploadImageToRecipeId } from "fire/services"
+import {
+  addRecipe,
+  updateRecipeById,
+  uploadImageToRecipeId,
+  getImageUrlByEmailId,
+} from "fire/services"
 import ReactSelect from "react-select"
-import useEditSection from "hooks/useEditSection"
-import useIngredients from "hooks/useIngredients"
-import useDirections from "hooks/useDirections"
-import useEditIngredient from "hooks/useEditIngredient"
-import useAuth from "hooks/useAuth"
+import {
+  useEditSection,
+  useIngredients,
+  useDirections,
+  useUser,
+  useUsersRecipes,
+  useEditIngredient,
+} from "hooks"
 import { useRecipeController } from "controllers/RecipeController"
 import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
-import useUsersRecipes from "hooks/useUsersRecipes"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 import { ImageUpload } from "components/ImageUpload"
 
@@ -37,11 +44,11 @@ const RecipeEditor = () => {
   const classes = useStyles()
   const [editMode, setEditMode] = useState(false)
   const controller = useRecipeController()
-  const editIngredient = useEditIngredient()
   const editSection = useEditSection()
+  const editIngredient = useEditIngredient()
   const directions = useDirections()
   const ingredients = useIngredients()
-  const { user } = useAuth()
+  const user = useUser()
   const usersRecipes = useUsersRecipes().map((recipe) => {
     const data = recipe.data()
     if (data != null) {
@@ -55,12 +62,17 @@ const RecipeEditor = () => {
     }
   })
 
+  console.log("edititem", editIngredient)
+
   useEffect(() => {
     return () => controller.newRecipe()
   }, [controller])
 
   const handleOnPulledRecipe = ({ value }) => {
     controller.onPulledRecipe(value)
+    getImageUrlByEmailId(user.email, value.id)
+      .then((url) => controller.setImageUrl(url))
+      .catch((e) => console.log("error", e))
     setEditMode(true)
   }
   const handleCancelEditMode = () => {
@@ -74,20 +86,25 @@ const RecipeEditor = () => {
       delete e.editStep
       return e
     })
-    //handle if editing existing
     if (id.length > 0) {
       try {
-        let response = ""
-        if (controller.getImageBuffer() != null) {
-          const storage = await uploadImageToRecipeId(controller.getImageBuffer(), user.email, id)
-          response = (await storage.ref.getDownloadURL()) ?? ""
+        let response
+        if (controller.getImageFile() != null) {
+          const storage = await uploadImageToRecipeId(controller.getImageFile(), user.email, id)
+          response = await storage.ref.getDownloadURL()
+          await updateRecipeById(id, {
+            title,
+            ingredients,
+            directions: dirs,
+            contributor: user.displayName,
+            image: response,
+          })
         }
         await updateRecipeById(id, {
           title,
           ingredients,
           directions: dirs,
           contributor: user.displayName,
-          image: response,
         })
 
         toast.success("Your recipe has been updated.")
@@ -103,11 +120,7 @@ const RecipeEditor = () => {
         contributor: user.displayName,
       })
 
-      const storage = await uploadImageToRecipeId(
-        controller.getImageBuffer(),
-        user.email,
-        recipeRef.id
-      )
+      await uploadImageToRecipeId(controller.getImageFile(), user.email, recipeRef.id)
       toast.success("Your recipe has been added.")
     }
     controller.newRecipe()
@@ -128,6 +141,7 @@ const RecipeEditor = () => {
   }
 
   const getSteps = () => {
+    console.log("init form: steps")
     const steps = {}
     directions.forEach((section, i) => {
       if (section.editStep != null) {
@@ -138,28 +152,31 @@ const RecipeEditor = () => {
   }
 
   const defaultInitValues = {
-    title: controller.getTitle() || "",
-    image: controller?.image || "",
-    name: editIngredient?.name ?? "",
-    amount: editIngredient?.amount ?? "",
+    title: controller?.getTitle() || "",
+    image: controller?.getImageFile() || "",
+    name: controller.getEditIngredient()?.name ?? "",
+    amount: controller.getEditIngredient()?.amount ?? "",
     directions,
-    optional: editIngredient?.optional ?? false,
-    unique: editIngredient?.unique ?? false,
+    optional: controller.getEditIngredient()?.optional ?? false,
+    unique: controller.getEditIngredient()?.unique ?? false,
     section: directions[editSection]?.sectionTitle ?? "",
     ...getSteps(),
   }
 
   return (
-    <Form onSubmit={onSubmit} validate={validate} initialValues={defaultInitValues}>
-      {({ handleSubmit, values, errors, form: { reset } }) => {
+    <Form
+      onSubmit={onSubmit}
+      validate={validate}
+      initialValues={defaultInitValues}
+      destroyOnUnregister={true}>
+      {({ handleSubmit, values, errors, form: { change } }) => {
         console.log("values", JSON.stringify(values, undefined, 2))
+        console.log("currentEdit", controller.getEditIngredient())
         return (
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              controller.setTitle(values.title)
-              if (shouldNotSubmitAndFocusInputs(values, controller)) {
-                reset()
+              if (shouldNotSubmitAndFocusInputs(values, controller, change)) {
                 return
               }
               const recipeErrors = Object.values(errors)
@@ -184,7 +201,16 @@ const RecipeEditor = () => {
                 menuPortalTarget={document.body}
                 options={usersRecipes}
               />
-              <TextField name='title' fullWidth label='Recipe Title' value={values.title} />
+              <TextField
+                name='title'
+                fullWidth
+                label='Recipe Title'
+                value={values.title}
+                onChange={(e) => {
+                  change("title", e.target.value)
+                  controller.setTitle(e.target.value)
+                }}
+              />
             </div>
             <ImageUpload />
             <ListIngredients />
