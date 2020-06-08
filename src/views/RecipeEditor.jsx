@@ -26,6 +26,7 @@ import { makeStyles, Dialog } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 import { ImageUpload } from "components/ImageUpload"
+import { CircularProgress } from "@material-ui/core"
 
 const useStyles = makeStyles((theme) => ({
   container: {
@@ -60,6 +61,7 @@ const RecipeEditor = () => {
   const directions = useDirections()
   const ingredients = useIngredients()
   const user = useUser()
+  const [loading, setLoading] = useState(false)
   const usersRecipes = useUsersRecipes().map((recipe) => {
     const data = recipe.data()
     if (data != null) {
@@ -156,9 +158,11 @@ const RecipeEditor = () => {
           setEditMode(false)
         }
         controller.newRecipe()
+        setLoading(false)
       }, 1000)
     } catch (e) {
       toast.error(e)
+      setLoading(false)
     }
   }
   const validate = (values) => {
@@ -219,6 +223,7 @@ const RecipeEditor = () => {
                   toast.info(error)
                 })
               } else {
+                setLoading(true)
                 handleSubmit(values)
               }
             }}>
@@ -249,8 +254,11 @@ const RecipeEditor = () => {
             <AddIngredient />
             <ListDirections />
             <div className={classes.submitContainer}>
-              {editMode && <Button onClick={handleCancelEditMode}>Cancel</Button>}
-              <Button type='submit'>{editMode ? "Update Recipe" : "Submit Recipe"}</Button>
+              {editMode && !loading && <Button onClick={handleCancelEditMode}>Cancel</Button>}
+              <Button type='submit' style={{ display: loading ? "none" : "block" }}>
+                {editMode ? "Update Recipe" : "Submit Recipe"}
+              </Button>
+              {loading && <CircularProgress />}
             </div>
             <div className={classes.delete}>
               {editMode && (

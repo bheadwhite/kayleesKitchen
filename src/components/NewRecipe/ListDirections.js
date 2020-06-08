@@ -119,7 +119,7 @@ const ListDirections = () => {
               <div key={`${sectionTitle}-${index}`} className={classes.sectionContainer}>
                 <div className={classes.section}>
                   {sectionTitle === "" ? (
-                    <span style={{ color: "lightgrey" }}>Add a Section Title</span>
+                    <span style={{ color: "lightgrey" }}>Section Title</span>
                   ) : (
                     sectionTitle
                   )}

@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { Button } from "components"
 import { uploadRecipeEditorImage } from "fire/services"
 import { useRecipeUrl, useUser } from "hooks"
 import { useForm } from "react-final-form"
 import { useRecipeController } from "controllers/RecipeController"
-import { CircularProgress } from "@material-ui/core"
+import { CircularProgress, LinearProgress } from "@material-ui/core"
 
 const ImageUpload = () => {
   const user = useUser()
@@ -12,18 +12,28 @@ const ImageUpload = () => {
   const controller = useRecipeController()
   const url = useRecipeUrl()
   const [loadingUrl, setLoadingUrl] = useState(true)
+  const [uploading, setUploading] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const imageInputRef = useRef()
 
-  const onChange = async (e) => {
-    const file = await e.target.files[0]
+  const onChange = async (event) => {
+    const file = await event.target.files[0]
     controller.setImageFile(file)
+    setUploading(true)
     uploadRecipeEditorImage(file, user.email)
       .then((e) => e.ref.getDownloadURL())
       .then((url) => {
         controller.setImageUrl(url)
         change("image", url)
+        setUploading(false)
+        debugger
+        imageInputRef.current.value = ""
       })
-      .catch((e) => console.log("error", e))
+      .catch((e) => {
+        console.log("error", e)
+        setUploading(false)
+        imageInputRef.current.value = ""
+      })
   }
 
   const removeImage = () => {
@@ -45,6 +55,7 @@ const ImageUpload = () => {
   return (
     <div className='upload picture'>
       <input
+        ref={imageInputRef}
         color='primary'
         accept='image/*'
         type='file'
@@ -60,6 +71,7 @@ const ImageUpload = () => {
       <Button onClick={removeImage} style={{ display: url == null && "none" }}>
         Cancel
       </Button>
+      {uploading && <LinearProgress />}
       <div>
         {url != null && (
           <img
