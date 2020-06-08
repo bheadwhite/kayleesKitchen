@@ -1,4 +1,4 @@
-export const shouldNotSubmitAndFocusInputs = (values, controller) => {
+export const shouldNotSubmitAndFocusInputs = (values, controller, change) => {
   const activeE = document.activeElement
   if (activeE.type === "text") {
     if (activeE.name.match(/name|amount/gi)) {
@@ -7,6 +7,10 @@ export const shouldNotSubmitAndFocusInputs = (values, controller) => {
         controller.updateIngredient(values)
       } else {
         controller.addIngredient(values)
+        change("name", "")
+        change("amount", "")
+        change("unique", false)
+        change("optional", false)
       }
       document.getElementById("nameInput").focus()
       return true

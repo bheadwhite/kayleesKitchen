@@ -63,7 +63,7 @@ const Menu = (props) => {
         onClick={handleOpen}>
         <MenuIcon />
       </IconButton>
-      {authState != "loggedIn" ? (
+      {authState !== "loggedIn" ? (
         <CleanMenu>
           <MenuItem onClick={handleLogin}>Login</MenuItem>
         </CleanMenu>

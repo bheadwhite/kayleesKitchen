@@ -34,6 +34,8 @@ const AddIngredient = () => {
     addIngredientRef.current.querySelector("input").focus()
     change("name", "")
     change("amount", "")
+    change("unique", false)
+    change("optional", false)
   }
 
   const resetEditIngredient = () => controller.resetEditIngredient()

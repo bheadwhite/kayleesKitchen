@@ -26,6 +26,7 @@ const ImageUpload = () => {
   const removeImage = () => {
     change("image", null)
     controller.setImageFile(null)
+    controller.setImageUrl(null)
   }
 
   return (
@@ -42,10 +43,10 @@ const ImageUpload = () => {
         <Button component='span' size='large' color='primary'>
           Upload Image
         </Button>
-        <Button onClick={removeImage} style={{ display: url == null && "none" }}>
-          Cancel
-        </Button>
       </label>
+      <Button onClick={removeImage} style={{ display: url == null && "none" }}>
+        Cancel
+      </Button>
       <div>{url != null && <img src={url} alt='recipe preview' style={{ maxHeight: 200 }} />}</div>
     </div>
   )

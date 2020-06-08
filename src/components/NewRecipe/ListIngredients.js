@@ -4,7 +4,6 @@ import { makeStyles } from "@material-ui/core"
 import { Button } from "components"
 import { Edit, Delete } from "@material-ui/icons"
 import { useRecipeController } from "controllers/RecipeController"
-import { useForm } from "react-final-form"
 
 const useStyles = makeStyles((theme) => ({
   ingredientsList: {

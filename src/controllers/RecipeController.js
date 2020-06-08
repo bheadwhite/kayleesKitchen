@@ -106,6 +106,20 @@ export default class RecipeController {
     clone[sectionIndex].steps.splice(indexOfStep, 1)
     this.setDirections(clone)
   }
+  moveStepUpOne(sectionIndex, indexOfStep) {
+    if (indexOfStep === 0) return
+    const clone = this.directions.slice()
+    const [removedStep] = clone[sectionIndex].steps.splice(indexOfStep, 1)
+    clone[sectionIndex].steps.splice(indexOfStep - 1, 0, removedStep)
+    this.setDirections(clone)
+  }
+  moveStepDownOne(sectionIndex, indexOfStep) {
+    if (indexOfStep === this.directions[sectionIndex].steps.length - 1) return
+    const clone = this.directions.slice()
+    const [removedStep] = clone[sectionIndex].steps.splice(indexOfStep, 1)
+    clone[sectionIndex].steps.splice(indexOfStep + 1, 0, removedStep)
+    this.setDirections(clone)
+  }
   deleteSection(sectionIndex) {
     const clone = this.directions.slice()
     clone.splice(sectionIndex, 1)

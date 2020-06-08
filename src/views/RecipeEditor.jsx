@@ -10,7 +10,14 @@ import {
   getImageUrlByEmailId,
 } from "fire/services"
 import ReactSelect from "react-select"
-import { useEditSection, useIngredients, useDirections, useUser, useUsersRecipes } from "hooks"
+import {
+  useEditSection,
+  useIngredients,
+  useDirections,
+  useUser,
+  useUsersRecipes,
+  useEditIngredient,
+} from "hooks"
 import { useRecipeController } from "controllers/RecipeController"
 import { makeStyles } from "@material-ui/core"
 import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
@@ -38,6 +45,7 @@ const RecipeEditor = () => {
   const [editMode, setEditMode] = useState(false)
   const controller = useRecipeController()
   const editSection = useEditSection()
+  const editIngredient = useEditIngredient()
   const directions = useDirections()
   const ingredients = useIngredients()
   const user = useUser()
@@ -53,6 +61,8 @@ const RecipeEditor = () => {
       return null
     }
   })
+
+  console.log("edititem", editIngredient)
 
   useEffect(() => {
     return () => controller.newRecipe()
@@ -82,13 +92,19 @@ const RecipeEditor = () => {
         if (controller.getImageFile() != null) {
           const storage = await uploadImageToRecipeId(controller.getImageFile(), user.email, id)
           response = await storage.ref.getDownloadURL()
+          await updateRecipeById(id, {
+            title,
+            ingredients,
+            directions: dirs,
+            contributor: user.displayName,
+            image: response,
+          })
         }
         await updateRecipeById(id, {
           title,
           ingredients,
           directions: dirs,
           contributor: user.displayName,
-          image: response,
         })
 
         toast.success("Your recipe has been updated.")
@@ -104,7 +120,7 @@ const RecipeEditor = () => {
         contributor: user.displayName,
       })
 
-      await uploadImageToRecipeId(controller.getImageBuffer(), user.email, recipeRef.id)
+      await uploadImageToRecipeId(controller.getImageFile(), user.email, recipeRef.id)
       toast.success("Your recipe has been added.")
     }
     controller.newRecipe()
@@ -146,23 +162,21 @@ const RecipeEditor = () => {
     section: directions[editSection]?.sectionTitle ?? "",
     ...getSteps(),
   }
+
   return (
     <Form
       onSubmit={onSubmit}
       validate={validate}
       initialValues={defaultInitValues}
       destroyOnUnregister={true}>
-      {({ handleSubmit, values, errors }) => {
-        // console.log("values", JSON.stringify(values, undefined, 2))
-        console.log(controller.getEditIngredient())
-        console.log(values)
+      {({ handleSubmit, values, errors, form: { change } }) => {
+        console.log("values", JSON.stringify(values, undefined, 2))
+        console.log("currentEdit", controller.getEditIngredient())
         return (
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              console.log("submitting")
-              controller.setTitle(values.title)
-              if (shouldNotSubmitAndFocusInputs(values, controller)) {
+              if (shouldNotSubmitAndFocusInputs(values, controller, change)) {
                 return
               }
               const recipeErrors = Object.values(errors)
@@ -187,7 +201,16 @@ const RecipeEditor = () => {
                 menuPortalTarget={document.body}
                 options={usersRecipes}
               />
-              <TextField name='title' fullWidth label='Recipe Title' value={values.title} />
+              <TextField
+                name='title'
+                fullWidth
+                label='Recipe Title'
+                value={values.title}
+                onChange={(e) => {
+                  change("title", e.target.value)
+                  controller.setTitle(e.target.value)
+                }}
+              />
             </div>
             <ImageUpload />
             <ListIngredients />
