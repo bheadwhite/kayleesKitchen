@@ -23,3 +23,4 @@ export const authRef = firebase.auth()
 
 export const userRef = firestoreRef.collection("users")
 export const recipesRef = firestoreRef.collection("recipes")
+export const ratingsRef = firestoreRef.collection("ratings")

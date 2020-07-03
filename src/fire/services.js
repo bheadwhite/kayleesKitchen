@@ -1,4 +1,4 @@
-import { authRef, userRef, recipesRef, storageRef } from "./firebase"
+import { authRef, userRef, recipesRef, storageRef, ratingsRef } from "./firebase"
 
 export const loginWithEmail = ({ email, password }) =>
   Promise.resolve(authRef.signInWithEmailAndPassword(email, password))
@@ -27,6 +27,8 @@ export const getUser = (email) => Promise.resolve(userRef.where("email", "==", e
 export const signOut = () => Promise.resolve(authRef.signOut())
 
 export const getRecipes = () => Promise.resolve(recipesRef.get())
+
+export const getRatings = () => Promise.resolve(ratingsRef.get())
 
 export const getRecipesByEmail = (email) =>
   Promise.resolve(recipesRef.where("email", "==", email).get())

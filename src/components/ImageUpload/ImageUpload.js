@@ -26,7 +26,6 @@ const ImageUpload = () => {
         controller.setImageUrl(url)
         change("image", url)
         setUploading(false)
-        debugger
         imageInputRef.current.value = ""
       })
       .catch((e) => {

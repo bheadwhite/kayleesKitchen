@@ -1,6 +1,7 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core"
 import Ingredients from "./Ingredients"
+import { useRatings } from "hooks"
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -17,11 +18,10 @@ const useStyles = makeStyles((theme) => ({
 
 const Recipe = ({ recipe }) => {
   const classes = useStyles()
+  const { ingredients, directions } = recipe
+  const rating = useRatings(recipe?.id ?? null)
 
   if (recipe == null) return null
-  const { ingredients, directions } = recipe
-
-  if (typeof recipe === "undefined") return null
   return (
     <div>
       <h1 className={classes.title}>{recipe.title}</h1>
