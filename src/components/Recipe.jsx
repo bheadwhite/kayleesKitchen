@@ -2,6 +2,9 @@ import React from "react"
 import { makeStyles } from "@material-ui/core"
 import Ingredients from "./Ingredients"
 import { useRatings } from "hooks"
+import Star from "mdi-material-ui/Star"
+import StarOutline from "mdi-material-ui/StarOutline"
+import StarHalfFull from "mdi-material-ui/StarHalfFull"
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -19,12 +22,21 @@ const useStyles = makeStyles((theme) => ({
 const Recipe = ({ recipe }) => {
   const classes = useStyles()
   const { ingredients, directions } = recipe
-  const rating = useRatings(recipe?.id ?? null)
+  const { avg, totalVotes } = useRatings(recipe?.id ?? null)
+  const stars = avg.toFixed()
+  let halfStar = false
+  if (avg !== 0) {
+    let diff = avg.toFixed(1) - stars
+    if (diff > 0.1 && diff < 0.5) {
+      halfStar = true
+    }
+  }
 
   if (recipe == null) return null
   return (
     <div>
       <h1 className={classes.title}>{recipe.title}</h1>
+      <RatedStars stars={stars} halfStar={halfStar} totalVotes={totalVotes} />
       <div className={classes.img}>
         {recipe?.image != null && recipe?.image.length > 1 && (
           <img src={recipe.image} alt='recipe preview' style={{ maxHeight: 200 }} />
@@ -48,6 +60,23 @@ const Recipe = ({ recipe }) => {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+const RatedStars = ({ stars, halfStar, totalVotes }) => {
+  const starIcons = Array.from({ length: 5 }).map((_, index) => {
+    if (stars > index) {
+      return <Star key={index} />
+    } else if (halfStar) {
+      return <StarHalfFull key={index} />
+    } else {
+      return <StarOutline key={index} />
+    }
+  })
+  return (
+    <div>
+      {starIcons} ({totalVotes})
     </div>
   )
 }
