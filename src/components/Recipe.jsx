@@ -1,10 +1,11 @@
-import React from "react"
+import React, { useState } from "react"
 import { makeStyles } from "@material-ui/core"
 import Ingredients from "./Ingredients"
-import { useRatings } from "hooks"
+import { useRatings, useUser } from "hooks"
 import Star from "mdi-material-ui/Star"
 import StarOutline from "mdi-material-ui/StarOutline"
 import StarHalfFull from "mdi-material-ui/StarHalfFull"
+import { getMyRatingByIdAndEmail } from "fire/services"
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -19,14 +20,28 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
+const starStyles = {
+  color: "yellow",
+  stroke: "black",
+}
+
 const Recipe = ({ recipe }) => {
   const classes = useStyles()
+  const [showRatingBox, setShowRatingBox] = useState(false)
+  const [myRating, setMyRating] = useState(0)
   const { ingredients, directions } = recipe
   const { avg, totalVotes } = useRatings(recipe?.id ?? null)
+  const user = useUser()
   const stars = avg.toFixed()
+  const handleRate = () => {
+    getMyRatingByIdAndEmail(recipe.id, user.email).then((myRating) => {
+      setMyRating(myRating)
+      setShowRatingBox(true)
+    })
+  }
   let halfStar = false
   if (avg !== 0) {
-    let diff = avg.toFixed(1) - stars
+    const diff = avg.toFixed(1) - stars
     if (diff > 0.2 && diff < 0.5) {
       halfStar = true
     }
@@ -37,7 +52,13 @@ const Recipe = ({ recipe }) => {
     <div>
       <h1 className={classes.title}>
         <span>{recipe.title}</span>
-        <RatedStars stars={stars} halfStar={halfStar} totalVotes={totalVotes} />
+        <RatedStars
+          stars={stars}
+          halfStar={halfStar}
+          totalVotes={totalVotes}
+          handleRate={handleRate}
+        />
+        {showRatingBox && <RatingSubmitionBox score={myRating} />}
       </h1>
       <div className={classes.img}>
         {recipe?.image != null && recipe?.image.length > 1 && (
@@ -66,12 +87,12 @@ const Recipe = ({ recipe }) => {
   )
 }
 
-const RatedStars = ({ stars, halfStar, totalVotes }) => {
+const RatedStars = ({ stars, halfStar, totalVotes, handleRate }) => {
   const starIcons = Array.from({ length: 5 }).map((_, index) => {
     if (stars > index) {
-      return <Star key={index} />
+      return <Star key={index} style={starStyles} />
     } else if (halfStar) {
-      return <StarHalfFull key={index} />
+      return <StarHalfFull key={index} style={starStyles} />
     } else {
       return <StarOutline key={index} />
     }
@@ -84,9 +105,38 @@ const RatedStars = ({ stars, halfStar, totalVotes }) => {
         justifyContent: "flex-start",
         fontSize: "1rem",
       }}>
-      {starIcons} ({totalVotes})
+      {starIcons} ({totalVotes}) <div onClick={handleRate}>rate</div>
     </div>
   )
 }
 
+const RatingSubmitionBox = ({ score }) => {
+  const [hoverScore, setHoverScore] = useState(0)
+  const [clickedScore, setClickedScore] = useState(score)
+  const scoreGreaterThanOrEqualTo = (num) => {
+    return hoverScore >= num || clickedScore >= num
+  }
+  const resetHover = () => setHoverScore(0)
+
+  return (
+    <div onMouseLeave={resetHover} onMouseOut={resetHover}>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <StarOrStarOutline
+          key={index}
+          check={scoreGreaterThanOrEqualTo(index + 1)}
+          onMouseOver={() => setHoverScore(index + 1)}
+          onClick={() => setClickedScore(index + 1)}
+        />
+      ))}
+    </div>
+  )
+}
+
+const StarOrStarOutline = ({ check, ...props }) => {
+  if (check) {
+    return <Star style={starStyles} {...props} />
+  } else {
+    return <StarOutline {...props} />
+  }
+}
 export default Recipe

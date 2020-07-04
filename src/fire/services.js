@@ -29,6 +29,22 @@ export const signOut = () => Promise.resolve(authRef.signOut())
 export const getRecipes = () => Promise.resolve(recipesRef.get())
 
 export const getRatings = () => Promise.resolve(ratingsRef.get())
+export const getMyRatingByIdAndEmail = (id, email) =>
+  new Promise((res, rej) => {
+    ratingsRef
+      .where("recipeId", "==", id)
+      .get()
+      .then((response) => {
+        const { scores } = response.docs[0].data()
+        const rating = scores.find((score) => score.userId === email)
+        if (rating != null) {
+          res(rating.score)
+        } else {
+          res(0)
+        }
+      })
+      .catch((err) => rej(err))
+  })
 
 export const getRecipesByEmail = (email) =>
   Promise.resolve(recipesRef.where("email", "==", email).get())
