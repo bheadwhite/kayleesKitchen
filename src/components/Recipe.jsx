@@ -27,7 +27,7 @@ const Recipe = ({ recipe }) => {
   let halfStar = false
   if (avg !== 0) {
     let diff = avg.toFixed(1) - stars
-    if (diff > 0.1 && diff < 0.5) {
+    if (diff > 0.2 && diff < 0.5) {
       halfStar = true
     }
   }
@@ -35,8 +35,10 @@ const Recipe = ({ recipe }) => {
   if (recipe == null) return null
   return (
     <div>
-      <h1 className={classes.title}>{recipe.title}</h1>
-      <RatedStars stars={stars} halfStar={halfStar} totalVotes={totalVotes} />
+      <h1 className={classes.title}>
+        <span>{recipe.title}</span>
+        <RatedStars stars={stars} halfStar={halfStar} totalVotes={totalVotes} />
+      </h1>
       <div className={classes.img}>
         {recipe?.image != null && recipe?.image.length > 1 && (
           <img src={recipe.image} alt='recipe preview' style={{ maxHeight: 200 }} />
@@ -75,7 +77,13 @@ const RatedStars = ({ stars, halfStar, totalVotes }) => {
     }
   })
   return (
-    <div>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        fontSize: "1rem",
+      }}>
       {starIcons} ({totalVotes})
     </div>
   )
