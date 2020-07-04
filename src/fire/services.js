@@ -38,13 +38,15 @@ export const getMyRatingByIdAndEmail = (id, email) =>
         const { scores } = response.docs[0].data()
         const rating = scores.find((score) => score.userId === email)
         if (rating != null) {
-          res(rating.score)
+          res({ score: rating.score, id: response.docs[0].id })
         } else {
           res(0)
         }
       })
       .catch((err) => rej(err))
   })
+export const updateRatingByIdAndEmail = (id, email, score) =>
+  Promise.resolve(ratingsRef.doc(id).update())
 
 export const getRecipesByEmail = (email) =>
   Promise.resolve(recipesRef.where("email", "==", email).get())

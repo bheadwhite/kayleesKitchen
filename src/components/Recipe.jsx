@@ -1,11 +1,12 @@
 import React, { useState } from "react"
-import { makeStyles } from "@material-ui/core"
+import { makeStyles, useTheme } from "@material-ui/core"
 import Ingredients from "./Ingredients"
 import { useRatings, useUser } from "hooks"
 import Star from "mdi-material-ui/Star"
 import StarOutline from "mdi-material-ui/StarOutline"
 import StarHalfFull from "mdi-material-ui/StarHalfFull"
 import { getMyRatingByIdAndEmail } from "fire/services"
+import { Button } from "components"
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -52,13 +53,16 @@ const Recipe = ({ recipe }) => {
     <div>
       <h1 className={classes.title}>
         <span>{recipe.title}</span>
-        <RatedStars
-          stars={stars}
-          halfStar={halfStar}
-          totalVotes={totalVotes}
-          handleRate={handleRate}
-        />
-        {showRatingBox && <RatingSubmitionBox score={myRating} />}
+        {showRatingBox ? (
+          <RatingSubmitionBox score={myRating} recipeId={recipe.id} />
+        ) : (
+          <RatedStars
+            stars={stars}
+            halfStar={halfStar}
+            totalVotes={totalVotes}
+            handleRate={handleRate}
+          />
+        )}
       </h1>
       <div className={classes.img}>
         {recipe?.image != null && recipe?.image.length > 1 && (
@@ -88,6 +92,7 @@ const Recipe = ({ recipe }) => {
 }
 
 const RatedStars = ({ stars, halfStar, totalVotes, handleRate }) => {
+  const theme = useTheme()
   const starIcons = Array.from({ length: 5 }).map((_, index) => {
     if (stars > index) {
       return <Star key={index} style={starStyles} />
@@ -105,21 +110,30 @@ const RatedStars = ({ stars, halfStar, totalVotes, handleRate }) => {
         justifyContent: "flex-start",
         fontSize: "1rem",
       }}>
-      {starIcons} ({totalVotes}) <div onClick={handleRate}>rate</div>
+      {starIcons} ({totalVotes})
+      <div onClick={handleRate} style={{ cursor: "pointer", marginLeft: theme.spacing(0.5) }}>
+        rate
+      </div>
     </div>
   )
 }
 
-const RatingSubmitionBox = ({ score }) => {
+const RatingSubmitionBox = ({ score, recipeId }) => {
   const [hoverScore, setHoverScore] = useState(0)
   const [clickedScore, setClickedScore] = useState(score)
+  const user = useUser()
+  const theme = useTheme()
   const scoreGreaterThanOrEqualTo = (num) => {
     return hoverScore >= num || clickedScore >= num
   }
   const resetHover = () => setHoverScore(0)
+  const handleSubmitRating = () => {}
 
   return (
-    <div onMouseLeave={resetHover} onMouseOut={resetHover}>
+    <div
+      onMouseLeave={resetHover}
+      onMouseOut={resetHover}
+      style={{ display: "flex", alignItems: "center" }}>
       {Array.from({ length: 5 }).map((_, index) => (
         <StarOrStarOutline
           key={index}
@@ -128,13 +142,16 @@ const RatingSubmitionBox = ({ score }) => {
           onClick={() => setClickedScore(index + 1)}
         />
       ))}
+      <Button onClick={handleSubmitRating} style={{ marginLeft: theme.spacing(0.5) }}>
+        Submit Rating
+      </Button>
     </div>
   )
 }
 
 const StarOrStarOutline = ({ check, ...props }) => {
   if (check) {
-    return <Star style={starStyles} {...props} />
+    return <Star style={{ ...starStyles, cursor: "pointer" }} {...props} />
   } else {
     return <StarOutline {...props} />
   }
