@@ -20,7 +20,25 @@ const close = () => {
   ReactDOM.render(<React.Fragment />, containerDiv)
 }
 
-export const ConfirmModal = ({ title, body, canceltext, oktext, icon, ...props }) => {
+interface IProps {
+  title?: string
+  body?: string
+  canceltext?: string
+  oktext?: string
+  icon?: JSX.Element | null
+  onCancel?: () => void
+  onConfirm?: () => void
+  children?: React.ReactNode
+}
+
+export const ConfirmModal = ({
+  title,
+  body,
+  canceltext,
+  oktext,
+  icon,
+  ...props
+}: IProps) => {
   const classes = useStyles()
   const handleCancel = () => {
     close()
@@ -41,7 +59,9 @@ export const ConfirmModal = ({ title, body, canceltext, oktext, icon, ...props }
         <div className={classes.container}>
           <Warning />
           {!_.isString(body) ? body : <p>{body}</p>}
-          <Button style={{ marginRight: theme.spacing(1) }} onClick={handleCancel}>
+          <Button
+            style={{ marginRight: theme.spacing(1) }}
+            onClick={handleCancel}>
             No
           </Button>
           <Button onClick={handleConfirm}>Yes</Button>
@@ -51,6 +71,6 @@ export const ConfirmModal = ({ title, body, canceltext, oktext, icon, ...props }
   )
 }
 
-export const confirm = (props) => {
+export const confirm = (props: any) => {
   ReactDOM.render(<ConfirmModal {...props} />, containerDiv)
 }

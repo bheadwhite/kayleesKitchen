@@ -1,12 +1,12 @@
-import React from "react"
-import { Switch, Route } from "react-router-dom"
+import React, { ReactNode, ReactElement } from "react"
+import { Switch, Route, RedirectProps } from "react-router-dom"
 import { makeStyles } from "@material-ui/core"
 import clsx from "clsx"
 import useAuthState from "./hooks/useAuthState"
 import { Recipes, Login, Register, RecipeEditor } from "./views"
 import { ToastContainer } from "react-toastify"
 import Toolbar from "components/Toolbar"
-import { Redirect } from "react-router-dom"
+import { Redirect, RouteProps } from "react-router-dom"
 import { CircularProgress } from "@material-ui/core"
 import "react-toastify/dist/ReactToastify.css"
 import { authRef } from "fire/firebase"
@@ -37,7 +37,7 @@ const useStyles = makeStyles((theme) => ({
 function App() {
   const classes = useStyles()
   const auth = new Authentication(authRef)
-  window.auth = auth
+  ;(window as any).auth = auth
 
   return (
     <AuthenticationContext.Provider value={auth}>
@@ -58,11 +58,25 @@ function App() {
   )
 }
 
-const Restricted = ({ children, path, component, ...props }) => {
+interface IProps extends RouteProps {
+  children?: ReactNode
+  type?: string
+  key?: string
+}
+
+const Restricted: any = ({
+  path,
+  component,
+  ...props
+}: IProps): undefined | JSX.Element | ReactElement<any, any> | null => {
   const classes = useStyles()
   const authState = useAuthState()
 
-  if (authState === "loggingIn" || authState === "loggingOut" || authState === "getUser") {
+  if (
+    authState === "loggingIn" ||
+    authState === "loggingOut" ||
+    authState === "getUser"
+  ) {
     return (
       <Route
         path={path}

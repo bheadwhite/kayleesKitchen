@@ -80,7 +80,10 @@ class Authentication {
 
   logIn(user, password) {
     const currentState = this.state
-    const transitionedState = this.stateMachine.transition(currentState, "logIn")
+    const transitionedState = this.stateMachine.transition(
+      currentState,
+      "logIn"
+    )
 
     if (currentState !== transitionedState) {
       this.state = transitionedState
@@ -98,7 +101,10 @@ class Authentication {
 
   logOut() {
     const currentState = this.state
-    const transitionedState = this.stateMachine.transition(currentState, "logOut")
+    const transitionedState = this.stateMachine.transition(
+      currentState,
+      "logOut"
+    )
 
     if (currentState !== transitionedState) {
       this.state = transitionedState

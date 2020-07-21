@@ -24,7 +24,11 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const DangerButton = ({ children, ...props }) => {
+interface IDangerProps {
+  children?: React.ReactNode
+}
+
+const DangerButton: React.FC<IDangerProps> = ({ children, ...props }) => {
   const classes = useStyles()
   return (
     <MUIButton {...props} className={classes.dangerButton}>
@@ -33,7 +37,14 @@ const DangerButton = ({ children, ...props }) => {
   )
 }
 
-const Button = ({ children, ...props }) => {
+interface IProps {
+  children?: React.ReactNode
+  danger?: boolean
+  style?: React.CSSProperties
+  onClick?: () => void
+}
+
+const Button: React.FC<IProps> = ({ children, ...props }) => {
   const classes = useStyles()
   if (props.danger) {
     return <DangerButton {...props}>{children}</DangerButton>
