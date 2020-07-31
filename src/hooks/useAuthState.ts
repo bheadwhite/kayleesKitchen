@@ -2,11 +2,11 @@ import { useState, useEffect } from "react"
 import useAuth from "./useAuth"
 
 const useAuthState = () => {
-  const auth = useAuth()
-  const [state, setState] = useState(auth.state)
+  const auth: any = useAuth()
+  const [state, setState] = useState<any>(auth.state)
 
   useEffect(() => {
-    const subscription = auth.onChange((state) => {
+    const subscription = auth.onChange((state: any) => {
       setState(state)
     })
     return () => subscription.unsubscribe()

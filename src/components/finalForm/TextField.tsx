@@ -15,7 +15,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const TextField = React.forwardRef((props, ref) => {
+const TextField = React.forwardRef((props: any, ref: any) => {
   const classes = useStyles()
   const { change } = useForm()
   const {
@@ -24,7 +24,7 @@ const TextField = React.forwardRef((props, ref) => {
   } = useField(props.name, {
     subscription: { touched: true, error: true, value: true },
   })
-  const handleChange = (e) => change(props.name, e.target.value)
+  const handleChange = (e: any) => change(props.name, e.target.value)
 
   return (
     <MUITextField
@@ -40,6 +40,6 @@ const TextField = React.forwardRef((props, ref) => {
       {...props}
     />
   )
-})
+}) as any
 
 export default TextField

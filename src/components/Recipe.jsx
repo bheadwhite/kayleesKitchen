@@ -66,11 +66,17 @@ const Recipe = ({ recipe }) => {
       </h1>
       <div className={classes.img}>
         {recipe?.image != null && recipe?.image.length > 1 && (
-          <img src={recipe.image} alt='recipe preview' style={{ maxHeight: 200 }} />
+          <img
+            src={recipe.image}
+            alt='recipe preview'
+            style={{ maxHeight: 200 }}
+          />
         )}
       </div>
       <p>{recipe.description}</p>
-      {recipe?.contributor != null && <p>Contributed by: {recipe.contributor}</p>}
+      {recipe?.contributor != null && (
+        <p>Contributed by: {recipe.contributor}</p>
+      )}
       <Ingredients ingredients={ingredients} />
       {directions?.map((section, index) => {
         return (
@@ -111,7 +117,9 @@ const RatedStars = ({ stars, halfStar, totalVotes, handleRate }) => {
         fontSize: "1rem",
       }}>
       {starIcons} ({totalVotes})
-      <div onClick={handleRate} style={{ cursor: "pointer", marginLeft: theme.spacing(0.5) }}>
+      <div
+        onClick={handleRate}
+        style={{ cursor: "pointer", marginLeft: theme.spacing(0.5) }}>
         rate
       </div>
     </div>
@@ -121,7 +129,7 @@ const RatedStars = ({ stars, halfStar, totalVotes, handleRate }) => {
 const RatingSubmitionBox = ({ score, recipeId }) => {
   const [hoverScore, setHoverScore] = useState(0)
   const [clickedScore, setClickedScore] = useState(score)
-  const user = useUser()
+  // const user = useUser()
   const theme = useTheme()
   const scoreGreaterThanOrEqualTo = (num) => {
     return hoverScore >= num || clickedScore >= num
@@ -142,7 +150,9 @@ const RatingSubmitionBox = ({ score, recipeId }) => {
           onClick={() => setClickedScore(index + 1)}
         />
       ))}
-      <Button onClick={handleSubmitRating} style={{ marginLeft: theme.spacing(0.5) }}>
+      <Button
+        onClick={handleSubmitRating}
+        style={{ marginLeft: theme.spacing(0.5) }}>
         Submit Rating
       </Button>
     </div>

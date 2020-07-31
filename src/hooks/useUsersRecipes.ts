@@ -8,7 +8,7 @@ const useUsersRecipes = () => {
   const user = useUser()
 
   if (user != null) {
-    recipesRef.where("email", "==", user.email).onSnapshot((snapShot) => {
+    recipesRef.where("email", "==", user.email).onSnapshot((snapShot: any) => {
       if (recipes.length !== snapShot.docs.length) {
         setRecipes(snapShot.docs)
       }
@@ -19,7 +19,7 @@ const useUsersRecipes = () => {
     ;(async () => {
       if (user != null) {
         try {
-          const recipes = await getRecipesByEmail(user.email)
+          const recipes: any = await getRecipesByEmail(user.email)
           setRecipes(recipes.docs)
         } catch (e) {
           console.log("error pulling your recipes", e)

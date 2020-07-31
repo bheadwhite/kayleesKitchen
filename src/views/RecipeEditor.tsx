@@ -23,7 +23,11 @@ import {
 } from "hooks"
 import { useRecipeController } from "controllers/RecipeController"
 import { makeStyles, Dialog } from "@material-ui/core"
-import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
+import {
+  AddIngredient,
+  ListIngredients,
+  ListDirections,
+} from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 import { ImageUpload } from "components/ImageUpload"
 import { CircularProgress } from "@material-ui/core"
@@ -62,7 +66,7 @@ const RecipeEditor = () => {
   const ingredients = useIngredients()
   const user = useUser()
   const [loading, setLoading] = useState(false)
-  const usersRecipes = useUsersRecipes().map((recipe) => {
+  const usersRecipes = useUsersRecipes().map((recipe: any) => {
     const data = recipe.data()
     if (data != null) {
       data.id = recipe.id
@@ -79,7 +83,7 @@ const RecipeEditor = () => {
     return () => controller.newRecipe()
   }, [controller])
 
-  const handleOnPulledRecipe = ({ value }) => {
+  const handleOnPulledRecipe = ({ value }: any) => {
     controller.onPulledRecipe(value)
     if (value.image != null && value.image.length > 0) {
       getImageUrlByEmailId(user.email, value.id)
@@ -108,15 +112,19 @@ const RecipeEditor = () => {
     handleDelete()
   }
 
-  const onSubmit = async ({ directions, title }) => {
+  const onSubmit = async ({ directions, title }: any) => {
     try {
       const id = controller.getId()
       const storage =
         controller.getImageFile() != null
-          ? await uploadImageToRecipeId(controller.getImageFile(), user.email, id)
+          ? await uploadImageToRecipeId(
+              controller.getImageFile(),
+              user.email,
+              id
+            )
           : null
       const imgUrl = storage != null ? await storage.ref.getDownloadURL() : ""
-      const dirs = directions.map((e) => {
+      const dirs = directions.map((e: any) => {
         delete e.editStep
         return e
       })
@@ -149,7 +157,11 @@ const RecipeEditor = () => {
           image: imgUrl,
         })
         if (controller.getImageFile() != null) {
-          await uploadImageToRecipeId(controller.getImageFile(), user.email, recipeRef.id)
+          await uploadImageToRecipeId(
+            controller.getImageFile(),
+            user.email,
+            recipeRef.id
+          )
         }
         toast.success("Your recipe has been added.")
       }
@@ -165,8 +177,13 @@ const RecipeEditor = () => {
       setLoading(false)
     }
   }
-  const validate = (values) => {
-    const errors = {}
+  interface RecipeEditorErrors {
+    title?: string
+    ingredients?: string
+    directions?: string
+  }
+  const validate = (values: any): RecipeEditorErrors => {
+    const errors: RecipeEditorErrors = {}
     if (values.title.ength < 1) {
       errors.title = "A recipe title is required."
     }
@@ -180,8 +197,8 @@ const RecipeEditor = () => {
   }
 
   const getSteps = () => {
-    const steps = {}
-    directions.forEach((section, i) => {
+    const steps = {} as any
+    directions.forEach((section: any, i: number) => {
       if (section.editStep != null) {
         steps[`nextStep-${i}`] = section.steps[section.editStep]
       }
@@ -197,7 +214,7 @@ const RecipeEditor = () => {
     directions,
     optional: controller.getEditIngredient()?.optional ?? false,
     unique: controller.getEditIngredient()?.unique ?? false,
-    section: directions[editSection]?.sectionTitle ?? "",
+    section: directions[editSection as any]?.sectionTitle ?? "",
     ...getSteps(),
   }
 
@@ -243,7 +260,7 @@ const RecipeEditor = () => {
                 fullWidth
                 label='Recipe Title'
                 value={values.title}
-                onChange={(e) => {
+                onChange={(e: any) => {
                   change("title", e.target.value)
                   controller.setTitle(e.target.value)
                 }}
@@ -254,15 +271,19 @@ const RecipeEditor = () => {
             <AddIngredient />
             <ListDirections />
             <div className={classes.submitContainer}>
-              {editMode && !loading && <Button onClick={handleCancelEditMode}>Cancel</Button>}
-              <Button type='submit' style={{ display: loading ? "none" : "block" }}>
+              {editMode && !loading && (
+                <Button onClick={handleCancelEditMode}>Cancel</Button>
+              )}
+              <Button
+                type='submit'
+                style={{ display: loading ? "none" : "block" }}>
                 {editMode ? "Update Recipe" : "Submit Recipe"}
               </Button>
               {loading && <CircularProgress />}
             </div>
             <div className={classes.delete}>
               {editMode && (
-                <Button onClick={toggleConfirmModal} danger='true'>
+                <Button onClick={toggleConfirmModal} danger>
                   Delete
                 </Button>
               )}
@@ -275,7 +296,9 @@ const RecipeEditor = () => {
               <div className={classes.container}>
                 <Warning />
                 <p>Are you sure you want to delete this Recipe?</p>
-                <Button style={{ marginRight: theme.spacing(1) }} onClick={toggleConfirmModal}>
+                <Button
+                  style={{ marginRight: theme.spacing(1) }}
+                  onClick={toggleConfirmModal}>
                   No
                 </Button>
                 <Button onClick={confirmDeleteRecipe}>Yes</Button>

@@ -2,12 +2,12 @@ import { useEffect, useState } from "react"
 import { useRecipeController } from "controllers/RecipeController"
 
 const useRecipeUrl = () => {
-  const recipeController = useRecipeController()
+  const recipeController: any = useRecipeController()
   const [url, setUrl] = useState(recipeController.image)
 
   useEffect(() => {
     const subscription = recipeController.imageUrlSubject.subscribe({
-      next(url) {
+      next(url: any) {
         setUrl(url)
       },
     })

@@ -39,11 +39,11 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const Register = (props) => {
+const Register = (props: any) => {
   const classes = useStyles()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const onSubmit = (values) => {
+  const onSubmit = (values: any) => {
     addUser(values)
       .then((res) => {
         toast.success(
@@ -88,9 +88,17 @@ const Register = (props) => {
                   <TextField name='lastName' label='Last Name' />
                   <TextField name='email' label='Email' />
                   <TextField name='password' label='Password' type='password' />
-                  <TextField name='confirmPassword' label='Confirm Password' type='password' />
+                  <TextField
+                    name='confirmPassword'
+                    label='Confirm Password'
+                    type='password'
+                  />
                   <div>
-                    {isSubmitting ? <CircularProgress /> : <Button type='submit'>Submit</Button>}
+                    {isSubmitting ? (
+                      <CircularProgress />
+                    ) : (
+                      <Button type='submit'>Submit</Button>
+                    )}
                   </div>
                 </div>
               </Paper>

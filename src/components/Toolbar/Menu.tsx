@@ -1,5 +1,10 @@
 import React, { useState } from "react"
-import { Menu as MUIMenu, IconButton, makeStyles, MenuItem } from "@material-ui/core"
+import {
+  Menu as MUIMenu,
+  IconButton,
+  makeStyles,
+  MenuItem,
+} from "@material-ui/core"
 import { Menu as MenuIcon } from "@material-ui/icons"
 import useAuth from "hooks/useAuth"
 import { toast } from "react-toastify"
@@ -10,7 +15,7 @@ const useStyles = makeStyles((theme) => ({
   menuButton: {},
 }))
 
-const Menu = (props) => {
+const Menu = (props: any) => {
   const authState = useAuthState()
   const classes = useStyles()
   const [anchorEl, setAnchorEl] = useState(null)
@@ -18,11 +23,13 @@ const Menu = (props) => {
   const auth = useAuth()
   const history = useHistory()
 
-  const handleOpen = (e) => {
-    anchorEl == null && e.target != null ? setAnchorEl(e.target) : setAnchorEl(null)
+  const handleOpen: any = (e: any) => {
+    anchorEl == null && e.target != null
+      ? setAnchorEl(e.target)
+      : setAnchorEl(null)
     setOpen((a) => !a)
   }
-  const goTo = (location) => {
+  const goTo = (location: any) => {
     handleOpen()
     history.push(location)
   }
@@ -34,10 +41,10 @@ const Menu = (props) => {
     auth
       .logOut()
       .then(() => goTo("/login"))
-      .catch((e) => toast.error(e))
+      .catch((e: any) => toast.error(e))
   }
 
-  const CleanMenu = ({ children }) => (
+  const CleanMenu = ({ children }: any) => (
     <MUIMenu
       id='menu-appbar'
       anchorEl={anchorEl}

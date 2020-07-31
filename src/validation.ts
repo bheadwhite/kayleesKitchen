@@ -1,5 +1,5 @@
-export const register = (values) => {
-  const errors = {}
+export const register = (values: any) => {
+  const errors = {} as any
   if (!values.firstName) {
     errors.firstName = "Please enter your first name."
   }

@@ -41,15 +41,15 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const Login = (props) => {
+const Login = (props: any) => {
   const classes = useStyles()
   const auth = useAuth()
 
-  const onSubmit = (values) => {
+  const onSubmit = (values: any) => {
     auth
       .logIn(values.email, values.password)
       .then(() => props.history.push("/recipes"))
-      .catch((e) => {
+      .catch((e: any) => {
         toast.error(e)
       })
   }
@@ -67,7 +67,12 @@ const Login = (props) => {
                 <div style={{ width: "100%", maxWidth: 400 }}>
                   <h2>Please sign in.</h2>
                   <TextField name='email' label='Email' fullWidth />
-                  <TextField name='password' label='Password' type='password' fullWidth />
+                  <TextField
+                    name='password'
+                    label='Password'
+                    type='password'
+                    fullWidth
+                  />
                   <div>
                     <Button onClick={handleRegister}>Register</Button>
                     <Button type='submit'>Submit</Button>

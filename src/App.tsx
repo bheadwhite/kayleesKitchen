@@ -1,5 +1,5 @@
 import React, { ReactNode, ReactElement } from "react"
-import { Switch, Route, RedirectProps } from "react-router-dom"
+import { Switch, Route } from "react-router-dom"
 import { makeStyles } from "@material-ui/core"
 import clsx from "clsx"
 import useAuthState from "./hooks/useAuthState"

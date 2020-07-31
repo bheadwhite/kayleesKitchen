@@ -1,4 +1,4 @@
-import React from "react"
+import React, { ButtonHTMLAttributes } from "react"
 import { Button as MUIButton, makeStyles } from "@material-ui/core"
 
 const useStyles = makeStyles((theme) => ({
@@ -37,11 +37,12 @@ const DangerButton: React.FC<IDangerProps> = ({ children, ...props }) => {
   )
 }
 
-interface IProps {
+interface IProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: React.ReactNode
   danger?: boolean
   style?: React.CSSProperties
   onClick?: () => void
+  color?: "inherit" | "primary" | "default" | "secondary" | undefined
 }
 
 const Button: React.FC<IProps> = ({ children, ...props }) => {
