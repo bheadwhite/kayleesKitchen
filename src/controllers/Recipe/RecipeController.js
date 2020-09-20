@@ -16,17 +16,27 @@ export default class RecipeController {
   imageFile = new StatefulSubject(null)
   editIngredient = new StatefulSubject(default_editIngredient)
   editSection = new StatefulSubject(null)
+  loadingRecipeImage = new StatefulSubject(false)
 
   setTitle(title) {
     this.title = title
   }
 
   setImageFile(file) {
+    this.loadingRecipeImage.next(true)
     this.imageFile.next(file)
   }
 
   setImageUrl(url) {
     this.imageUrl.next(url)
+  }
+
+  setRecipeImageIsLoading(bool) {
+    this.loadingRecipeImage.next(bool)
+  }
+
+  setEditIngredient(ingredient) {
+    this.editIngredient.next(ingredient)
   }
 
   getDirections() {
@@ -160,6 +170,11 @@ export default class RecipeController {
     clone[sectionIndex].editStep = null
     this.directions.next(clone)
   }
+  removeImage() {
+    this.setImageFile(null)
+    this.setImageUrl(null)
+    this.setRecipeImageIsLoading(false)
+  }
 
   updateSectionStep(sectionIndex, values) {
     const clone = this.getDirections().slice()
@@ -208,7 +223,13 @@ export default class RecipeController {
 
   onEditSectionChange(callback) {
     return this.editSection.subscribe({
-      callback,
+      next: callback,
+    })
+  }
+
+  onLoadingRecipeImage(callback) {
+    return this.loadingRecipeImage.subscribe({
+      next: callback,
     })
   }
 }

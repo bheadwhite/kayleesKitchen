@@ -21,10 +21,13 @@ const useStyles = makeStyles((theme) => ({
     "& div": {
       boxSizing: "border-box",
     },
+    alignItems: "center",
   },
   pageWrapper: {
     padding: theme.spacing(15, 2, 0),
     height: "100vh",
+    maxWidth: "900px",
+    width: "100%",
   },
   loading: {
     display: "flex",

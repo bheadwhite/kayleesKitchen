@@ -5,11 +5,14 @@ import useRecipeController from "controllers/Recipe/useRecipeController"
 import { Checkbox, TextField } from "components/finalForm"
 import { Button } from "components"
 import { makeStyles } from "@material-ui/core"
+import AddIcon from "@material-ui/icons/Add"
+import CheckIcon from "@material-ui/icons/Check"
+import CloseIcon from "@material-ui/icons/Close"
 
 const useStyles = makeStyles((theme) => ({
   addIngredientContainer: {
     background: "rgba(0, 0, 0, 0.05)",
-    padding: theme.spacing(1),
+    padding: theme.spacing(0.5),
   },
   addIngredientFields: {
     display: "flex",
@@ -42,7 +45,6 @@ const AddIngredient = () => {
 
   return (
     <div className={classes.addIngredientContainer}>
-      <div>Add Ingredient:</div>
       <div>
         <Checkbox name='optional' checked={values.optional} label='optional' />
         <Checkbox name='unique' checked={values.unique} label='unique' />
@@ -63,12 +65,24 @@ const AddIngredient = () => {
         />
         {editIngredient?.name === "" || editIngredient == null ? (
           <Button onClick={addIngredient} style={{ whitespace: "nowrap" }}>
-            <span id='add-ingredient'>Add Ingredient</span>
+            <span
+              id='add-ingredient'
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+              }}>
+              <AddIcon />
+            </span>
           </Button>
         ) : (
           <React.Fragment>
-            <Button onClick={updateIngredient}>UpdateItem</Button>
-            <Button onClick={resetEditIngredient}>Cancel</Button>
+            <Button onClick={updateIngredient} style={{ background: "green" }}>
+              <CheckIcon />
+            </Button>
+            <Button onClick={resetEditIngredient}>
+              <CloseIcon />
+            </Button>
           </React.Fragment>
         )}
       </div>

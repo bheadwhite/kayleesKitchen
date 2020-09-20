@@ -12,6 +12,7 @@ const useStyles = makeStyles((theme) => ({
   ingredient: {
     display: "flex",
     alignItems: "center",
+    justifyContent: "space-between",
     "& svg": {
       cursor: "pointer",
     },
@@ -45,7 +46,6 @@ const ListIngredients = () => {
 
   return (
     <>
-      <div className={classes.ingredientsTitle}>Ingredients:</div>
       <div className={classes.ingredientsList}>
         {ingredients.length > 0 ? (
           ingredients.map((ingredient, i) => {
@@ -53,24 +53,28 @@ const ListIngredients = () => {
               <div
                 key={ingredient.name + i + ingredient.amount}
                 className={classes.ingredient}>
-                <span
-                  className={classes.recipeName}
-                  style={{ color: ingredient.unique ? "red" : "green" }}>
-                  {`${ingredient.name} `}
-                </span>
-                <span>{` - ${ingredient.amount}`}</span>
-                {ingredient.optional && (
-                  <span className={classes.optional}> (optional) </span>
-                )}
+                <div>
+                  <span
+                    className={classes.recipeName}
+                    style={{ color: ingredient.unique ? "red" : "green" }}>
+                    {`${ingredient.name} `}
+                  </span>
+                  <span>{` - ${ingredient.amount}`}</span>
+                  {ingredient.optional && (
+                    <span className={classes.optional}> (optional) </span>
+                  )}
+                </div>
 
-                <Button
-                  onClick={() => setEditIngredient(ingredient)}
-                  style={{ marginLeft: "1rem" }}>
-                  <Edit />
-                </Button>
-                <Button onClick={() => deleteIngredient(i)}>
-                  <Delete />
-                </Button>
+                <div style={{ whiteSpace: "nowrap" }}>
+                  <Button
+                    onClick={() => setEditIngredient(ingredient)}
+                    style={{ marginLeft: "1rem" }}>
+                    <Edit />
+                  </Button>
+                  <Button onClick={() => deleteIngredient(i)}>
+                    <Delete />
+                  </Button>
+                </div>
               </div>
             )
           })

@@ -25,7 +25,7 @@ import { makeStyles, Dialog } from "@material-ui/core"
 import {
   AddIngredient,
   ListIngredients,
-  ListDirections,
+  Directions,
 } from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 import { ImageUpload } from "components/ImageUpload"
@@ -50,6 +50,20 @@ const useStyles = makeStyles((theme) => ({
   delete: {
     marginTop: 80,
     marginBottom: 200,
+  },
+  ingredientSection: {
+    margin: "15px 0 5px",
+    border: "1px solid #c4c4c4",
+    padding: "5px",
+    borderRadius: "5px",
+    position: "relative",
+  },
+  ingredientsTitle: {
+    position: "absolute",
+    background: "white",
+    top: "-10px",
+    left: "10px",
+    padding: "0 5px",
   },
 }))
 
@@ -244,7 +258,7 @@ const RecipeEditor = () => {
                 defaultValue=''
                 value={editMode ? values.title : ""}
                 className={classes.select}
-                placeholder='edit one of your existing recipes...'
+                placeholder='Edit an existing recipe'
                 styles={{ menuPortal: (base) => ({ ...base, zIndex: 999 }) }}
                 menuPortalTarget={document.body}
                 options={usersRecipes}
@@ -254,6 +268,7 @@ const RecipeEditor = () => {
                 fullWidth
                 label='Recipe Title'
                 value={values.title}
+                InputProps={{ style: { width: "400px" } }}
                 onChange={(e) => {
                   change("title", e.target.value)
                   controller.setTitle(e.target.value)
@@ -261,9 +276,12 @@ const RecipeEditor = () => {
               />
             </div>
             <ImageUpload />
-            <ListIngredients />
-            <AddIngredient />
-            <ListDirections />
+            <div className={classes.ingredientSection}>
+              <div className={classes.ingredientsTitle}>Ingredients</div>
+              <ListIngredients />
+              <AddIngredient />
+            </div>
+            <Directions />
             <div className={classes.submitContainer}>
               {editMode && !loading && (
                 <Button onClick={handleCancelEditMode}>Cancel</Button>
@@ -278,7 +296,7 @@ const RecipeEditor = () => {
             <div className={classes.delete}>
               {editMode && (
                 <Button onClick={toggleConfirmModal} danger='true'>
-                  Delete
+                  Delete Recipe
                 </Button>
               )}
             </div>
