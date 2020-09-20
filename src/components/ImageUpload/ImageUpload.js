@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from "react"
 import { Button } from "components"
 import { uploadRecipeEditorImage } from "fire/services"
-import { useRecipeUrl, useUser } from "hooks"
+import useUser from "controllers/Auth/useUser"
+import useRecipeUrl from "controllers/Recipe/useRecipeUrl"
+import useRecipeController from "controllers/Recipe/useRecipeController"
 import { useForm } from "react-final-form"
-import { useRecipeController } from "controllers/RecipeController"
 import { CircularProgress, LinearProgress } from "@material-ui/core"
 
 const ImageUpload = () => {
@@ -26,7 +27,6 @@ const ImageUpload = () => {
         controller.setImageUrl(url)
         change("image", url)
         setUploading(false)
-        debugger
         imageInputRef.current.value = ""
       })
       .catch((e) => {

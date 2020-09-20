@@ -1,9 +1,14 @@
 import React, { useState } from "react"
-import { Menu as MUIMenu, IconButton, makeStyles, MenuItem } from "@material-ui/core"
+import {
+  Menu as MUIMenu,
+  IconButton,
+  makeStyles,
+  MenuItem,
+} from "@material-ui/core"
 import { Menu as MenuIcon } from "@material-ui/icons"
-import useAuth from "hooks/useAuth"
+import useAuth from "controllers/Auth/useAuth"
 import { toast } from "react-toastify"
-import useAuthState from "hooks/useAuthState"
+import useAuthState from "controllers/Auth/useAuthState"
 import { useHistory } from "react-router-dom"
 
 const useStyles = makeStyles((theme) => ({
@@ -19,7 +24,9 @@ const Menu = (props) => {
   const history = useHistory()
 
   const handleOpen = (e) => {
-    anchorEl == null && e.target != null ? setAnchorEl(e.target) : setAnchorEl(null)
+    anchorEl == null && e.target != null
+      ? setAnchorEl(e.target)
+      : setAnchorEl(null)
     setOpen((a) => !a)
   }
   const goTo = (location) => {

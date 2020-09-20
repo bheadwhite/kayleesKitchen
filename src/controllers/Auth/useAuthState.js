@@ -3,10 +3,10 @@ import useAuth from "./useAuth"
 
 const useAuthState = () => {
   const auth = useAuth()
-  const [state, setState] = useState(auth.state)
+  const [state, setState] = useState(auth.state.getState())
 
   useEffect(() => {
-    const subscription = auth.onChange((state) => {
+    const subscription = auth.onStateChange((state) => {
       setState(state)
     })
     return () => subscription.unsubscribe()

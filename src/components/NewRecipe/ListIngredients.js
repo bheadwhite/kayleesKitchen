@@ -1,9 +1,9 @@
 import React from "react"
-import useIngredients from "hooks/useIngredients"
+import useIngredients from "controllers/Recipe/useIngredients"
 import { makeStyles } from "@material-ui/core"
 import { Button } from "components"
 import { Edit, Delete } from "@material-ui/icons"
-import { useRecipeController } from "controllers/RecipeController"
+import useRecipeController from "controllers/Recipe/useRecipeController"
 
 const useStyles = makeStyles((theme) => ({
   ingredientsList: {
@@ -36,7 +36,8 @@ const ListIngredients = () => {
   const controller = useRecipeController()
   const ingredients = useIngredients()
   const classes = useStyles()
-  const setEditIngredient = (ingredient) => controller.setEditIngredient(ingredient)
+  const setEditIngredient = (ingredient) =>
+    controller.setEditIngredient(ingredient)
   const deleteIngredient = (i) => {
     controller.deleteIngredient(i)
     controller.resetEditIngredient()
@@ -49,14 +50,18 @@ const ListIngredients = () => {
         {ingredients.length > 0 ? (
           ingredients.map((ingredient, i) => {
             return (
-              <div key={ingredient.name + i + ingredient.amount} className={classes.ingredient}>
+              <div
+                key={ingredient.name + i + ingredient.amount}
+                className={classes.ingredient}>
                 <span
                   className={classes.recipeName}
                   style={{ color: ingredient.unique ? "red" : "green" }}>
                   {`${ingredient.name} `}
                 </span>
                 <span>{` - ${ingredient.amount}`}</span>
-                {ingredient.optional && <span className={classes.optional}> (optional) </span>}
+                {ingredient.optional && (
+                  <span className={classes.optional}> (optional) </span>
+                )}
 
                 <Button
                   onClick={() => setEditIngredient(ingredient)}

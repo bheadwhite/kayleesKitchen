@@ -13,17 +13,20 @@ import {
   deleteRecipeById,
 } from "fire/services"
 import ReactSelect from "react-select"
-import {
-  useEditSection,
-  useIngredients,
-  useDirections,
-  useUser,
-  useUsersRecipes,
-  useEditIngredient,
-} from "hooks"
-import { useRecipeController } from "controllers/RecipeController"
+import useEditSection from "controllers/Recipe/useEditSection"
+import useIngredients from "controllers/Recipe/useIngredients"
+import useDirections from "controllers/Recipe/useDirections"
+import useEditIngredient from "controllers/Recipe/useEditIngredient"
+import useUsersRecipes from "controllers/Recipe/useUsersRecipes"
+import useUser from "controllers/Auth/useUser"
+
+import useRecipeController from "controllers/Recipe/useRecipeController"
 import { makeStyles, Dialog } from "@material-ui/core"
-import { AddIngredient, ListIngredients, ListDirections } from "components/NewRecipe"
+import {
+  AddIngredient,
+  ListIngredients,
+  ListDirections,
+} from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 import { ImageUpload } from "components/ImageUpload"
 import { CircularProgress } from "@material-ui/core"
@@ -76,7 +79,7 @@ const RecipeEditor = () => {
   })
 
   useEffect(() => {
-    return () => controller.newRecipe()
+    return () => controller.generateNewRecipe()
   }, [controller])
 
   const handleOnPulledRecipe = ({ value }) => {
@@ -91,7 +94,7 @@ const RecipeEditor = () => {
     setEditMode(true)
   }
   const handleCancelEditMode = () => {
-    controller.newRecipe()
+    controller.generateNewRecipe()
     setEditMode(false)
   }
 
@@ -100,7 +103,7 @@ const RecipeEditor = () => {
   const handleDelete = () =>
     deleteRecipeById(controller.getId()).then(() => {
       toast.success("Recipe has been deleted.")
-      controller.newRecipe()
+      controller.generateNewRecipe()
       setEditMode(false)
     })
   const confirmDeleteRecipe = () => {
@@ -113,7 +116,11 @@ const RecipeEditor = () => {
       const id = controller.getId()
       const storage =
         controller.getImageFile() != null
-          ? await uploadImageToRecipeId(controller.getImageFile(), user.email, id)
+          ? await uploadImageToRecipeId(
+              controller.getImageFile(),
+              user.email,
+              id
+            )
           : null
       const imgUrl = storage != null ? await storage.ref.getDownloadURL() : ""
       const dirs = directions.map((e) => {
@@ -149,7 +156,11 @@ const RecipeEditor = () => {
           image: imgUrl,
         })
         if (controller.getImageFile() != null) {
-          await uploadImageToRecipeId(controller.getImageFile(), user.email, recipeRef.id)
+          await uploadImageToRecipeId(
+            controller.getImageFile(),
+            user.email,
+            recipeRef.id
+          )
         }
         toast.success("Your recipe has been added.")
       }
@@ -157,7 +168,7 @@ const RecipeEditor = () => {
         if (editMode) {
           setEditMode(false)
         }
-        controller.newRecipe()
+        controller.generateNewRecipe()
         setLoading(false)
       }, 1000)
     } catch (e) {
@@ -190,7 +201,7 @@ const RecipeEditor = () => {
   }
 
   const defaultInitValues = {
-    title: controller?.getTitle() || "",
+    title: controller?.title || "",
     image: controller?.getImageFile() || "",
     name: controller.getEditIngredient()?.name ?? "",
     amount: controller.getEditIngredient()?.amount ?? "",
@@ -254,8 +265,12 @@ const RecipeEditor = () => {
             <AddIngredient />
             <ListDirections />
             <div className={classes.submitContainer}>
-              {editMode && !loading && <Button onClick={handleCancelEditMode}>Cancel</Button>}
-              <Button type='submit' style={{ display: loading ? "none" : "block" }}>
+              {editMode && !loading && (
+                <Button onClick={handleCancelEditMode}>Cancel</Button>
+              )}
+              <Button
+                type='submit'
+                style={{ display: loading ? "none" : "block" }}>
                 {editMode ? "Update Recipe" : "Submit Recipe"}
               </Button>
               {loading && <CircularProgress />}
@@ -275,7 +290,9 @@ const RecipeEditor = () => {
               <div className={classes.container}>
                 <Warning />
                 <p>Are you sure you want to delete this Recipe?</p>
-                <Button style={{ marginRight: theme.spacing(1) }} onClick={toggleConfirmModal}>
+                <Button
+                  style={{ marginRight: theme.spacing(1) }}
+                  onClick={toggleConfirmModal}>
                   No
                 </Button>
                 <Button onClick={confirmDeleteRecipe}>Yes</Button>

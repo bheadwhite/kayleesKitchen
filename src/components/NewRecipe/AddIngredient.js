@@ -1,7 +1,7 @@
 import React, { useRef } from "react"
 import { useFormState, useForm } from "react-final-form"
-import useEditIngredient from "hooks/useEditIngredient"
-import { useRecipeController } from "controllers/RecipeController"
+import useEditIngredient from "controllers/Recipe/useEditIngredient"
+import useRecipeController from "controllers/Recipe/useRecipeController"
 import { Checkbox, TextField } from "components/finalForm"
 import { Button } from "components"
 import { makeStyles } from "@material-ui/core"
@@ -55,7 +55,12 @@ const AddIngredient = () => {
           placeholder='Name'
           ref={addIngredientRef}
         />
-        <TextField id='ingred-amt' name='amount' value={values.amount} placeholder='Amount' />
+        <TextField
+          id='ingred-amt'
+          name='amount'
+          value={values.amount}
+          placeholder='Amount'
+        />
         {editIngredient?.name === "" || editIngredient == null ? (
           <Button onClick={addIngredient} style={{ whitespace: "nowrap" }}>
             <span id='add-ingredient'>Add Ingredient</span>

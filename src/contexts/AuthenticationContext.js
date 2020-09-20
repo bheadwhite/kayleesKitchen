@@ -1,5 +1,5 @@
 import React from "react"
-import Authentication from "logic/Authentication"
+import Auth from "controllers/Auth"
 import MockFirebaseAuth from "logic/MockFireBaseAuth"
 
-export default React.createContext(new Authentication(new MockFirebaseAuth()))
+export default React.createContext(new Auth(new MockFirebaseAuth()))
