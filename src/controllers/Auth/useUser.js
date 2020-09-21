@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react"
+import { getUser } from "fire/services"
+
 import useAuth from "./useAuth"
 
 const useAuthState = () => {
@@ -7,7 +9,10 @@ const useAuthState = () => {
 
   useEffect(() => {
     const subscription = auth.onUserChange((user) => {
-      setUser(user)
+      getUser(user.email).then((res) => {
+        const data = res.docs[0].data()
+        setUser({ ...user, displayName: `${data.firstName} ${data.lastName}` })
+      })
     })
     return () => subscription.unsubscribe()
   }, [auth])
