@@ -2,12 +2,13 @@ import React, { useRef } from "react"
 import { Button } from "components"
 import { uploadRecipeEditorImage } from "fire/services"
 import useUser from "controllers/Auth/useUser"
-import useRecipeUrl from "controllers/Recipe/useRecipeUrl"
+import useRecipeImageUrl from "controllers/Recipe/useRecipeImageUrl"
 import useRecipeController from "controllers/Recipe/useRecipeController"
 import { useForm } from "react-final-form"
 import { CircularProgress } from "@material-ui/core"
 import useLoadingRecipeImage from "controllers/Recipe/useLoadingRecipeImage"
 import { makeStyles } from "@material-ui/core/styles"
+import { toast } from "react-toastify"
 
 const useStyles = makeStyles(() => ({
   deleteImageButton: {
@@ -25,7 +26,7 @@ const ImageUpload = () => {
   const user = useUser()
   const { change } = useForm()
   const controller = useRecipeController()
-  const url = useRecipeUrl()
+  const url = useRecipeImageUrl()
   const imageInputRef = useRef()
   const isImageLoading = useLoadingRecipeImage()
   const classes = useStyles()
@@ -39,9 +40,12 @@ const ImageUpload = () => {
         controller.setImageUrl(url)
         change("image", url)
         imageInputRef.current.value = ""
+        if (url.length === 0) {
+          controller.setRecipeImageIsLoading(false)
+        }
       })
       .catch((e) => {
-        console.log("error", e)
+        toast.error(e.message)
         controller.setRecipeImageIsLoading(false)
         imageInputRef.current.value = ""
       })

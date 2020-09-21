@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import useRecipeController from "controllers/Recipe/useRecipeController"
 
-const useRecipeUrl = () => {
+const useRecipeImageUrl = () => {
   const recipeController = useRecipeController()
   const [url, setUrl] = useState(recipeController.imageUrl.getState())
 
@@ -13,4 +13,4 @@ const useRecipeUrl = () => {
   return url
 }
 
-export default useRecipeUrl
+export default useRecipeImageUrl

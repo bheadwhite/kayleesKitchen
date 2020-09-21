@@ -18,6 +18,10 @@ export default class RecipeController {
   editSection = new StatefulSubject(null)
   loadingRecipeImage = new StatefulSubject(false)
 
+  getId() {
+    return this.id
+  }
+
   setTitle(title) {
     this.title = title
   }

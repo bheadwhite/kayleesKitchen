@@ -100,6 +100,7 @@ const RecipeEditor = () => {
   }, [controller])
 
   const handleOnPulledRecipe = ({ value }) => {
+    controller.setRecipeImageIsLoading(true)
     controller.onPulledRecipe(value)
     if (value.image != null && value.image.length > 0) {
       getImageUrlByEmailId(user.email, value.id)
@@ -131,37 +132,24 @@ const RecipeEditor = () => {
   const onSubmit = async ({ directions, title }) => {
     try {
       const id = controller.getId()
+      const hasImageToUpload = controller.getImageFile() != null
       const storage =
-        controller.getImageFile() != null
-          ? await uploadImageToRecipeId(
-              controller.getImageFile(),
-              user.email,
-              id
-            )
-          : null
-      const imgUrl = storage != null ? await storage.ref.getDownloadURL() : ""
+        hasImageToUpload &&
+        (await uploadImageToRecipeId(controller.getImageFile(), user.email, id))
+      const imgUrl = hasImageToUpload ? await storage.ref.getDownloadURL() : ""
       const dirs = directions.map((e) => {
         delete e.editStep
         return e
       })
 
       if (id.length > 0) {
-        if (imgUrl.length > 0) {
-          await updateRecipeById(id, {
-            title,
-            ingredients,
-            directions: dirs,
-            contributor: user.displayName,
-            image: imgUrl,
-          })
-        } else {
-          await updateRecipeById(id, {
-            title,
-            ingredients,
-            directions: dirs,
-            contributor: user.displayName,
-          })
-        }
+        await updateRecipeById(id, {
+          title,
+          ingredients,
+          directions: dirs,
+          contributor: user.displayName,
+          image: imgUrl,
+        })
         toast.success("Your recipe has been updated.")
       } else {
         const recipeRef = await addRecipe({
@@ -172,6 +160,7 @@ const RecipeEditor = () => {
           contributor: user.displayName,
           image: imgUrl,
         })
+
         if (controller.getImageFile() != null) {
           await uploadImageToRecipeId(
             controller.getImageFile(),
@@ -189,20 +178,20 @@ const RecipeEditor = () => {
         setLoading(false)
       }, 1000)
     } catch (e) {
-      toast.error(e)
+      toast.error(e.message)
       setLoading(false)
     }
   }
   const validate = (values) => {
     const errors = {}
-    if (values.title.ength < 1) {
-      errors.title = "A recipe title is required."
+    if (values.directions.length < 1) {
+      errors.directions = "At least one direction is required."
     }
     if (ingredients.length < 1) {
       errors.ingredients = "Please submit at least one ingredient."
     }
-    if (values.directions.length < 1) {
-      errors.directions = "At least one direction is required."
+    if (values.title.ength < 1) {
+      errors.title = "A recipe title is required."
     }
     return errors
   }
