@@ -262,7 +262,7 @@ const RecipeEditor = () => {
                 fullWidth
                 label='Recipe Title'
                 value={values.title}
-                InputProps={{ style: { width: "400px" } }}
+                InputProps={{ style: { width: "100%" } }}
                 onChange={(e) => {
                   change("title", e.target.value)
                   controller.setTitle(e.target.value)
