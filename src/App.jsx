@@ -10,7 +10,7 @@ import { Redirect } from "react-router-dom"
 import { CircularProgress } from "@material-ui/core"
 import "react-toastify/dist/ReactToastify.css"
 import { authRef } from "fire/firebase"
-import AuthenticationContext from "contexts/AuthenticationContext"
+import AuthProvider from "contexts/AuthProvider"
 import Authentication from "controllers/Auth/Auth"
 
 const useStyles = makeStyles((theme) => ({
@@ -43,7 +43,7 @@ function App() {
   window.auth = auth
 
   return (
-    <AuthenticationContext.Provider value={auth}>
+    <AuthProvider auth={auth}>
       <div className={clsx("Kitchen Recipes", classes.app)}>
         <Toolbar />
         <div className={classes.pageWrapper}>
@@ -57,7 +57,7 @@ function App() {
         </div>
         <ToastContainer autoClose={4000} hideProgressBar={true} />
       </div>
-    </AuthenticationContext.Provider>
+    </AuthProvider>
   )
 }
 

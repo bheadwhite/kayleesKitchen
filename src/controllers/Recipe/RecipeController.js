@@ -232,4 +232,14 @@ export default class RecipeController {
       next: callback,
     })
   }
+
+  dispose() {
+    this.imageFile.complete()
+    this.imageUrl.complete()
+    this.ingredients.complete()
+    this.directions.complete()
+    this.editIngredient.complete()
+    this.editSection.complete()
+    this.loadingRecipeImage.complete()
+  }
 }

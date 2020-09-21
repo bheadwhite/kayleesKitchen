@@ -93,7 +93,10 @@ const RecipeEditor = () => {
   })
 
   useEffect(() => {
-    return () => controller.generateNewRecipe()
+    return () => {
+      controller.generateNewRecipe()
+      controller.dispose()
+    }
   }, [controller])
 
   const handleOnPulledRecipe = ({ value }) => {

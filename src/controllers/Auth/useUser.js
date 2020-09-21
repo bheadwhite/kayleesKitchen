@@ -3,7 +3,7 @@ import useAuth from "./useAuth"
 
 const useAuthState = () => {
   const auth = useAuth()
-  const [user, setUser] = useState(auth.currentUser)
+  const [user, setUser] = useState(auth.user.getState())
 
   useEffect(() => {
     const subscription = auth.onUserChange((user) => {
