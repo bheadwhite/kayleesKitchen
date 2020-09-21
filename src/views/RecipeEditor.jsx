@@ -19,6 +19,7 @@ import useDirections from "controllers/Recipe/useDirections"
 import useEditIngredient from "controllers/Recipe/useEditIngredient"
 import useUsersRecipes from "controllers/Recipe/useUsersRecipes"
 import useUser from "controllers/Auth/useUser"
+import useRecipeImageUrl from "controllers/Recipe/useRecipeImageUrl"
 
 import useRecipeController from "controllers/Recipe/useRecipeController"
 import { makeStyles, Dialog } from "@material-ui/core"
@@ -79,6 +80,7 @@ const RecipeEditor = () => {
   const ingredients = useIngredients()
   const user = useUser()
   const [loading, setLoading] = useState(false)
+  const currentImageUrl = useRecipeImageUrl()
   const usersRecipes = useUsersRecipes().map((recipe) => {
     const data = recipe.data()
     if (data != null) {
@@ -100,7 +102,6 @@ const RecipeEditor = () => {
   }, [controller])
 
   const handleOnPulledRecipe = ({ value }) => {
-    controller.setRecipeImageIsLoading(true)
     controller.onPulledRecipe(value)
     if (value.image != null && value.image.length > 0) {
       getImageUrlByEmailId(user.email, value.id)
@@ -136,19 +137,19 @@ const RecipeEditor = () => {
       const storage =
         hasImageToUpload &&
         (await uploadImageToRecipeId(controller.getImageFile(), user.email, id))
-      const imgUrl = hasImageToUpload ? await storage.ref.getDownloadURL() : ""
+      const imgUrl = storage && (await storage.ref.getDownloadURL())
       const dirs = directions.map((e) => {
         delete e.editStep
         return e
       })
 
-      if (id.length > 0) {
+      if (id != null) {
         await updateRecipeById(id, {
           title,
           ingredients,
           directions: dirs,
           contributor: user.displayName,
-          image: imgUrl,
+          image: currentImageUrl || imgUrl,
         })
         toast.success("Your recipe has been updated.")
       } else {
@@ -179,6 +180,7 @@ const RecipeEditor = () => {
       }, 1000)
     } catch (e) {
       toast.error(e.message)
+      console.error(e)
       setLoading(false)
     }
   }

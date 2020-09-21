@@ -34,15 +34,13 @@ const ImageUpload = () => {
   const onChange = async (event) => {
     const file = await event.target.files[0]
     controller.setImageFile(file)
+    controller.setRecipeImageIsLoading(true)
     uploadRecipeEditorImage(file, user.email)
       .then((e) => e.ref.getDownloadURL())
       .then((url) => {
         controller.setImageUrl(url)
         change("image", url)
         imageInputRef.current.value = ""
-        if (url.length === 0) {
-          controller.setRecipeImageIsLoading(false)
-        }
       })
       .catch((e) => {
         toast.error(e.message)

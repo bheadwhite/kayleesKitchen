@@ -8,7 +8,7 @@ const default_editIngredient = {
 }
 
 export default class RecipeController {
-  id = ""
+  id = null
   title = ""
   directions = new StatefulSubject([])
   ingredients = new StatefulSubject([])
