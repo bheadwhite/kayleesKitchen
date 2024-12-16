@@ -1,0 +1,21 @@
+import { Butter, Milk, VanillaExtract, Sugar } from "src/data/ingredients";
+import categories from "src/data/categories";
+import tags from "src/data/tags";
+
+export const VanillaFrosting = {
+  title: "Vanilla Frosting",
+  contributor: "Laurel Fletcher",
+  category: categories.homemade,
+  tags: [tags.homemade],
+  ingredients: [
+    Butter("2 sticks", { type: "Melted" }),
+    Milk("2 tbsp"),
+    VanillaExtract("1 tsp"),
+    Sugar("4 cups", { type: "Powdered" }),
+  ],
+  directions: [
+    { type: "section", text: "Mix" },
+    { type: "step", text: "mix it all together." },
+    { type: "step", text: "enjoy." },
+  ],
+};
