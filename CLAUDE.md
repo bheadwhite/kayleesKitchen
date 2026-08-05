@@ -99,6 +99,35 @@ means changing that one `derive` callback and `RequireAuth` in `src/App.tsx`.
 `derive()` batches on a microtask, so status changes land one tick after the underlying
 signal. Tests must `await`/`findBy*` rather than assert synchronously.
 
+### One account, two ways in
+
+Firebase keeps **one account per email address** (the default), so a person who registered
+with `bob@gmail.com` and a password, and later presses "Sign in with Google" with that same
+Gmail account, is refused: `auth/account-exists-with-different-credential`. The two are the
+same person and the same email, but not the same account, and Google will never work for
+them until the credentials are joined.
+
+`logInWithGoogle` treats that error as **a step in the flow, not a failure**. It keeps the
+Google credential from `GoogleAuthProvider.credentialFromError`, publishes the email on
+`linkEmailBroadcast` (`usePendingLinkEmail`), and *resolves*. `<Login>` swaps itself for a
+panel asking for the existing password; `completeGoogleLink` then signs in with it and
+calls `linkWithCredential`, after which either button works forever. A wrong password keeps
+the pending credential so they can retry without another trip through the popup.
+
+The password is unavoidable — linking has to happen while signed in *as* that account, and
+that is the point: someone holding only a Google token should not be able to take over an
+account they have not proved they own.
+
+**Do not reach for `fetchSignInMethodsForEmail`** to discover which provider the existing
+account uses. It is deprecated, and it returns an empty array whenever Email Enumeration
+Protection is enabled — so it cannot be trusted to tell you anything. Password is the only
+other provider this app offers, so the panel asks for it directly.
+
+The reverse case — an account created *through* Google, then someone types a password —
+cannot be detected at all, for the same enumeration-protection reason. Firebase reports a
+plain bad credential, so `<Login>` names both possibilities in the message rather than
+guessing.
+
 Google sign-in (`logInWithGoogle`) shares the login `Runner` with email/password, so it
 needs no extra status. It goes through `loginWithGoogle` in `services.ts`
 (`signInWithPopup`), which also writes the `users` profile document Google accounts would

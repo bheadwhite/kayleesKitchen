@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import Login from "./Login"
 import AuthProvider from "contexts/AuthProvider"
@@ -20,14 +20,14 @@ vi.mock("fire/services", () => ({
 }))
 
 const signInWithEmailAndPassword = vi.fn()
-const credentialFromError = vi.fn(() => null as unknown)
+const credentialFromError = vi.fn((_error: unknown) => null as unknown)
 
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: (_auth: unknown, callback: (user: unknown) => void) => {
     callback(null)
     return () => {}
   },
-  GoogleAuthProvider: { credentialFromError: (...args: unknown[]) => credentialFromError(...args) },
+  GoogleAuthProvider: { credentialFromError: (error: unknown) => credentialFromError(error) },
   signInWithEmailAndPassword: (...args: unknown[]) => signInWithEmailAndPassword(...args),
   signOut: vi.fn(),
 }))
@@ -158,5 +158,65 @@ describe("Login abandoned Google sign-in", () => {
 
     presenter.dispose()
     vi.useRealTimers()
+  })
+})
+
+describe("Login — linking Google to an existing password account", () => {
+  const conflict = () =>
+    Object.assign(new Error("account exists"), {
+      code: "auth/account-exists-with-different-credential",
+      customData: { email: "cook@example.test" },
+    })
+
+  beforeEach(() => {
+    loginWithGoogle.mockReset()
+    linkGoogleToExistingAccount.mockReset()
+    credentialFromError.mockReturnValue({ providerId: "google.com" })
+  })
+
+  it("asks for the existing password instead of dead-ending", async () => {
+    const user = userEvent.setup()
+    loginWithGoogle.mockRejectedValue(conflict())
+    const presenter = renderLogin()
+
+    await user.click(screen.getByRole("button", { name: "Sign in with Google" }))
+
+    expect(await screen.findByText(/already signs in with a password/)).toBeInTheDocument()
+    expect(screen.getByText("cook@example.test")).toBeInTheDocument()
+
+    presenter.dispose()
+  })
+
+  it("links the account once the password is entered", async () => {
+    const user = userEvent.setup()
+    loginWithGoogle.mockRejectedValue(conflict())
+    linkGoogleToExistingAccount.mockResolvedValue(undefined)
+    const presenter = renderLogin()
+
+    await user.click(screen.getByRole("button", { name: "Sign in with Google" }))
+    await user.type(await screen.findByLabelText("Password"), "hunter2")
+    await user.click(screen.getByRole("button", { name: "Link and sign in" }))
+
+    await waitFor(() => expect(linkGoogleToExistingAccount).toHaveBeenCalled())
+    expect(linkGoogleToExistingAccount.mock.calls[0][1]).toMatchObject({
+      email: "cook@example.test",
+      password: "hunter2",
+    })
+
+    presenter.dispose()
+  })
+
+  it("goes back to the normal form when the link is cancelled", async () => {
+    const user = userEvent.setup()
+    loginWithGoogle.mockRejectedValue(conflict())
+    const presenter = renderLogin()
+
+    await user.click(screen.getByRole("button", { name: "Sign in with Google" }))
+    await user.click(await screen.findByRole("button", { name: "Cancel" }))
+
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument()
+    expect(screen.queryByText(/already signs in with a password/)).not.toBeInTheDocument()
+
+    presenter.dispose()
   })
 })
