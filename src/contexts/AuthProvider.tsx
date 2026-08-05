@@ -39,4 +39,10 @@ export const useAuthStatus = () => useSignalValue(useAuthPresenter().statusBroad
 
 export const useSessionUser = () => useSignalValue(useAuthPresenter().userBroadcast)
 
+/**
+ * The email whose password is needed to finish linking a Google sign-in, or
+ * null when nothing is pending. See `AuthPresenter.logInWithGoogle`.
+ */
+export const usePendingLinkEmail = () => useSignalValue(useAuthPresenter().linkEmailBroadcast)
+
 export default AuthProvider

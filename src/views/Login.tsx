@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Form } from "react-final-form"
 import { useNavigate } from "react-router-dom"
 import { toast } from "react-toastify"
 
 import { Button, GoogleIcon, Spinner } from "components"
 import { TextField } from "components/finalForm"
-import { useAuthPresenter, useAuthStatus } from "contexts/AuthProvider"
+import { useAuthPresenter, useAuthStatus, usePendingLinkEmail } from "contexts/AuthProvider"
 import { SIGN_IN_CANCELLED } from "presenters/AuthPresenter"
 import { login as validateLogin } from "@/validation"
 import type { LoginValues } from "@/types"
@@ -24,6 +24,13 @@ const CANCELLED_POPUP_CODES = [
  */
 const ABANDONED_SIGN_IN_MS = 2500
 
+/** What a wrong password looks like. Newer projects collapse them into one. */
+const BAD_CREDENTIAL_CODES = [
+  "auth/invalid-credential",
+  "auth/wrong-password",
+  "auth/user-not-found",
+]
+
 const isCancelledSignIn = (error: unknown) => {
   if (typeof error !== "object" || error == null) return false
   if ("code" in error && CANCELLED_POPUP_CODES.includes((error as { code: string }).code)) {
@@ -38,6 +45,8 @@ const Login = () => {
   const navigate = useNavigate()
   const isSubmitting = status === "loggingIn"
   const [awaitingGoogle, setAwaitingGoogle] = useState(false)
+  const pendingLinkEmail = usePendingLinkEmail()
+  const [linkPassword, setLinkPassword] = useState("")
 
   // Firebase does not always reject when the Google window is dismissed, which
   // used to leave this page spinning with no way back. Getting focus again
@@ -67,7 +76,23 @@ const Login = () => {
       await auth.logIn(email, password)
       navigate("/recipes")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not sign in.")
+      // The other half of the two-ways-in problem: an account created *through*
+      // Google has no password, and Firebase reports that as an ordinary bad
+      // credential. It cannot tell us which it was — email enumeration
+      // protection exists precisely to stop that — so the message names both.
+      const isBadCredential =
+        typeof error === "object" &&
+        error != null &&
+        "code" in error &&
+        BAD_CREDENTIAL_CODES.includes((error as { code: string }).code)
+
+      toast.error(
+        isBadCredential
+          ? "Wrong email or password. If you first signed up with Google, use the Google button instead."
+          : error instanceof Error
+            ? error.message
+            : "Could not sign in."
+      )
     }
   }
 
@@ -75,13 +100,85 @@ const Login = () => {
     setAwaitingGoogle(true)
     try {
       await auth.logInWithGoogle()
-      navigate("/recipes")
+      // A pending link means the sign-in stopped one step short on purpose:
+      // this email already has a password, and the panel below asks for it.
+      if (auth.getPendingLinkEmail() == null) navigate("/recipes")
     } catch (error) {
       if (isCancelledSignIn(error)) return
       toast.error(error instanceof Error ? error.message : "Could not sign in with Google.")
     } finally {
       setAwaitingGoogle(false)
     }
+  }
+
+  const onLink = async (event: FormEvent) => {
+    event.preventDefault()
+    try {
+      await auth.completeGoogleLink(linkPassword)
+      setLinkPassword("")
+      navigate("/recipes")
+    } catch {
+      // The password is the only thing that can be wrong here, and the pending
+      // credential survives, so this stays on the panel for another go.
+      toast.error("That password did not match. Try again, or cancel to go back.")
+    }
+  }
+
+  // One account, two ways in. Google stopped short because this email already
+  // has a password; entering it once joins them, and the Google button works on
+  // its own from then on.
+  if (pendingLinkEmail != null) {
+    return (
+      <div className='flex h-full w-full items-center justify-center'>
+        <form
+          onSubmit={onLink}
+          className='blueprint w-full bg-ground p-5 sm:w-[480px] sm:p-7'
+          aria-label='Link your Google account'>
+          <h2 className='mb-3 font-heading text-3xl font-bold tracking-[0.02em]'>
+            One more step.
+          </h2>
+          <p className='mb-5 text-ink/80'>
+            <span className='font-medium'>{pendingLinkEmail}</span> already signs in with a
+            password. Enter it once and your Google account will be joined to it — after
+            that either way works.
+          </p>
+
+          <label
+            htmlFor='link-password'
+            className='mb-1 block font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
+            Password
+          </label>
+          <input
+            id='link-password'
+            type='password'
+            autoComplete='current-password'
+            autoFocus
+            value={linkPassword}
+            onChange={(event) => setLinkPassword(event.target.value)}
+            className='w-full border border-divider bg-surface px-3 py-2.5 text-base hover:border-ink/45 focus-visible:border-steel focus-visible:outline-offset-0'
+          />
+
+          <div className='mt-4 flex gap-2 max-sm:flex-col max-sm:[&>button]:mr-0'>
+            {isSubmitting ? (
+              <Spinner size={32} />
+            ) : (
+              <>
+                <Button type='submit' variant='primary' disabled={linkPassword === ""}>
+                  Link and sign in
+                </Button>
+                <Button
+                  onClick={() => {
+                    auth.cancelGoogleLink()
+                    setLinkPassword("")
+                  }}>
+                  Cancel
+                </Button>
+              </>
+            )}
+          </div>
+        </form>
+      </div>
+    )
   }
 
   return (

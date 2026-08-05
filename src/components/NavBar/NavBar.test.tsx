@@ -18,6 +18,7 @@ vi.mock("firebase/auth", () => ({
     emitAuthState = callback
     return () => {}
   },
+  GoogleAuthProvider: { credentialFromError: () => null },
   signInWithEmailAndPassword: vi.fn(),
   signOut: (...args: unknown[]) => signOutMock(...args),
 }))
@@ -25,6 +26,8 @@ vi.mock("firebase/auth", () => ({
 vi.mock("fire/services", () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
   loginWithGoogle: vi.fn(),
+  linkGoogleToExistingAccount: vi.fn(),
+  ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL: "auth/account-exists-with-different-credential",
 }))
 
 const renderNavBar = (initialPath = "/recipes") => {

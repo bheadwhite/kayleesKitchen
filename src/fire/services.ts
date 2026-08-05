@@ -1,10 +1,12 @@
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
+  linkWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
   type Auth,
+  type AuthCredential,
   type User,
   type UserCredential,
 } from "firebase/auth"
@@ -83,6 +85,48 @@ export const loginWithGoogle = async (authInstance: Auth = auth): Promise<UserCr
   const credential = await signInWithPopup(authInstance, googleProvider)
   await ensureUserProfile(credential.user)
   return credential
+}
+
+/**
+ * The error Firebase raises when the Google account's email already belongs to
+ * an account created some other way — here, always email + password. With
+ * "one account per email address" on (the default), Google sign-in *fails*
+ * rather than silently merging.
+ */
+export const ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL =
+  "auth/account-exists-with-different-credential"
+
+/**
+ * Attaches a Google credential to the existing password account for the same
+ * email, so both ways in reach one account from then on.
+ *
+ * The password is required because linking has to happen while signed in *as*
+ * that account, and Firebase will only hand out that session in exchange for
+ * the existing credential. That is also why this cannot be done silently: the
+ * whole point of the check is that someone holding only a Google token should
+ * not be able to take over an account they have not proved they own.
+ *
+ * Note what this deliberately does *not* do: `fetchSignInMethodsForEmail` is the
+ * classic way to discover which provider the existing account uses, but it is
+ * deprecated and returns an empty list whenever Email Enumeration Protection is
+ * enabled — so it cannot be trusted to tell us anything. Password is the only
+ * other provider this app offers, so the caller asks for it directly.
+ */
+export const linkGoogleToExistingAccount = async (
+  authInstance: Auth,
+  {
+    email,
+    password,
+    credential,
+  }: { email: string; password: string; credential: AuthCredential }
+): Promise<UserCredential> => {
+  const existing = await signInWithEmailAndPassword(authInstance, email, password)
+  await linkWithCredential(existing.user, credential)
+  // Google accounts normally get their profile document from `loginWithGoogle`,
+  // which this path skipped. A password account registered through <Register>
+  // already has one, so this is a no-op in the usual case.
+  await ensureUserProfile(existing.user)
+  return existing
 }
 
 /* --------------------------------------------------------------- recipes */

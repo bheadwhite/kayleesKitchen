@@ -10,19 +10,24 @@ import { AuthPresenter } from "presenters/AuthPresenter"
 vi.mock("fire/firebase", () => ({ auth: {}, db: {}, storage: {}, userRef: {}, recipesRef: {} }))
 
 const loginWithGoogle = vi.fn()
+const linkGoogleToExistingAccount = vi.fn()
 
 vi.mock("fire/services", () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
   loginWithGoogle: (...args: unknown[]) => loginWithGoogle(...args),
+  linkGoogleToExistingAccount: (...args: unknown[]) => linkGoogleToExistingAccount(...args),
+  ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL: "auth/account-exists-with-different-credential",
 }))
 
 const signInWithEmailAndPassword = vi.fn()
+const credentialFromError = vi.fn(() => null as unknown)
 
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: (_auth: unknown, callback: (user: unknown) => void) => {
     callback(null)
     return () => {}
   },
+  GoogleAuthProvider: { credentialFromError: (...args: unknown[]) => credentialFromError(...args) },
   signInWithEmailAndPassword: (...args: unknown[]) => signInWithEmailAndPassword(...args),
   signOut: vi.fn(),
 }))
