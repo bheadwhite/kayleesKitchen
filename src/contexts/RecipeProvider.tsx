@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react"
+import { createContext, useContext, useMemo, type ReactNode } from "react"
 import { useSignalValue } from "@tcn/state/react"
 
 import { RecipePresenter } from "presenters/RecipePresenter"
@@ -13,10 +13,8 @@ interface RecipeProviderProps {
 export const RecipeProvider = ({ children, presenter }: RecipeProviderProps) => {
   const value = useMemo(() => presenter ?? new RecipePresenter(), [presenter])
 
-  useEffect(() => {
-    if (presenter) return
-    return () => value.dispose()
-  }, [value, presenter])
+  // Not disposed on unmount — see the comment in AuthProvider.tsx. The editor
+  // clears its own state via `presenter.reset()` when it unmounts.
 
   return <RecipeContext.Provider value={value}>{children}</RecipeContext.Provider>
 }

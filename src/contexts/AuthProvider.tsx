@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react"
+import { createContext, useContext, useMemo, type ReactNode } from "react"
 import { useSignalValue } from "@tcn/state/react"
 
 import { auth } from "fire/firebase"
@@ -15,12 +15,13 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children, presenter }: AuthProviderProps) => {
   const value = useMemo(() => presenter ?? new AuthPresenter(auth), [presenter])
 
-  useEffect(() => {
-    // Only dispose presenters this provider created — an injected one is the
-    // caller's to tear down.
-    if (presenter) return
-    return () => value.dispose()
-  }, [value, presenter])
+  // Deliberately NOT disposed on unmount. This provider sits at the app root, so
+  // the presenter's lifetime is the page's. Disposing it in an effect cleanup
+  // breaks under <StrictMode>, which mounts / unmounts / remounts every effect in
+  // development: the cleanup disposes the presenter, but `useMemo` does not re-run
+  // on the remount, leaving the app wired to a dead presenter — the Firebase auth
+  // listener is unsubscribed and the derived status never leaves "initializing".
+  // An injected presenter is the caller's to dispose.
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

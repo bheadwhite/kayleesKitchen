@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react"
+import { StrictMode } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -33,15 +34,25 @@ vi.mock("firebase/auth", () => ({
   signOut: vi.fn(),
 }))
 
-const renderApp = (initialPath: string) =>
+const Tree = ({ initialPath }: { initialPath: string }) => (
+  <AuthProvider>
+    <RecipeProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <App />
+      </MemoryRouter>
+    </RecipeProvider>
+  </AuthProvider>
+)
+
+const renderApp = (initialPath: string) => render(<Tree initialPath={initialPath} />)
+
+/** main.tsx renders inside <StrictMode>, which mounts, tears down, and remounts
+ *  every effect in development. Providers must survive that cycle. */
+const renderAppStrict = (initialPath: string) =>
   render(
-    <AuthProvider>
-      <RecipeProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <App />
-        </MemoryRouter>
-      </RecipeProvider>
-    </AuthProvider>
+    <StrictMode>
+      <Tree initialPath={initialPath} />
+    </StrictMode>
   )
 
 describe("App", () => {
@@ -63,6 +74,13 @@ describe("App", () => {
 
   it("lets a signed-in user reach the recipes page", async () => {
     renderApp("/recipes")
+    emitAuthState({ uid: "u1", email: "cook@example.test", displayName: null })
+
+    expect(await screen.findByText("Select a Recipe...")).toBeInTheDocument()
+  })
+
+  it("still resolves auth state under StrictMode's mount/unmount/remount", async () => {
+    renderAppStrict("/recipes")
     emitAuthState({ uid: "u1", email: "cook@example.test", displayName: null })
 
     expect(await screen.findByText("Select a Recipe...")).toBeInTheDocument()
