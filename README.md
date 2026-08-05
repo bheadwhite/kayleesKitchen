@@ -1,68 +1,84 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# Kitchen Help
 
-## Available Scripts
+A shared family recipe box. Sign in, browse everyone's recipes, and write your own
+with an editor that handles ingredients, step-by-step directions grouped into
+sections, and a photo.
 
-In the project directory, you can run:
+Built with Vite, React 18, TypeScript, Tailwind CSS v4, Firebase, and
+[`@tcn/state`](https://www.npmjs.com/package/@tcn/state) for state management.
 
-### `yarn start`
+## Getting started
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```bash
+npm install
+cp .env.example .env   # then fill in the Firebase values
+npm run dev            # http://localhost:3000
+```
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+The `VITE_FIREBASE_*` values come from the Firebase console under
+**Project settings → General → Your apps → SDK setup and configuration**. They are
+bundled into the client and are not secrets — Firebase web config is public by
+design, and access control lives in Firestore/Storage security rules.
 
-### `yarn test`
+Without a `.env`, the app boots but every Firebase call fails.
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Scripts
 
-### `yarn build`
+| command | what it does |
+|---|---|
+| `npm run dev` | dev server on :3000 with HMR |
+| `npm run build` | typecheck, then bundle to `build/` |
+| `npm run preview` | serve the production build locally |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | run the Vitest suite once |
+| `npm run test:watch` | Vitest in watch mode |
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Run a single test file or a single test:
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+```bash
+npm test -- RecipePresenter
+npm test -- -t "clears the id back to null"
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Deploying (Cloudflare Pages)
 
-### `yarn eject`
+Connect the repo in the Cloudflare dashboard and use:
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+- **Build command:** `npm run build`
+- **Build output directory:** `build`
+- **Node version:** pinned to 22.12.0 by `.node-version`
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Add every `VITE_FIREBASE_*` variable under **Settings → Environment variables** for
+both Production and Preview. Vite inlines them at build time, so changing one
+requires a redeploy.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+`public/_redirects` routes unmatched paths to `index.html` so react-router handles
+deep links.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+To deploy by hand instead:
 
-## Learn More
+```bash
+npm run build
+npx wrangler pages deploy build
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+After the first deploy, add the Pages domain to Firebase Auth's authorized domains
+(**Authentication → Settings → Authorized domains**) or sign-in will be rejected.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Data model
 
-### Code Splitting
+Two Firestore collections:
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+- **`users`** — `{ firstName, lastName, email }`. Looked up by email to build the
+  display name credited on a recipe.
+- **`recipes`** — `{ title, ingredients, directions, email, contributor, image }`,
+  owned by `email`. `ingredients` is `{ name, amount, optional, unique }[]`;
+  `directions` is `{ sectionTitle, steps: string[] }[]`.
 
-### Analyzing the Bundle Size
+Recipe photos live in Cloud Storage at `{userEmail}/{recipeId}.png`, plus a scratch
+`{userEmail}/recipeEditor.png` used for the editor preview before a recipe id
+exists.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
-
-### Making a Progressive Web App
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
-
-### Advanced Configuration
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
-
-### Deployment
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
-
-### `yarn build` fails to minify
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+`src/data/` holds hand-authored seed recipes composed from ingredient factory
+functions. They are not loaded by the app — they predate the Firestore schema and
+are kept as reference content.

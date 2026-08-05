@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
+
+    // Incremental migration: .js/.jsx files still compile but are not type-checked.
+    // Delete `allowJs`/`checkJs` once everything is converted to .ts/.tsx.
+    "allowJs": true,
+    "checkJs": false,
+
+    // Mirrors the `resolve.alias` block in vite.config.ts. Keep the two in sync.
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["./*"],
+      "components": ["./components/index.ts"],
+      "components/*": ["./components/*"],
+      "contexts/*": ["./contexts/*"],
+      "data/*": ["./data/*"],
+      "fire/*": ["./fire/*"],
+      "hooks/*": ["./hooks/*"],
+      "presenters/*": ["./presenters/*"],
+      "utils/*": ["./utils/*"],
+      "views": ["./views/index.ts"],
+      "views/*": ["./views/*"],
+      "validation": ["./validation.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"],
+  "exclude": ["node_modules", "build"]
+}

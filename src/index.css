@@ -1,13 +1,33 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+
+/*
+ * Design tokens carried over from the old MUI theme (src/theme.js).
+ * The MUI theme used a 5px spacing unit, so `theme.spacing(2)` was 10px —
+ * that maps onto Tailwind's default 4px scale as roughly `2.5`.
+ */
+@theme {
+  --color-brand-blue: #3f51b5;
+  --color-brand-green: #3fb548;
+  --color-brand-turquoise: #0d4a4d;
+  --color-brand-red: #d62727;
+  --color-brand-border: #c4c4c4;
+  --color-brand-muted: rgba(0, 0, 0, 0.4);
+  --color-brand-well: rgba(0, 0, 0, 0.05);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  --font-mono: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+@layer base {
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code {
+    font-family: var(--font-mono);
+  }
 }
