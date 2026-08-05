@@ -28,6 +28,7 @@ const TextField = forwardRef<HTMLDivElement, TextFieldProps>(
     })
 
     const showError = Boolean(touched && error)
+    const errorId = `${id ?? name}-error`
     const handleChange =
       onChange ?? ((event: ChangeEvent<HTMLInputElement>) => change(name, event.target.value))
 
@@ -36,7 +37,9 @@ const TextField = forwardRef<HTMLDivElement, TextFieldProps>(
         ref={ref}
         className={clsx("my-1 flex flex-col", fullWidth ? "w-full" : "w-full max-w-[380px]")}>
         {label && (
-          <label htmlFor={id ?? name} className='mb-1 text-sm text-gray-700'>
+          <label
+            htmlFor={id ?? name}
+            className='mb-1 font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
             {label}
           </label>
         )}
@@ -50,14 +53,24 @@ const TextField = forwardRef<HTMLDivElement, TextFieldProps>(
           onFocus={input.onFocus}
           onBlur={input.onBlur}
           aria-invalid={showError}
+          aria-describedby={showError ? errorId : undefined}
           className={clsx(
-            "w-full rounded border bg-white px-3 py-2.5 text-base outline-none",
-            "focus:border-brand-blue focus:ring-1 focus:ring-brand-blue",
-            showError ? "border-brand-red" : "border-brand-border",
+            // 16px, not the system's 14px: anything smaller and iOS zooms the
+            // whole page in when the field takes focus.
+            "w-full border bg-surface px-3 py-2.5 text-base",
+            "focus-visible:outline-offset-0",
+            showError
+              ? "border-danger focus-visible:outline-danger"
+              : "border-divider hover:border-ink/45 focus-visible:border-steel",
             className
           )}
           {...props}
         />
+        {showError && (
+          <span id={errorId} role='alert' className='mt-1 text-sm text-danger'>
+            {String(error)}
+          </span>
+        )}
       </div>
     )
   }

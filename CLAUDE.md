@@ -18,6 +18,16 @@ npm test -- -t "moves a step down"   # single test by name
 There is no lint script. Type errors surface via `npm run typecheck` (and as part
 of `npm run build`).
 
+The Cloud Functions backend is a **separate npm package** under `functions/`, with its
+own `package.json`, `tsconfig.json`, and `node_modules`. The root `typecheck`/`build`
+does **not** cover it — check it separately:
+
+```bash
+cd functions && npm install
+cd functions && npm run typecheck    # tsc --noEmit
+cd functions && npm run deploy       # builds, then firebase deploy --only functions
+```
+
 ## Environment
 
 Firebase config comes from `VITE_FIREBASE_*` variables read in `src/fire/firebase.ts`
@@ -25,10 +35,17 @@ Firebase config comes from `VITE_FIREBASE_*` variables read in `src/fire/firebas
 vars to the client, and inlines them at build time — a changed value needs a rebuild.
 Without a `.env` the app boots and logs a warning, but every Firebase call fails.
 
+The Anthropic key is **not** a `VITE_` var — it lives in Secret Manager and is read only
+by the Cloud Function:
+
+```bash
+firebase functions:secrets:set ANTHROPIC_API_KEY
+```
+
 ## Imports
 
 `vite.config.ts` `resolve.alias` and the `paths` block in `tsconfig.json` define
-directory-level aliases: `components`, `contexts`, `fire`, `hooks`, `presenters`,
+directory-level aliases: `ai`, `components`, `contexts`, `fire`, `hooks`, `presenters`,
 `views`, `data`, plus `@/*` for anything under `src`. **Adding a new top-level
 directory under `src/` means adding it to both files** — they are kept in sync by
 hand, and a missing alias fails at import time rather than at typecheck.
@@ -52,7 +69,8 @@ The shape is always the same:
    disposed by the provider).
 3. **Hooks** — thin `useSignalValue(presenter.xBroadcast)` wrappers, colocated in the
    provider file (`useIngredients`, `useDirections`, `useEditSection`, `useEditIngredient`,
-   `useRecipeImageUrl`, `useLoadingRecipeImage`, `useAuthStatus`, `useSessionUser`).
+   `useRecipeImageUrl`, `useLoadingRecipeImage`, `useAuthStatus`, `useSessionUser`,
+   `useAssistantTurns`, `usePendingImages`, `useProposedDraft`, `useAssistantStatus`).
 
 To add shared state: add a private `Signal` + a `xBroadcast` getter + mutators on the
 presenter, then one `useSignalValue` hook next to the others. Do not lift that state
@@ -81,6 +99,14 @@ means changing that one `derive` callback and `RequireAuth` in `src/App.tsx`.
 `derive()` batches on a microtask, so status changes land one tick after the underlying
 signal. Tests must `await`/`findBy*` rather than assert synchronously.
 
+Google sign-in (`logInWithGoogle`) shares the login `Runner` with email/password, so it
+needs no extra status. It goes through `loginWithGoogle` in `services.ts`
+(`signInWithPopup`), which also writes the `users` profile document Google accounts would
+otherwise never get — `<Register>` is the only other thing that creates one. The presenter
+takes the flow as an injectable third constructor argument, like `lookupProfile`. The
+provider must be enabled under Firebase Console → Authentication → Sign-in method, with the
+serving domain listed under Authorized domains.
+
 Async work belongs in a `Runner`, not a `Signal` plus a loading boolean — `Runner` tracks
 `status`/`error`/`progress` and supports `retry()` and `cancel()`.
 
@@ -96,11 +122,82 @@ Because the modular SDK exports free functions rather than methods, tests stub F
 by mocking the modules (`vi.mock("fire/firebase")`, `vi.mock("fire/services")`,
 `vi.mock("firebase/auth")`) — see `src/App.test.tsx`. There is no injectable auth double.
 
+### The AI recipe assistant
+
+The editor's assistant panel takes photos of a recipe, a pasted link, or a plain
+instruction like "double everything", and proposes a filled-in draft.
+
+Links go through Claude's server-side `web_fetch` tool — there is no scraping code
+here, and no client change: a pasted URL is just message text, and `web_fetch` only
+reads URLs already in the conversation. Because it runs a server-side loop, a response
+can come back with `stop_reason: "pause_turn"`; the function re-sends with the partial
+assistant turn appended (never a "continue" message) up to `MAX_CONTINUATIONS`.
+**Instagram and Facebook usually return a login wall** — the system prompt tells the
+model to say so and ask for a screenshot rather than invent a recipe from a page title.
+
+**The Anthropic API key must never reach the client.** This is a pure Vite SPA — every
+`VITE_*` var is inlined into the bundle — so the call goes through the
+`recipeAssistant` callable in `functions/`, which holds the key in Secret Manager and
+rejects unauthenticated callers. Adding an `import Anthropic from "@anthropic-ai/sdk"`
+anywhere under `src/` is always wrong.
+
+The flow, and why each piece is where it is:
+
+1. `AiDraftPresenter` owns the transcript, staged photos, and the proposed draft, with a
+   `Runner` for the in-flight call. Photos stay attached to the turn that sent them, so
+   a later "check the second photo again" still has something to look at.
+2. `recipeAssistant` (`functions/src/index.ts`) rebuilds the transcript as content
+   blocks and calls Claude with a single `propose_recipe` tool. The tool is `strict`, so
+   `tool_use.input` is a valid `RecipeDraft` with no parsing or normalising on either
+   side. `tool_choice` stays `auto` — a conversational turn should answer, not invent a
+   draft.
+3. **Nothing is applied automatically.** The draft sits in `_proposedDraft` until the
+   user presses "Apply to editor", which calls `RecipePresenter.loadRecipe()`. An
+   unwanted suggestion can never clobber half-typed work. `loadRecipe` reads `id` off
+   its argument, so the apply path re-supplies the editor's own id — dropping it would
+   turn the next save into a brand-new recipe.
+
+`functions/src/types.ts` mirrors `src/ai/types.ts` by hand; the two packages share no
+build. Changing the wire format means editing both.
+
+### Generated recipe images — a second, non-Anthropic model
+
+**Claude cannot generate images.** The Anthropic API takes images as input (that is what
+photo transcription uses) and has no image output, so "Generate image" in `ImageUpload`
+goes to a different provider: Google's `gemini-2.5-flash-image` via Vertex AI, in the
+`generateRecipeImage` callable.
+
+It was picked for its credentials, not its output: running on Vertex in this same GCP
+project means the function authenticates with its **own service account** (`GoogleAuth`,
+no key), so the project still holds exactly one AI secret. Imagen would have been the
+obvious choice but its `imagen-*-generate-*` publisher models 404 for this project.
+
+The generated file goes through `acceptImageFile()` — the same staging, upload, and
+form-wiring the file picker uses — so preview, "Delete image", and saving behave
+identically whether the image was picked or generated.
+
+Prompt caching: the system prompt and the transcript prefix carry `cache_control`
+(photos are large and get resent every turn), and the editor's live contents go *after*
+that breakpoint as a mid-conversation `role: "system"` message — putting volatile state
+in `system` would invalidate the whole prefix on every keystroke.
+
 ### Forms
 
 `react-final-form` throughout. `src/components/finalForm/{TextField,Checkbox}.tsx` bridge
 it to plain Tailwind inputs: they read `useField` for meta and call `useForm().change()`
 rather than binding `input.onChange`.
+
+`src/components/NewRecipe/Directions.tsx` reorders steps with **@dnd-kit** (`core` +
+`sortable` + `modifiers`). HTML5 drag-and-drop does not work on touch, which this app
+needs, and dnd-kit's `KeyboardSensor` keeps reordering reachable without a mouse now
+that the up/down buttons are gone. Two things are load-bearing: the drag handle needs
+`touch-none` (otherwise the browser claims the gesture for scrolling and no drag ever
+starts on a phone), and the `TouchSensor` uses a press-delay so a tap still scrolls.
+
+Editing is click-to-edit: the section title and each step are buttons that swap
+themselves for an input. The step editor reuses the **same `nextStep-{i}` name and id**
+as the add-step input below it, which is safe because only one of the two is mounted at
+a time — see the `utils.ts` contract below.
 
 `src/views/RecipeEditor.tsx` is the complex one — a single `<Form>` whose `initialValues`
 are rebuilt from the presenter on every render, so presenter mutations reset form fields.
@@ -125,6 +222,56 @@ These carry over the palette from the retired MUI theme.
 MUI is gone. Local replacements live in `src/components/ui/`: `Button`, `Dialog`,
 `Spinner`, and `Icons.tsx` (inline SVG Material paths). `Button` defaults to
 `type="button"` so the many icon buttons inside the editor's `<form>` do not submit it.
+
+### App chrome, and the four numbers that must agree
+
+Two fixed bars sandwich the scrolling column: `components/Toolbar` (title only) at the
+top and `components/NavBar` at the bottom. The hamburger menu they replaced is gone.
+
+`NavBar`'s three tabs are Recipes, Recipe Editor, and the account — an `<Avatar>` with the
+user's name, linking to `/profile`. It is deliberately **not** a Logout button: signing
+out sat one mis-tap from the tab used most, and it is destructive here because it drops
+whatever is half-typed in the editor. `src/views/Profile.tsx` owns signing out, behind a
+confirm dialog. `Avatar` (`components/ui/Avatar.tsx`) shows the Google `photoURL` and
+falls back to initials — on `onError` as well as when the URL is missing, because
+`lh3.googleusercontent.com` links do go stale.
+
+`NavBar` renders `null` unless `useAuthStatus()` is `"loggedIn"` — every entry needs a
+session — and `App` reads the same status to decide whether to reserve room for it.
+
+Because both bars are `position: fixed`, four places have to agree on their heights, so
+the heights are `:root` variables in `src/index.css` (`--header-h`, `--navbar-h`) rather
+than literals: the two bars themselves, `App`'s content padding, and `RecipeTable`'s
+sticky filter bar (`top-[calc(var(--header-h)+var(--sai-top))]`).
+
+The **z-index scale is written out in the `:root` block of `src/index.css`** (drag 10,
+sticky filter 30, portaled menu 35, fixed chrome 40, dialog 50). Layers get set three
+different ways here — Tailwind classes, react-select's `styles` prop, and a portal into
+`<body>` — so anything new that stacks takes a value from that list. Reaching for a big
+number instead is how the editor's recipe picker ended up painting over the toolbar.
+
+### PWA
+
+`vite-plugin-pwa` (workbox `generateSW`) builds the manifest, the service worker, and the
+registration script — there is no `public/manifest.json` and no registration code in
+`src/`. It is configured entirely in `vite.config.ts`. `registerType: "autoUpdate"` means
+a new build replaces the old shell silently on the next visit; there is no update prompt.
+`firebase.json` sends `Cache-Control: no-cache` for `sw.js` / `registerSW.js` /
+`manifest.webmanifest`, which carry no content hash and would otherwise pin installed
+apps to a stale build.
+
+Installed, the app runs edge-to-edge: `index.html` sets `viewport-fit=cover` plus the
+`apple-mobile-web-app-*` tags (iOS reads those, not the manifest's `display`). Anything
+touching a screen edge pays the inset back itself using the `--sai-top` / `--sai-bottom` /
+`--sai-left` / `--sai-right` aliases for `env(safe-area-inset-*)` in `src/index.css`. The
+pattern for a bar is background on the outer element with the inset as padding, fixed
+height on the inner row — so the color reaches the edge but the controls stay above the
+home indicator. In a browser tab every inset is `0px`, so the same classes are correct
+there with no conditional styling.
+
+Firestore and Auth are never cached; Storage recipe images are (`CacheFirst`, 30 days).
+`devOptions.enabled` is `false` — a worker in `npm run dev` serves stale modules and
+makes HMR look broken.
 
 ## Tests
 

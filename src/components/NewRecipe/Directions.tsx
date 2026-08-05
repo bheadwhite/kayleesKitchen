@@ -1,20 +1,111 @@
-import { useEffect, useRef, useState } from "react"
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import clsx from "clsx"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useFormState } from "react-final-form"
 
 import {
   AddIcon,
-  ArrowDownwardIcon,
-  ArrowUpwardIcon,
   Button,
   CheckIcon,
   CloseIcon,
   DeleteIcon,
   Dialog,
-  EditIcon,
+  DragIndicatorIcon,
   WarningIcon,
 } from "components"
 import { TextField } from "components/finalForm"
 import { useDirections, useEditSection, useRecipePresenter } from "contexts/RecipeProvider"
+
+/** Small square icon button — the row chrome, not a primary action. */
+const IconButton = ({
+  onClick,
+  label,
+  danger = false,
+  children,
+}: {
+  onClick: () => void
+  label: string
+  danger?: boolean
+  children: ReactNode
+}) => (
+  <button
+    type='button'
+    onClick={onClick}
+    aria-label={label}
+    title={label}
+    className={clsx(
+      "flex h-9 w-9 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded",
+      "focus-visible:ring-brand-blue focus-visible:ring-2 focus-visible:outline-none",
+      danger
+        ? "text-brand-red hover:bg-brand-red/10"
+        : "text-gray-500 hover:bg-black/5 hover:text-gray-700"
+    )}>
+    {children}
+  </button>
+)
+
+interface StepRowProps {
+  id: string
+  text: string
+  onEdit: () => void
+  onDelete: () => void
+}
+
+/** One draggable step: grip, click-to-edit text, delete. */
+const StepRow = ({ id, text, onEdit, onDelete }: StepRowProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={clsx(
+        "flex items-start gap-1 rounded py-0.5",
+        isDragging && "bg-brand-well relative z-10 shadow"
+      )}>
+      <button
+        type='button'
+        aria-label={`Reorder: ${text}`}
+        // `touch-none` is required — without it the browser claims the gesture
+        // for scrolling and the drag never starts on a phone.
+        className='mt-0.5 flex h-9 w-6 shrink-0 cursor-grab touch-none items-center justify-center text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:outline-none active:cursor-grabbing'
+        {...attributes}
+        {...listeners}>
+        <DragIndicatorIcon />
+      </button>
+
+      <button
+        type='button'
+        onClick={onEdit}
+        className='focus-visible:ring-brand-blue min-w-0 flex-1 cursor-text rounded px-1 py-1.5 text-left break-words hover:bg-black/5 focus-visible:ring-2 focus-visible:outline-none'
+        title='Click to edit'>
+        {text}
+      </button>
+
+      <IconButton onClick={onDelete} label={`Delete step: ${text}`} danger>
+        <DeleteIcon />
+      </IconButton>
+    </div>
+  )
+}
 
 const Directions = () => {
   const presenter = useRecipePresenter()
@@ -27,16 +118,23 @@ const Directions = () => {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
 
+  const sensors = useSensors(
+    // A short press-and-hold on touch keeps vertical scrolling working; a small
+    // drag distance on mouse keeps a plain click from starting a drag.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
   // Focus a section title as soon as it enters edit mode while still blank.
   useEffect(() => {
     if (editSection == null) return
     const input = sectionRef.current?.querySelector("input")
-    if (input && input.value === "") input.focus()
+    if (input) input.focus()
   }, [editSection])
 
   const addSection = () => {
     presenter.addNewSection("")
-    // Focus the new section's step field once it has rendered.
     setTimeout(() => {
       const list = document.getElementsByClassName("directions-list")[0]
       list?.lastElementChild?.querySelector("input")?.focus()
@@ -50,7 +148,6 @@ const Directions = () => {
 
   const updateStep = (index: number) => {
     presenter.updateSectionStep(index, values)
-    stepRef.current?.querySelector("input")?.focus()
   }
 
   const toggleConfirm = () => setConfirmOpen((open) => !open)
@@ -66,9 +163,15 @@ const Directions = () => {
     setDeleteIndex(null)
   }
 
+  const handleDragEnd = (sectionIndex: number) => (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over == null || active.id === over.id) return
+    presenter.moveStep(sectionIndex, Number(active.id), Number(over.id))
+  }
+
   return (
     <>
-      <div className='relative mt-4 rounded border border-brand-border p-1.5'>
+      <div className='border-brand-border relative mt-6 rounded border p-2 sm:p-1.5'>
         <div className='absolute -top-2.5 left-2.5 bg-white px-1.5'>Directions</div>
 
         <div className='directions-list'>
@@ -78,102 +181,119 @@ const Directions = () => {
             directions.map(({ sectionTitle, steps, editStep }, index) => (
               <div
                 key={`${sectionTitle}-${index}`}
-                className='mb-4 rounded border border-black p-4'>
-                <div className='font-semibold text-brand-blue'>
+                className='border-brand-border mb-4 rounded border p-2 sm:p-3'>
+                {/* -------------------------------------------------- title */}
+                <div className='flex items-start gap-1'>
                   {editSection === index ? (
-                    <div className='flex items-end gap-2'>
-                      <TextField
-                        id='sectionInput'
-                        name='section'
-                        placeholder='Section Title'
-                        ref={sectionRef}
-                      />
-                      <Button
+                    <div className='flex flex-1 flex-wrap items-end gap-1'>
+                      <div className='min-w-0 flex-1 basis-full sm:basis-0'>
+                        <TextField
+                          id='sectionInput'
+                          name='section'
+                          placeholder='Section Title'
+                          fullWidth
+                          ref={sectionRef}
+                        />
+                      </div>
+                      <IconButton
                         onClick={() => presenter.updateSectionTitle(values.section)}
-                        className='bg-brand-green hover:bg-brand-green/85'
-                        aria-label='Save section title'>
+                        label='Save section title'>
                         <CheckIcon />
-                      </Button>
-                      <Button
+                      </IconButton>
+                      <IconButton
                         onClick={() => presenter.setEditSection(null)}
-                        danger
-                        aria-label='Cancel editing section'>
+                        label='Cancel editing section'>
                         <CloseIcon />
-                      </Button>
+                      </IconButton>
                     </div>
-                  ) : (
-                    <div className='flex flex-wrap items-center gap-1'>
-                      {sectionTitle === "" ? (
-                        <span className='text-gray-400'>Section Title</span>
-                      ) : (
-                        sectionTitle
-                      )}
-                      <Button onClick={() => presenter.setEditSection(index)} className='ml-4'>
-                        Edit Title
-                      </Button>
-                      <Button onClick={() => handleDeleteSection(index)} danger>
-                        Delete Section
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {steps.map((step, i) => (
-                  <div key={i} className='flex flex-wrap items-center gap-1 py-0.5 font-normal'>
-                    <span className='mr-2 text-black'>- {step}</span>
-                    <Button onClick={() => presenter.setEditStep(index, i)} aria-label='Edit step'>
-                      <EditIcon />
-                    </Button>
-                    <Button
-                      onClick={() => presenter.deleteStep(index, i)}
-                      danger
-                      aria-label='Delete step'>
-                      <DeleteIcon />
-                    </Button>
-                    <Button
-                      onClick={() => presenter.moveStepUpOne(index, i)}
-                      aria-label='Move step up'>
-                      <ArrowUpwardIcon />
-                    </Button>
-                    <Button
-                      onClick={() => presenter.moveStepDownOne(index, i)}
-                      aria-label='Move step down'>
-                      <ArrowDownwardIcon />
-                    </Button>
-                  </div>
-                ))}
-
-                <div className='flex items-end gap-2'>
-                  <TextField
-                    id={`nextStep-${index}`}
-                    name={`nextStep-${index}`}
-                    fullWidth
-                    placeholder='type next step'
-                    ref={stepRef}
-                  />
-                  {editStep == null ? (
-                    <Button onClick={() => newStep(index)} aria-label='Add step'>
-                      <span id='add-step' className='flex items-center justify-center'>
-                        <AddIcon />
-                      </span>
-                    </Button>
                   ) : (
                     <>
-                      <Button
-                        onClick={() => updateStep(index)}
-                        className='bg-brand-green hover:bg-brand-green/85'
-                        aria-label='Save step'>
-                        <CheckIcon />
-                      </Button>
-                      <Button
-                        onClick={() => presenter.clearEditStep(index)}
-                        danger
-                        aria-label='Cancel editing step'>
-                        <CloseIcon />
-                      </Button>
+                      <button
+                        type='button'
+                        onClick={() => presenter.setEditSection(index)}
+                        title='Click to edit'
+                        className='text-brand-blue focus-visible:ring-brand-blue min-w-0 flex-1 cursor-text rounded px-1 py-1.5 text-left font-semibold break-words hover:bg-black/5 focus-visible:ring-2 focus-visible:outline-none'>
+                        {sectionTitle === "" ? (
+                          <span className='text-gray-400'>Section Title</span>
+                        ) : (
+                          sectionTitle
+                        )}
+                      </button>
+                      <IconButton
+                        onClick={() => handleDeleteSection(index)}
+                        label={`Delete section: ${sectionTitle || "untitled"}`}
+                        danger>
+                        <DeleteIcon />
+                      </IconButton>
                     </>
                   )}
                 </div>
+
+                {/* -------------------------------------------------- steps */}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                  onDragEnd={handleDragEnd(index)}>
+                  <SortableContext
+                    items={steps.map((_, i) => String(i))}
+                    strategy={verticalListSortingStrategy}>
+                    <div className='mt-1'>
+                      {steps.map((step, i) =>
+                        editStep === i ? (
+                          // Same field name and id as the add-step input below —
+                          // only one of the two is ever mounted, which keeps the
+                          // `nextStep-{i}` contract in NewRecipe/utils.ts intact.
+                          <div key={i} className='flex flex-wrap items-end gap-1 py-1'>
+                            <div className='min-w-0 flex-1 basis-full sm:basis-0'>
+                              <TextField
+                                id={`nextStep-${index}`}
+                                name={`nextStep-${index}`}
+                                fullWidth
+                              />
+                            </div>
+                            <IconButton onClick={() => updateStep(index)} label='Save step'>
+                              <CheckIcon />
+                            </IconButton>
+                            <IconButton
+                              onClick={() => presenter.clearEditStep(index)}
+                              label='Cancel editing step'>
+                              <CloseIcon />
+                            </IconButton>
+                          </div>
+                        ) : (
+                          <StepRow
+                            key={i}
+                            id={String(i)}
+                            text={step}
+                            onEdit={() => presenter.setEditStep(index, i)}
+                            onDelete={() => presenter.deleteStep(index, i)}
+                          />
+                        )
+                      )}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+
+                {/* ----------------------------------------------- add step */}
+                {editStep == null && (
+                  <div className='mt-1 flex items-end gap-2 pl-6'>
+                    <div className='min-w-0 flex-1'>
+                      <TextField
+                        id={`nextStep-${index}`}
+                        name={`nextStep-${index}`}
+                        fullWidth
+                        placeholder='type next step'
+                        ref={stepRef}
+                      />
+                    </div>
+                    <IconButton onClick={() => newStep(index)} label='Add step'>
+                      <span id='add-step' className='flex items-center justify-center'>
+                        <AddIcon />
+                      </span>
+                    </IconButton>
+                  </div>
+                )}
               </div>
             ))
           )}

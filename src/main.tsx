@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import { BrowserRouter } from "react-router-dom"
 
 import App from "./App"
+import AiDraftProvider from "contexts/AiDraftProvider"
 import AuthProvider from "contexts/AuthProvider"
 import RecipeProvider from "contexts/RecipeProvider"
 import "react-toastify/dist/ReactToastify.css"
@@ -15,9 +16,11 @@ createRoot(container).render(
   <StrictMode>
     <AuthProvider>
       <RecipeProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <AiDraftProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AiDraftProvider>
       </RecipeProvider>
     </AuthProvider>
   </StrictMode>

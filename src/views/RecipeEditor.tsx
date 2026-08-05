@@ -4,10 +4,12 @@ import Select from "react-select"
 import { toast } from "react-toastify"
 
 import { Button, Dialog, Spinner, WarningIcon } from "components"
+import { AiAssistant } from "components/AiAssistant"
 import { TextField } from "components/finalForm"
 import { ImageUpload } from "components/ImageUpload"
 import { AddIngredient, Directions, ListIngredients } from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
+import { useAiDraftPresenter } from "contexts/AiDraftProvider"
 import { useSessionUser } from "contexts/AuthProvider"
 import {
   useDirections,
@@ -39,6 +41,7 @@ interface EditorValues {
 
 const RecipeEditor = () => {
   const presenter = useRecipePresenter()
+  const assistant = useAiDraftPresenter()
   const user = useSessionUser()
   const directions = useDirections()
   const ingredients = useIngredients()
@@ -50,9 +53,15 @@ const RecipeEditor = () => {
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
-  // Leave the editor clean for the next visit. The presenter itself is owned by
-  // <RecipeProvider>, so this resets rather than disposes it.
-  useEffect(() => () => presenter.reset(), [presenter])
+  // Leave the editor clean for the next visit. Both presenters are owned by
+  // their providers, so this resets rather than disposes them.
+  useEffect(
+    () => () => {
+      presenter.reset()
+      assistant.reset()
+    },
+    [presenter, assistant]
+  )
 
   const options = useMemo<RecipeOption[]>(
     () =>
@@ -202,12 +211,31 @@ const RecipeEditor = () => {
             void handleSubmit()
           }}>
           <Select<RecipeOption>
-            className='mb-1 max-w-[400px]'
+            className='mb-1 w-full max-w-[400px]'
             placeholder='Edit an existing recipe'
             options={options}
             value={editMode ? options.find((o) => o.value.id === presenter.getId()) : null}
             onChange={handleOnPulledRecipe}
-            styles={{ menuPortal: (base) => ({ ...base, zIndex: 999 }) }}
+            styles={{
+              // The menu is portaled to <body> to escape the form's clipping, so
+              // it needs an explicit place on the app's z-scale (see index.css):
+              // above the recipe list's sticky filter, below the fixed toolbar
+              // and nav bar. react-select's own default of 1 loses to the sticky
+              // filter; the 999 this used to carry drew the open menu *over* the
+              // toolbar as soon as the page scrolled.
+              menuPortal: (base) => ({ ...base, zIndex: 35 }),
+              // Long enough to be worth opening, short enough that it cannot
+              // reach the nav bar at the bottom of the window.
+              menu: (base) => ({ ...base, maxHeight: "50dvh" }),
+              menuList: (base) => ({ ...base, maxHeight: "50dvh" }),
+              // react-select's 38px default control is under the 44px touch
+              // minimum, and its 14px text makes iOS zoom in on focus.
+              control: (base) => ({ ...base, minHeight: 44 }),
+              input: (base) => ({ ...base, fontSize: 16 }),
+              placeholder: (base) => ({ ...base, fontSize: 16 }),
+              singleValue: (base) => ({ ...base, fontSize: 16 }),
+              option: (base) => ({ ...base, fontSize: 16, paddingTop: 10, paddingBottom: 10 }),
+            }}
             menuPortalTarget={document.body}
           />
 
@@ -223,7 +251,7 @@ const RecipeEditor = () => {
 
           <ImageUpload />
 
-          <div className='relative mt-4 mb-1 rounded border border-brand-border p-1.5'>
+          <div className='border-brand-border relative mt-6 mb-1 rounded border p-2 sm:p-1.5'>
             <div className='absolute -top-2.5 left-2.5 bg-white px-1.5'>Ingredients</div>
             <ListIngredients />
             <AddIngredient />
@@ -231,9 +259,13 @@ const RecipeEditor = () => {
 
           <Directions />
 
-          <div className='mt-4 flex items-center justify-end gap-2 bg-brand-well p-4'>
+          <AiAssistant />
+
+          <div className='bg-brand-well mt-4 flex flex-col items-stretch gap-2 rounded p-3 max-sm:[&>button]:mr-0 sm:flex-row sm:items-center sm:justify-end sm:p-4'>
             {saving ? (
-              <Spinner size={32} />
+              <div className='flex justify-center'>
+                <Spinner size={32} />
+              </div>
             ) : (
               <>
                 {editMode && <Button onClick={handleCancelEditMode}>Cancel</Button>}
@@ -243,8 +275,11 @@ const RecipeEditor = () => {
           </div>
 
           {editMode && (
-            <div className='mt-20 mb-52'>
-              <Button onClick={() => setConfirmOpen(true)} danger>
+            <div className='mt-16 mb-24 sm:mt-20 sm:mb-52'>
+              <Button
+                onClick={() => setConfirmOpen(true)}
+                danger
+                className='w-full max-sm:mr-0 sm:w-auto'>
                 Delete Recipe
               </Button>
             </div>

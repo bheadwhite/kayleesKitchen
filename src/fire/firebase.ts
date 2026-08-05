@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app"
 import { getAnalytics, isSupported } from "firebase/analytics"
 import { getAuth } from "firebase/auth"
 import { collection, getFirestore } from "firebase/firestore"
+import { getFunctions } from "firebase/functions"
 import { getStorage } from "firebase/storage"
 
 const config = {
@@ -37,6 +38,8 @@ if (config.measurementId) {
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
+/** Hosts `recipeAssistant` — the AI proxy that holds the Anthropic key. */
+export const functions = getFunctions(app)
 
 export const userRef = collection(db, "users")
 export const recipesRef = collection(db, "recipes")

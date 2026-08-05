@@ -196,6 +196,15 @@ export class RecipePresenter {
     )
   }
 
+  /** Drag-and-drop reordering. Out-of-range indices are ignored. */
+  moveStep(sectionIndex: number, from: number, to: number) {
+    const section = this._directions.get()[sectionIndex]
+    if (section == null || from === to) return
+    if (from < 0 || from >= section.steps.length) return
+    if (to < 0 || to >= section.steps.length) return
+    this._moveStep(sectionIndex, from, to)
+  }
+
   moveStepUpOne(sectionIndex: number, indexOfStep: number) {
     if (indexOfStep === 0) return
     this._moveStep(sectionIndex, indexOfStep, indexOfStep - 1)

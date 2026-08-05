@@ -1,6 +1,16 @@
-import type { RegisterValues } from "@/types"
+import type { LoginValues, RegisterValues } from "@/types"
 
 export type RegisterErrors = Partial<Record<keyof RegisterValues, string>>
+export type LoginErrors = Partial<Record<keyof LoginValues, string>>
+
+export const login = (values: LoginValues): LoginErrors => {
+  const errors: LoginErrors = {}
+
+  if (!values.email?.trim()) errors.email = "Please enter your email address."
+  if (!values.password) errors.password = "Please enter your password."
+
+  return errors
+}
 
 export const register = (values: RegisterValues): RegisterErrors => {
   const errors: RegisterErrors = {}

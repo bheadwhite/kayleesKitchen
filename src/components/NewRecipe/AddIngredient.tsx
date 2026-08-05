@@ -28,20 +28,35 @@ const AddIngredient = () => {
   const resetEditIngredient = () => presenter.resetEditIngredient()
 
   return (
-    <div className='bg-brand-well p-1'>
+    <div className='bg-brand-well p-2'>
       <div>
         <Checkbox name='optional' checked={values.optional} label='optional' />
         <Checkbox name='unique' checked={values.unique} label='unique' />
       </div>
-      <div className='flex items-end gap-2'>
-        <TextField id='nameInput' name='name' placeholder='Name' ref={nameFieldRef} />
-        <TextField id='ingred-amt' name='amount' placeholder='Amount' />
+      {/* Name takes the full width on a phone; amount and the action button share
+       *  the row below it. Both sit side by side from `sm` up. */}
+      <div className='flex flex-wrap items-end gap-2'>
+        <div className='basis-full sm:basis-0 sm:flex-1'>
+          <TextField
+            id='nameInput'
+            name='name'
+            placeholder='Name'
+            fullWidth
+            ref={nameFieldRef}
+          />
+        </div>
+        <div className='min-w-0 flex-1'>
+          <TextField id='ingred-amt' name='amount' placeholder='Amount' fullWidth />
+        </div>
         {isEditing ? (
           <>
-            <Button onClick={updateIngredient} className='bg-brand-green hover:bg-brand-green/85'>
+            <Button
+              onClick={updateIngredient}
+              className='bg-brand-green hover:bg-brand-green/85'
+              aria-label='Save ingredient'>
               <CheckIcon />
             </Button>
-            <Button onClick={resetEditIngredient} danger>
+            <Button onClick={resetEditIngredient} danger aria-label='Cancel editing ingredient'>
               <CloseIcon />
             </Button>
           </>

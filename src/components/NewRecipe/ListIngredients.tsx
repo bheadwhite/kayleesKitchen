@@ -23,8 +23,8 @@ const ListIngredients = () => {
       {ingredients.map((ingredient, index) => (
         <div
           key={`${ingredient.name}-${index}-${ingredient.amount}`}
-          className='flex items-center justify-between'>
-          <div>
+          className='flex items-center justify-between gap-2 border-b border-black/5 py-1 last:border-b-0'>
+          <div className='min-w-0 break-words'>
             <span
               className={clsx(
                 "mr-1 font-medium",
@@ -36,7 +36,7 @@ const ListIngredients = () => {
             {ingredient.optional && <span className='ml-1 text-brand-muted'> (optional) </span>}
           </div>
 
-          <div className='whitespace-nowrap'>
+          <div className='flex shrink-0 items-center'>
             <Button
               onClick={() => setEditIngredient(ingredient)}
               aria-label={`Edit ${ingredient.name}`}>

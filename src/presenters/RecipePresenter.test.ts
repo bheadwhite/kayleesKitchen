@@ -118,6 +118,26 @@ describe("RecipePresenter", () => {
       expect(presenter.getDirections()[0].steps).toEqual(["Brown the beef", "Add tomatoes"])
     })
 
+    it("moves a step to an arbitrary position (drag and drop)", () => {
+      presenter.addNewStep(0, "Simmer")
+      presenter.moveStep(0, 2, 0)
+
+      expect(presenter.getDirections()[0].steps).toEqual([
+        "Simmer",
+        "Brown the beef",
+        "Add tomatoes",
+      ])
+    })
+
+    it("ignores a drag that lands out of range or goes nowhere", () => {
+      presenter.moveStep(0, 0, 0)
+      presenter.moveStep(0, 0, 5)
+      presenter.moveStep(0, -1, 1)
+      presenter.moveStep(9, 0, 1)
+
+      expect(presenter.getDirections()[0].steps).toEqual(["Brown the beef", "Add tomatoes"])
+    })
+
     it("updates the step under edit from form values", () => {
       presenter.setEditStep(0, 1)
       presenter.updateSectionStep(0, { "nextStep-0": "Add crushed tomatoes" })

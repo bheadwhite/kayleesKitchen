@@ -19,6 +19,7 @@ vi.mock("fire/firebase", () => ({
 
 vi.mock("fire/services", () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
+  loginWithGoogle: vi.fn(),
   onRecipesSnapshot: vi.fn(() => () => {}),
   onRecipesByEmailSnapshot: vi.fn(() => () => {}),
 }))
@@ -76,19 +77,52 @@ describe("App", () => {
     renderApp("/recipes")
     emitAuthState({ uid: "u1", email: "cook@example.test", displayName: null })
 
-    expect(await screen.findByText("Select a Recipe...")).toBeInTheDocument()
+    expect(await screen.findByLabelText("Filter recipes")).toBeInTheDocument()
   })
 
   it("still resolves auth state under StrictMode's mount/unmount/remount", async () => {
     renderAppStrict("/recipes")
     emitAuthState({ uid: "u1", email: "cook@example.test", displayName: null })
 
-    expect(await screen.findByText("Select a Recipe...")).toBeInTheDocument()
+    expect(await screen.findByLabelText("Filter recipes")).toBeInTheDocument()
   })
 
   it("renders the app chrome", () => {
     renderApp("/login")
     expect(screen.getByRole("heading", { name: "Kitchen Help" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "menu" })).toBeInTheDocument()
+  })
+
+  it("hides the nav bar on the login page — every entry needs a session", async () => {
+    renderApp("/login")
+    emitAuthState(null)
+
+    expect(await screen.findByText("Please sign in.")).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument()
+  })
+
+  it("shows the nav bar to a signed-in user", async () => {
+    renderApp("/recipes")
+    emitAuthState({ uid: "u1", email: "cook@example.test", displayName: null })
+
+    expect(await screen.findByRole("navigation", { name: "Main" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Recipes" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Recipe Editor" })).toBeInTheDocument()
+    // Signing out lives on /profile, not in the tab bar.
+    expect(screen.getByRole("link", { name: /^Account:/ })).toBeInTheDocument()
+  })
+
+  it("routes a signed-in user to their profile", async () => {
+    renderApp("/profile")
+    emitAuthState({ uid: "u1", email: "cook@example.test", displayName: "Sam Cook" })
+
+    expect(await screen.findByRole("heading", { name: "Account" })).toBeInTheDocument()
+    expect(screen.getByText("cook@example.test")).toBeInTheDocument()
+  })
+
+  it("keeps the profile page behind the auth guard", async () => {
+    renderApp("/profile")
+    emitAuthState(null)
+
+    expect(await screen.findByText("Please sign in.")).toBeInTheDocument()
   })
 })

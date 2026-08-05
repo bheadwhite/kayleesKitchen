@@ -23,6 +23,17 @@ export interface Recipe {
   image?: string | null
 }
 
+/**
+ * The slice of a recipe the editor owns and the AI assistant proposes.
+ * Deliberately excludes `id`, `email`, `contributor`, and `image` — those are
+ * set by the editor's own save path, not by anything the assistant returns.
+ */
+export interface RecipeDraft {
+  title: string
+  ingredients: Ingredient[]
+  directions: DirectionSection[]
+}
+
 /** Firestore `users` document. */
 export interface UserProfile {
   firstName: string
@@ -38,6 +49,16 @@ export interface SessionUser {
   uid: string
   email: string
   displayName: string | null
+  /**
+   * Google's account picture. Null for email/password accounts — nothing in this
+   * app uploads one — so <Avatar> always needs its initials fallback.
+   */
+  photoURL: string | null
+}
+
+export interface LoginValues {
+  email?: string
+  password?: string
 }
 
 export interface RegisterValues {

@@ -1,33 +1,216 @@
+/*
+ * Fonts are self-hosted rather than pulled from Google Fonts: this is an
+ * installable PWA, and a render-blocking request to fonts.googleapis.com is
+ * exactly the thing that fails in a kitchen with bad signal. Vite fingerprints
+ * the woff2 files and workbox precaches them (see `globPatterns`).
+ *
+ * Only the weights the system actually names are imported — Barlow 400/500/600
+ * for body and Barlow Condensed 600/700 for headings — because every extra
+ * weight is another file in the precache.
+ */
+@import "@fontsource/barlow/400.css";
+@import "@fontsource/barlow/500.css";
+@import "@fontsource/barlow/600.css";
+@import "@fontsource/barlow-condensed/600.css";
+@import "@fontsource/barlow-condensed/700.css";
 @import "tailwindcss";
 
 /*
- * Design tokens carried over from the old MUI theme (src/theme.js).
- * The MUI theme used a 5px spacing unit, so `theme.spacing(2)` was 10px —
- * that maps onto Tailwind's default 4px scale as roughly `2.5`.
+ * The "Industry" design system: steel-blue on a light technical ground, Barlow
+ * Condensed headings over Barlow, square corners, hairline borders. The tokens
+ * below are copied from the system's own styles.css — treat that file as the
+ * source and this as the Tailwind binding, so `--color-steel-600` here and
+ * `--color-accent-600` there must stay the same hex.
+ *
+ * It replaced the palette carried over from the retired MUI theme; there is no
+ * `brand-blue` / `brand-red` any more.
  */
 @theme {
-  --color-brand-blue: #3f51b5;
-  --color-brand-green: #3fb548;
-  --color-brand-turquoise: #0d4a4d;
-  --color-brand-red: #d62727;
-  --color-brand-border: #c4c4c4;
-  --color-brand-muted: rgba(0, 0, 0, 0.4);
-  --color-brand-well: rgba(0, 0, 0, 0.05);
+  /* Roles. `ground` is the page, `surface` an inert fill (thumbnails, wells),
+   * `ink` all text, `divider` every hairline. */
+  --color-ground: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-ink: #1d1f20;
+  --color-divider: rgba(29, 31, 32, 0.16);
+  --color-muted: rgba(29, 31, 32, 0.55);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  --font-mono: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+  /* The single accent, on a 100–900 perceptual ramp: 100–300 for tinted fills
+   * and hovers, 500/DEFAULT as the base, 700–900 for text on those tints. */
+  --color-steel: #5980a6;
+  --color-steel-100: #eef6ff;
+  --color-steel-200: #d6ebff;
+  --color-steel-300: #b5d9fd;
+  --color-steel-400: #94bce3;
+  --color-steel-500: #749dc4;
+  --color-steel-600: #597ea3;
+  --color-steel-700: #416180;
+  --color-steel-800: #2c455d;
+  --color-steel-900: #1d2d3d;
+
+  /* The system is deliberately mono — "no decorative color beyond the steel
+   * accent" — so this is the one addition: a brick tuned to sit at steel's
+   * lightness, used *only* to mark an irreversible action (delete a recipe,
+   * sign out). Losing work with no color signal at all is the worse tradeoff.
+   * Never reach for it for emphasis. */
+  --color-danger: #a04a44;
+  --color-danger-100: #fbeceb;
+
+  --font-sans: "Barlow", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: "Barlow Condensed", "Barlow", system-ui, sans-serif;
+  /* Section headers and counters are set in mono uppercase — the system's
+   * "spec sheet" voice. */
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+:root {
+  /* Installed as a PWA the page runs edge-to-edge under `viewport-fit=cover`,
+   * so the notch/home-indicator insets are ours to pay for. Aliasing them once
+   * here keeps `env()` out of a dozen arbitrary-value Tailwind classes, and
+   * gives a single place to fake an inset while testing on a desktop.
+   *
+   * In a browser tab every one of these resolves to 0px, so the same classes
+   * are correct there with no conditional styling. */
+  --sai-top: env(safe-area-inset-top);
+  --sai-bottom: env(safe-area-inset-bottom);
+  --sai-left: env(safe-area-inset-left);
+  --sai-right: env(safe-area-inset-right);
+
+  /* Heights of the two fixed bars. The scrolling content pads itself by these,
+   * and RecipeTable's filter bar sticks below the header — so all three must
+   * agree, and a literal in one place would drift. */
+  --header-h: 3.5rem;
+  --navbar-h: 67px;
+
+  /*
+   * The whole z-index scale, in one place, because the layers are set in three
+   * different ways — Tailwind classes, react-select's `styles` prop, and a
+   * portal into <body> — and only a written-down order keeps them consistent:
+   *
+   *   10  a row being dragged, above its siblings (Directions)
+   *   30  the recipe list's sticky filter bar
+   *   35  a portaled dropdown menu (RecipeEditor's react-select)
+   *   40  the fixed chrome: Toolbar and NavBar
+   *   50  Dialog, which covers everything including the chrome
+   *
+   * Anything portaled to <body> escapes its parent's stacking context, so it
+   * must name a value on this scale. Picking a big number instead is how the
+   * recipe picker ended up painting over the toolbar.
+   */
 }
 
 @layer base {
+  html {
+    /* Stop iOS Safari inflating text when the phone is rotated to landscape. */
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     margin: 0;
+    background: var(--color-ground);
+    color: var(--color-ink);
     font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Nothing in this app scrolls sideways; a stray wide child should not be
+     * able to drag the whole page off-screen on a phone.
+     *
+     * `clip`, not `hidden`: `overflow-x: hidden` makes <body> a scroll container,
+     * which silently breaks `position: sticky` for everything inside it (the
+     * recipe list's filter bar). `clip` cuts the overflow without that effect. */
+    overflow-x: clip;
+    overscroll-behavior-y: none;
+    /* Installed, taps should not flash the grey box a browser draws — it reads
+     * as a web page rather than an app. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
   }
 
   code {
     font-family: var(--font-mono);
+  }
+
+  /* Keyboard focus is themed everywhere, never the browser default ring. Set
+   * once here so a component only overrides it to change the offset. */
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-steel);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-steel-200);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-muted);
+  }
+
+  /* Anything that can be tapped responds without the 300ms double-tap delay. */
+  button,
+  [role="button"],
+  label,
+  summary,
+  a {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  /*
+   * The registration marks every framed object in this system wears: four "+"
+   * crosshairs sitting just outside the corners of a hairline box. Written as
+   * one class with pseudo-element corners rather than the system's four <i>
+   * children, so a React component can frame something by adding a class.
+   *
+   * The parent must be `relative`; the marks are drawn outside its box, so it
+   * also must not be inside anything that clips (`overflow-hidden`).
+   */
+  .blueprint {
+    position: relative;
+    border: 1px solid var(--color-divider);
+    border-radius: 0;
+  }
+
+  /* One crosshair per pseudo-element: a 9px box painted with a horizontal and a
+   * vertical gradient stroke. Only the two diagonal corners are marked, which is
+   * what the system's own "ASK" button does — four reads as clutter at the sizes
+   * this app frames things at. */
+  .blueprint::before,
+  .blueprint::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--color-steel), var(--color-steel)) center / 9px 1px no-repeat,
+      linear-gradient(var(--color-steel), var(--color-steel)) center / 1px 9px no-repeat;
+  }
+
+  .blueprint::before {
+    top: -5px;
+    left: -5px;
+  }
+
+  .blueprint::after {
+    right: -5px;
+    bottom: -5px;
   }
 }

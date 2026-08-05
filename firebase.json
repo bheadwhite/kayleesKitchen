@@ -1,0 +1,26 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "ignore": ["node_modules", ".git", "**/*.local"],
+      "predeploy": ["\"$RESOURCE_DIR/node_modules/.bin/tsc\" --project \"$RESOURCE_DIR\""]
+    }
+  ],
+  "hosting": {
+    "public": "build",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "headers": [
+      {
+        "source": "/@(sw.js|registerSW.js|manifest.webmanifest)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache, max-age=0" }]
+      }
+    ]
+  },
+  "emulators": {
+    "functions": { "port": 5001 },
+    "ui": { "enabled": true }
+  }
+}

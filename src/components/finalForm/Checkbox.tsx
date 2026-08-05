@@ -16,7 +16,7 @@ const Checkbox = ({ name, label, checked, className, ...props }: CheckboxProps) 
   })
 
   return (
-    <label className='mr-3 inline-flex cursor-pointer items-center gap-1.5 text-sm'>
+    <label className='mr-3 inline-flex min-h-11 cursor-pointer items-center gap-2 text-base sm:min-h-0 sm:gap-1.5 sm:text-sm'>
       <input
         id={name}
         name={name}
@@ -25,7 +25,10 @@ const Checkbox = ({ name, label, checked, className, ...props }: CheckboxProps) 
         onChange={(event) => change(name, event.target.checked)}
         onFocus={input.onFocus}
         onBlur={input.onBlur}
-        className={clsx("h-4 w-4 cursor-pointer accent-brand-blue", className)}
+        className={clsx(
+          "h-5 w-5 shrink-0 cursor-pointer accent-steel sm:h-4 sm:w-4",
+          className
+        )}
         {...props}
       />
       {label && <span>{label}</span>}

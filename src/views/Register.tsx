@@ -42,20 +42,48 @@ const Register = () => {
               }
               void handleSubmit()
             }}
-            className='w-full rounded bg-white p-6 text-center shadow sm:w-[530px]'>
+            className='w-full rounded bg-white p-4 text-center shadow sm:w-[530px] sm:p-6'>
             <h2 className='mb-4 text-2xl font-medium'>Register</h2>
             <div className='mx-auto w-full max-w-[400px] text-left'>
-              <TextField name='firstName' label='First Name' fullWidth />
-              <TextField name='lastName' label='Last Name' fullWidth />
-              <TextField name='email' label='Email' type='email' fullWidth />
-              <TextField name='password' label='Password' type='password' fullWidth />
+              <TextField
+                name='firstName'
+                label='First Name'
+                autoComplete='given-name'
+                autoCapitalize='words'
+                fullWidth
+              />
+              <TextField
+                name='lastName'
+                label='Last Name'
+                autoComplete='family-name'
+                autoCapitalize='words'
+                fullWidth
+              />
+              <TextField
+                name='email'
+                label='Email'
+                type='email'
+                inputMode='email'
+                autoComplete='email'
+                autoCapitalize='none'
+                autoCorrect='off'
+                fullWidth
+              />
+              <TextField
+                name='password'
+                label='Password'
+                type='password'
+                autoComplete='new-password'
+                fullWidth
+              />
               <TextField
                 name='confirmPassword'
                 label='Confirm Password'
                 type='password'
+                autoComplete='new-password'
                 fullWidth
               />
-              <div className='mt-4 flex justify-center'>
+              <div className='mt-4 flex justify-center max-sm:flex-col max-sm:items-stretch'>
                 {isSubmitting ? <Spinner size={32} /> : <Button type='submit'>Submit</Button>}
               </div>
             </div>

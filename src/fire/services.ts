@@ -1,7 +1,11 @@
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut as firebaseSignOut,
+  type Auth,
+  type User,
   type UserCredential,
 } from "firebase/auth"
 import {
@@ -51,6 +55,34 @@ export const getUserProfile = async (email: string): Promise<UserProfile | null>
   const snapshot = await getDocs(query(userRef, where("email", "==", email)))
   const first = snapshot.docs[0]
   return first ? (first.data() as UserProfile) : null
+}
+
+/**
+ * Google accounts never pass through <Register>, so nothing has written their
+ * `users` profile document. Split the Google display name into the first/last
+ * pair the rest of the app expects. No-op when a profile already exists, so a
+ * user who registered with email and later signs in with Google keeps theirs.
+ */
+export const ensureUserProfile = async (user: User): Promise<void> => {
+  if (!user.email) return
+
+  const existing = await getDocs(query(userRef, where("email", "==", user.email)))
+  if (existing.docs.length > 0) return
+
+  const [firstName = "", ...rest] = (user.displayName ?? "").trim().split(/\s+/)
+  await addDoc(userRef, { firstName, lastName: rest.join(" "), email: user.email })
+}
+
+const googleProvider = new GoogleAuthProvider()
+
+/**
+ * Popup — not redirect — so the SPA keeps its in-memory state and the caller
+ * gets a promise it can await. A profile document is created on first sign-in.
+ */
+export const loginWithGoogle = async (authInstance: Auth = auth): Promise<UserCredential> => {
+  const credential = await signInWithPopup(authInstance, googleProvider)
+  await ensureUserProfile(credential.user)
+  return credential
 }
 
 /* --------------------------------------------------------------- recipes */

@@ -7,7 +7,7 @@ import {
   type User,
 } from "firebase/auth"
 
-import { getUserProfile } from "fire/services"
+import { getUserProfile, loginWithGoogle } from "fire/services"
 import type { SessionUser } from "@/types"
 
 /**
@@ -23,6 +23,13 @@ export type AuthStatus =
   | "loggedOut"
 
 type ProfileLookup = (email: string) => Promise<{ firstName: string; lastName: string } | null>
+type GoogleSignIn = (auth: Auth) => Promise<unknown>
+
+/**
+ * Rejection message produced by {@link AuthPresenter.cancelLogin}. Views match on
+ * it to stay quiet — an abandoned sign-in is not an error worth reporting.
+ */
+export const SIGN_IN_CANCELLED = "Sign-in cancelled."
 
 export class AuthPresenter {
   private readonly _user = new Signal<SessionUser | null>(null)
@@ -35,7 +42,8 @@ export class AuthPresenter {
 
   constructor(
     private readonly auth: Auth,
-    private readonly lookupProfile: ProfileLookup = getUserProfile
+    private readonly lookupProfile: ProfileLookup = getUserProfile,
+    private readonly googleSignIn: GoogleSignIn = loginWithGoogle
   ) {
     this._status = derive(
       this._initializing.broadcast,
@@ -98,6 +106,7 @@ export class AuthPresenter {
       uid: user.uid,
       email: user.email ?? "",
       displayName: user.displayName,
+      photoURL: user.photoURL,
     }
 
     if (!base.email) return base
@@ -118,6 +127,32 @@ export class AuthPresenter {
     return this._loginRunner.execute(async () => {
       await signInWithEmailAndPassword(this.auth, email, password)
     })
+  }
+
+  /**
+   * Shares `_loginRunner` with {@link logIn} so the derived status reports
+   * "loggingIn" for either path and the views need no extra branch.
+   */
+  logInWithGoogle() {
+    return this._loginRunner.execute(async () => {
+      await this.googleSignIn(this.auth)
+    })
+  }
+
+  /**
+   * Abandons an in-flight sign-in and returns the status to `loggedOut`.
+   *
+   * `signInWithPopup` does not reliably reject when its window is dismissed —
+   * on mobile it opens a tab rather than a popup, and Firebase's "did the popup
+   * close" polling can never fire, leaving the promise pending forever and the
+   * login view stuck on a spinner. This is the way out of that.
+   *
+   * No-op unless a login is actually pending, and safe to lose a race with a
+   * sign-in that does eventually succeed: the auth listener still fires, and the
+   * derived status reads `loggedIn` from the user rather than from this runner.
+   */
+  cancelLogin() {
+    this._loginRunner.cancel(SIGN_IN_CANCELLED)
   }
 
   logOut() {
