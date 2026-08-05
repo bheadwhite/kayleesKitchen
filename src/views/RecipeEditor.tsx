@@ -3,7 +3,7 @@ import { Form } from "react-final-form"
 import Select from "react-select"
 import { toast } from "react-toastify"
 
-import { Button, Dialog, Spinner, WarningIcon } from "components"
+import { Button, DeleteIcon, Dialog, SectionHeading, Spinner } from "components"
 import { AiAssistant } from "components/AiAssistant"
 import { TextField } from "components/finalForm"
 import { ImageUpload } from "components/ImageUpload"
@@ -242,7 +242,8 @@ const RecipeEditor = () => {
           <TextField
             name='title'
             fullWidth
-            label='Recipe Title'
+            label='Recipe title'
+            className='font-heading text-2xl font-bold'
             onChange={(event) => {
               change("title", event.target.value)
               presenter.setTitle(event.target.value)
@@ -251,17 +252,18 @@ const RecipeEditor = () => {
 
           <ImageUpload />
 
-          <div className='border-brand-border relative mt-6 mb-1 rounded border p-2 sm:p-1.5'>
-            <div className='absolute -top-2.5 left-2.5 bg-white px-1.5'>Ingredients</div>
-            <ListIngredients />
-            <AddIngredient />
-          </div>
+          <SectionHeading
+            meta={`${ingredients.length} item${ingredients.length === 1 ? "" : "s"}`}>
+            Ingredients
+          </SectionHeading>
+          <ListIngredients />
+          <AddIngredient />
 
           <Directions />
 
           <AiAssistant />
 
-          <div className='bg-brand-well mt-4 flex flex-col items-stretch gap-2 rounded p-3 max-sm:[&>button]:mr-0 sm:flex-row sm:items-center sm:justify-end sm:p-4'>
+          <div className='mt-8 flex flex-col items-stretch gap-2 border-t border-divider pt-4 max-sm:[&>button]:mr-0 sm:flex-row sm:items-center sm:justify-end'>
             {saving ? (
               <div className='flex justify-center'>
                 <Spinner size={32} />
@@ -269,18 +271,23 @@ const RecipeEditor = () => {
             ) : (
               <>
                 {editMode && <Button onClick={handleCancelEditMode}>Cancel</Button>}
-                <Button type='submit'>{editMode ? "Update Recipe" : "Submit Recipe"}</Button>
+                {/* The one solid accent object on the page — the page's single
+                 *  real commitment, which is what `primary` is reserved for. */}
+                <Button type='submit' variant='primary'>
+                  {editMode ? "Update recipe" : "Save recipe"}
+                </Button>
               </>
             )}
           </div>
 
           {editMode && (
-            <div className='mt-16 mb-24 sm:mt-20 sm:mb-52'>
+            <div className='mt-16 sm:mt-20'>
               <Button
                 onClick={() => setConfirmOpen(true)}
                 danger
                 className='w-full max-sm:mr-0 sm:w-auto'>
-                Delete Recipe
+                <DeleteIcon />
+                Delete recipe
               </Button>
             </div>
           )}
@@ -288,15 +295,16 @@ const RecipeEditor = () => {
           <Dialog
             open={confirmOpen}
             onClose={() => setConfirmOpen(false)}
-            title='Delete recipe?'>
-            <div className='p-4'>
-              <WarningIcon className='text-brand-red' />
-              <p className='my-2'>Are you sure you want to delete this Recipe?</p>
-              <Button onClick={() => setConfirmOpen(false)}>No</Button>
-              <Button onClick={handleDelete} danger>
-                Yes
-              </Button>
-            </div>
+            title='Delete recipe?'
+            actions={
+              <>
+                <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+                <Button onClick={handleDelete} variant='primary' danger>
+                  Delete recipe
+                </Button>
+              </>
+            }>
+            This removes the recipe for everyone. It cannot be undone.
           </Dialog>
         </form>
       )}

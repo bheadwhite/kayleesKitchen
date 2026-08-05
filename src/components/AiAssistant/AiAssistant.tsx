@@ -2,7 +2,7 @@ import clsx from "clsx"
 import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { toast } from "react-toastify"
 
-import { Button, CloseIcon, Spinner } from "components"
+import { Button, CloseIcon, ImageIcon, SectionHeading, SendIcon, Spinner } from "components"
 import {
   useAiDraftPresenter,
   useAssistantStatus,
@@ -78,16 +78,18 @@ const AiAssistant = () => {
   const canSend = !isAsking && (text.trim() !== "" || pendingImages.length > 0)
 
   return (
-    <div className='border-brand-border relative mt-6 mb-1 rounded border p-2 sm:p-1.5'>
-      <div className='absolute -top-2.5 left-2.5 bg-white px-1.5'>Recipe assistant</div>
+    <div>
+      <SectionHeading meta={turns.length > 0 ? `${turns.length} messages` : undefined}>
+        Recipe assistant
+      </SectionHeading>
 
       <div
         ref={transcriptRef}
-        className='max-h-[320px] overflow-y-auto px-1 py-2'
+        className='max-h-[320px] overflow-y-auto py-2'
         aria-live='polite'
         aria-label='Assistant conversation'>
         {turns.length === 0 && (
-          <div className='text-brand-muted py-2 text-sm'>
+          <div className='py-2 text-sm text-muted'>
             <p>You can:</p>
             <ul className='mt-1 list-disc pl-5'>
               <li>add photos of a recipe card and have them typed up</li>
@@ -108,41 +110,46 @@ const AiAssistant = () => {
         {turns.map((turn, index) => (
           <div
             key={index}
-            className={clsx(
-              "my-1 rounded px-3 py-2 text-sm",
-              turn.role === "user" ? "bg-brand-blue/10 ml-6" : "bg-brand-well mr-6"
-            )}>
-            {turn.role === "user" && turn.images.length > 0 && (
-              <div className='mb-1 text-xs text-gray-600'>
-                {turn.images.length} photo{turn.images.length === 1 ? "" : "s"} attached
-              </div>
-            )}
-            <span className='break-words whitespace-pre-wrap'>{turn.text}</span>
+            className={clsx("my-2 flex", turn.role === "user" ? "justify-end" : "justify-start")}>
+            <div
+              className={clsx(
+                "max-w-[86%] border border-divider px-3 py-2.5 text-[15px] leading-snug",
+                turn.role === "user" ? "bg-steel text-ground" : "bg-ground"
+              )}>
+              {turn.role === "user" && turn.images.length > 0 && (
+                <div className='mb-1 text-xs opacity-80'>
+                  {turn.images.length} photo{turn.images.length === 1 ? "" : "s"} attached
+                </div>
+              )}
+              <span className='break-words whitespace-pre-wrap'>{turn.text}</span>
+            </div>
           </div>
         ))}
 
         {isAsking && (
-          <div className='flex items-center gap-2 py-2 text-sm text-gray-600'>
-            <Spinner size={20} />
+          <div className='flex items-center gap-2 py-2 text-sm text-muted'>
+            <Spinner size={18} />
             Reading…
           </div>
         )}
       </div>
 
       {proposedDraft != null && (
-        <div className='border-brand-blue bg-brand-blue/5 mt-2 rounded border p-3'>
-          <div className='text-brand-blue text-sm font-semibold'>Proposed draft</div>
+        <div className='mt-2 border border-steel bg-steel-100 p-3'>
+          <div className='font-mono text-[11px] tracking-[0.14em] text-steel-700 uppercase'>
+            Proposed draft
+          </div>
           <dl className='my-2 text-sm'>
             <div className='flex gap-2'>
-              <dt className='text-gray-600'>Title</dt>
+              <dt className='text-muted'>Title</dt>
               <dd className='font-medium'>{proposedDraft.title || "—"}</dd>
             </div>
             <div className='flex gap-2'>
-              <dt className='text-gray-600'>Ingredients</dt>
+              <dt className='text-muted'>Ingredients</dt>
               <dd className='font-medium'>{proposedDraft.ingredients.length}</dd>
             </div>
             <div className='flex gap-2'>
-              <dt className='text-gray-600'>Directions</dt>
+              <dt className='text-muted'>Directions</dt>
               <dd className='font-medium'>
                 {proposedDraft.directions.length} section
                 {proposedDraft.directions.length === 1 ? "" : "s"}, {countSteps(proposedDraft)}{" "}
@@ -150,14 +157,14 @@ const AiAssistant = () => {
               </dd>
             </div>
           </dl>
-          <p className='mb-2 text-xs text-gray-600'>
+          <p className='mb-2 text-xs text-muted'>
             Applying replaces the title, ingredients, and directions in the editor.
           </p>
           <div className='flex flex-wrap gap-2 max-sm:[&>button]:mr-0'>
-            <Button onClick={onApply}>Apply to editor</Button>
-            <Button onClick={() => assistant.clearProposedDraft()} danger>
-              Discard
+            <Button onClick={onApply} variant='primary'>
+              Apply to editor
             </Button>
+            <Button onClick={() => assistant.clearProposedDraft()}>Discard</Button>
           </div>
         </div>
       )}
@@ -169,14 +176,14 @@ const AiAssistant = () => {
               <img
                 src={image.previewUrl}
                 alt={image.file.name}
-                className='h-16 w-16 rounded object-cover'
+                className='h-16 w-16 border border-divider object-cover'
               />
               <button
                 type='button'
                 onClick={() => assistant.removeImage(image.id)}
                 aria-label={`Remove ${image.file.name}`}
-                className='bg-brand-red absolute -top-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-white'>
-                <CloseIcon />
+                className='absolute -top-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center border border-divider bg-ground text-ink hover:text-danger'>
+                <CloseIcon className='h-3.5 w-3.5' />
               </button>
             </li>
           ))}
@@ -194,7 +201,8 @@ const AiAssistant = () => {
           className='hidden'
         />
         <label htmlFor='assistant-images' className='basis-full sm:basis-auto'>
-          <span className='border-brand-border mt-1 inline-flex min-h-11 w-full cursor-pointer touch-manipulation items-center justify-center rounded border px-4 py-2 text-base font-medium sm:min-h-[34px] sm:w-auto sm:px-3 sm:py-1.5 sm:text-sm'>
+          <span className='mt-1 inline-flex min-h-11 w-full cursor-pointer touch-manipulation items-center justify-center gap-1.5 border border-divider px-4 py-2 font-heading text-sm font-semibold tracking-[0.09em] uppercase hover:bg-ink/7 sm:min-h-[34px] sm:w-auto sm:px-3.5 sm:py-1.5'>
+            <ImageIcon />
             Add photos
           </span>
         </label>
@@ -213,10 +221,11 @@ const AiAssistant = () => {
           rows={2}
           placeholder='Describe a recipe, paste a link, or ask for a change…'
           aria-label='Message the recipe assistant'
-          className='border-brand-border focus:border-brand-blue focus:ring-brand-blue min-w-0 flex-1 basis-full rounded border bg-white px-3 py-2 text-base outline-none focus:ring-1 sm:basis-0'
+          className='min-w-0 flex-1 basis-full border border-divider bg-surface px-3 py-2 text-base hover:border-ink/45 focus-visible:border-steel focus-visible:outline-offset-0 sm:basis-0'
         />
 
-        <Button onClick={() => void onSend()} disabled={!canSend}>
+        <Button onClick={() => void onSend()} disabled={!canSend} variant='primary'>
+          <SendIcon />
           Send
         </Button>
       </div>

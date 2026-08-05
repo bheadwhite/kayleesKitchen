@@ -90,8 +90,10 @@ const Login = () => {
         {({ handleSubmit }) => (
           <form
             onSubmit={handleSubmit}
-            className='w-full rounded bg-white p-4 text-center shadow sm:w-[530px] sm:p-6'>
-            <h2 className='mb-4 text-2xl font-medium'>Please sign in.</h2>
+            className='blueprint w-full bg-ground p-5 text-center sm:w-[480px] sm:p-7'>
+            <h2 className='mb-5 font-heading text-3xl font-bold tracking-[0.02em]'>
+              Please sign in.
+            </h2>
             <div className='mx-auto w-full max-w-[400px] text-left'>
               <TextField
                 name='email'
@@ -122,21 +124,21 @@ const Login = () => {
                   </div>
                 ) : (
                   <>
-                    <Button type='submit'>Submit</Button>
+                    <Button type='submit' variant='primary'>
+                      Sign in
+                    </Button>
                     <Button onClick={() => navigate("/register")}>Register</Button>
                   </>
                 )}
               </div>
               {!isSubmitting && (
                 <>
-                  <div className='my-4 flex items-center gap-3 text-xs text-gray-500'>
-                    <span className='border-brand-border h-px flex-1 border-t' />
+                  <div className='my-4 flex items-center gap-3 font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
+                    <span className='h-px flex-1 bg-divider' />
                     or
-                    <span className='border-brand-border h-px flex-1 border-t' />
+                    <span className='h-px flex-1 bg-divider' />
                   </div>
-                  <Button
-                    onClick={onGoogleSignIn}
-                    className='border-brand-border mt-0! mr-0! w-full border bg-white! py-2 text-gray-700! hover:bg-gray-50! focus-visible:ring-brand-blue!'>
+                  <Button onClick={onGoogleSignIn} className='mt-0! mr-0! w-full'>
                     <GoogleIcon />
                     Sign in with Google
                   </Button>

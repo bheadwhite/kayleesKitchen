@@ -42,7 +42,7 @@ describe("ImageUpload — generate", () => {
   it("is disabled with nothing to picture", () => {
     const presenter = setup()
 
-    expect(screen.getByRole("button", { name: "Generate image" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled()
 
     presenter.dispose()
   })
@@ -50,7 +50,7 @@ describe("ImageUpload — generate", () => {
   it("enables once the recipe has a title", () => {
     const presenter = setup((p) => p.setTitle("Won Ton Salad"))
 
-    expect(screen.getByRole("button", { name: "Generate image" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled()
 
     presenter.dispose()
   })
@@ -60,7 +60,7 @@ describe("ImageUpload — generate", () => {
       p.addIngredient({ name: "cabbage", amount: "1 head", optional: false, unique: false })
     )
 
-    expect(screen.getByRole("button", { name: "Generate image" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled()
 
     presenter.dispose()
   })
@@ -72,7 +72,7 @@ describe("ImageUpload — generate", () => {
 
     const presenter = setup((p) => p.setTitle("Won Ton Salad"))
 
-    await user.click(screen.getByRole("button", { name: "Generate image" }))
+    await user.click(screen.getByRole("button", { name: "Generate" }))
 
     await waitFor(() =>
       expect(uploadRecipeEditorImage).toHaveBeenCalledWith(file, "cook@example.test")
@@ -93,12 +93,12 @@ describe("ImageUpload — generate", () => {
 
     const presenter = setup((p) => p.setTitle("Won Ton Salad"))
 
-    await user.click(screen.getByRole("button", { name: "Generate image" }))
+    await user.click(screen.getByRole("button", { name: "Generate" }))
 
     // Otherwise the editor is stuck showing a spinner with no way back.
     await waitFor(() => expect(presenter.getImageUrl()).toBeNull())
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Generate image" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled()
     )
 
     presenter.dispose()

@@ -72,7 +72,7 @@ describe("NavBar", () => {
     const presenter = renderNavBar()
     signIn()
 
-    await user.click(await screen.findByRole("link", { name: "Recipe Editor" }))
+    await user.click(await screen.findByRole("link", { name: "Editor" }))
     expect(screen.getByText("recipe editor")).toBeInTheDocument()
 
     await user.click(screen.getByRole("link", { name: "Recipes" }))
@@ -87,7 +87,7 @@ describe("NavBar", () => {
 
     // `end` on the /recipes tab: without it a NavLink to a path prefix stays
     // active on every child route, lighting up both tabs at once.
-    expect(await screen.findByRole("link", { name: "Recipe Editor" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Editor" })).toHaveAttribute(
       "aria-current",
       "page"
     )

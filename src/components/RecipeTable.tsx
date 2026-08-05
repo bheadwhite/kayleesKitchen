@@ -9,6 +9,8 @@ interface RecipeTableProps {
   /** `id` of the row to mark as current. */
   selectedId?: string | null
   onSelect: (recipe: Recipe) => void
+  /** Seeds the search box — used when arriving from a cook on the profile page. */
+  initialFilter?: string
 }
 
 const matches = (recipe: Recipe, filter: string) =>
@@ -29,8 +31,15 @@ const initialsOf = (name: string) => {
  * list, which is what they always behaved like — a table promised columns to
  * compare, and there were only ever two.
  */
-const RecipeTable = ({ recipes, selectedId, onSelect }: RecipeTableProps) => {
-  const [filter, setFilter] = useState("")
+const RecipeTable = ({
+  recipes,
+  selectedId,
+  onSelect,
+  initialFilter = "",
+}: RecipeTableProps) => {
+  // Seeded, not controlled: after the first render the box belongs to whoever
+  // is typing in it.
+  const [filter, setFilter] = useState(initialFilter)
   // Thumbnails whose URL no longer resolves fall back to the placeholder box
   // instead of a broken-image icon, keeping row heights uniform.
   const [brokenImages, setBrokenImages] = useState<string[]>([])
@@ -99,7 +108,7 @@ const RecipeTable = ({ recipes, selectedId, onSelect }: RecipeTableProps) => {
                 <span className='blueprint block h-[76px] w-[76px] overflow-visible bg-surface'>
                   {hasImage ? (
                     <img
-                      src={recipe.image}
+                      src={recipe.image ?? undefined}
                       alt=''
                       loading='lazy'
                       onError={() =>

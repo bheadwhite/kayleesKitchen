@@ -25,10 +25,9 @@ import {
   Button,
   CheckIcon,
   CloseIcon,
-  DeleteIcon,
   Dialog,
   DragIndicatorIcon,
-  WarningIcon,
+  SectionHeading,
 } from "components"
 import { TextField } from "components/finalForm"
 import { useDirections, useEditSection, useRecipePresenter } from "contexts/RecipeProvider"
@@ -51,11 +50,8 @@ const IconButton = ({
     aria-label={label}
     title={label}
     className={clsx(
-      "flex h-9 w-9 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded",
-      "focus-visible:ring-brand-blue focus-visible:ring-2 focus-visible:outline-none",
-      danger
-        ? "text-brand-red hover:bg-brand-red/10"
-        : "text-gray-500 hover:bg-black/5 hover:text-gray-700"
+      "flex h-9 w-9 shrink-0 cursor-pointer touch-manipulation items-center justify-center",
+      danger ? "text-muted hover:text-danger" : "text-muted hover:text-steel"
     )}>
     {children}
   </button>
@@ -63,13 +59,15 @@ const IconButton = ({
 
 interface StepRowProps {
   id: string
+  /** 1-based position within the whole recipe, shown as the step's number. */
+  number: number
   text: string
   onEdit: () => void
   onDelete: () => void
 }
 
-/** One draggable step: grip, click-to-edit text, delete. */
-const StepRow = ({ id, text, onEdit, onDelete }: StepRowProps) => {
+/** One draggable step: number over grip, click-to-edit text, delete. */
+const StepRow = ({ id, number, text, onEdit, onDelete }: StepRowProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
 
@@ -78,30 +76,37 @@ const StepRow = ({ id, text, onEdit, onDelete }: StepRowProps) => {
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={clsx(
-        "flex items-start gap-1 rounded py-0.5",
-        isDragging && "bg-brand-well relative z-10 shadow"
+        "grid grid-cols-[36px_1fr_36px] items-start gap-2 border-t border-ink/10 py-2.5",
+        isDragging && "relative z-10 bg-surface"
       )}>
-      <button
-        type='button'
-        aria-label={`Reorder: ${text}`}
-        // `touch-none` is required — without it the browser claims the gesture
-        // for scrolling and the drag never starts on a phone.
-        className='mt-0.5 flex h-9 w-6 shrink-0 cursor-grab touch-none items-center justify-center text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:outline-none active:cursor-grabbing'
-        {...attributes}
-        {...listeners}>
-        <DragIndicatorIcon />
-      </button>
+      {/* Number above handle, both centred in a 36px gutter — the design's step
+       *  column. The zero-padded number is what makes a long list scannable. */}
+      <div className='flex flex-col items-center gap-1'>
+        <span className='font-heading text-base font-semibold tracking-[0.06em] text-steel'>
+          {String(number).padStart(2, "0")}
+        </span>
+        <button
+          type='button'
+          aria-label={`Reorder: ${text}`}
+          // `touch-none` is required — without it the browser claims the gesture
+          // for scrolling and the drag never starts on a phone.
+          className='flex h-9 w-9 shrink-0 cursor-grab touch-none items-center justify-center text-muted hover:text-ink active:cursor-grabbing'
+          {...attributes}
+          {...listeners}>
+          <DragIndicatorIcon className='h-4 w-4' />
+        </button>
+      </div>
 
       <button
         type='button'
         onClick={onEdit}
-        className='focus-visible:ring-brand-blue min-w-0 flex-1 cursor-text rounded px-1 py-1.5 text-left break-words hover:bg-black/5 focus-visible:ring-2 focus-visible:outline-none'
+        className='min-w-0 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words hover:text-steel-700'
         title='Click to edit'>
         {text}
       </button>
 
       <IconButton onClick={onDelete} label={`Delete step: ${text}`} danger>
-        <DeleteIcon />
+        <CloseIcon className='h-4 w-4' />
       </IconButton>
     </div>
   )
@@ -169,19 +174,33 @@ const Directions = () => {
     presenter.moveStep(sectionIndex, Number(active.id), Number(over.id))
   }
 
+  // Steps are numbered across the whole recipe, not restarted per section —
+  // "step 9" means one thing to someone cooking from it.
+  let stepNumber = 0
+  const totalSteps = directions.reduce((total, section) => total + section.steps.length, 0)
+
   return (
     <>
-      <div className='border-brand-border relative mt-6 rounded border p-2 sm:p-1.5'>
-        <div className='absolute -top-2.5 left-2.5 bg-white px-1.5'>Directions</div>
+      <div>
+        <SectionHeading
+          meta={`${totalSteps} step${totalSteps === 1 ? "" : "s"} · ${directions.length} section${
+            directions.length === 1 ? "" : "s"
+          }`}>
+          Guide
+        </SectionHeading>
 
         <div className='directions-list'>
           {directions.length === 0 ? (
-            <div className='text-brand-muted'> -- </div>
+            <p className='py-3 text-muted'>No steps yet.</p>
           ) : (
-            directions.map(({ sectionTitle, steps, editStep }, index) => (
-              <div
-                key={`${sectionTitle}-${index}`}
-                className='border-brand-border mb-4 rounded border p-2 sm:p-3'>
+            directions.map(({ sectionTitle, steps, editStep }, index) => {
+              // Consumed on the way past, so each section knows where its own
+              // numbering starts in the running count.
+              const sectionFirstStep = stepNumber
+              stepNumber += steps.length
+
+              return (
+                <div key={`${sectionTitle}-${index}`} className='pt-5'>
                 {/* -------------------------------------------------- title */}
                 <div className='flex items-start gap-1'>
                   {editSection === index ? (
@@ -212,9 +231,9 @@ const Directions = () => {
                         type='button'
                         onClick={() => presenter.setEditSection(index)}
                         title='Click to edit'
-                        className='text-brand-blue focus-visible:ring-brand-blue min-w-0 flex-1 cursor-text rounded px-1 py-1.5 text-left font-semibold break-words hover:bg-black/5 focus-visible:ring-2 focus-visible:outline-none'>
+                        className='min-w-0 flex-1 cursor-text py-1 text-left font-heading text-xl font-semibold tracking-[0.06em] break-words text-steel-700 uppercase'>
                         {sectionTitle === "" ? (
-                          <span className='text-gray-400'>Section Title</span>
+                          <span className='text-muted'>Section title</span>
                         ) : (
                           sectionTitle
                         )}
@@ -223,7 +242,7 @@ const Directions = () => {
                         onClick={() => handleDeleteSection(index)}
                         label={`Delete section: ${sectionTitle || "untitled"}`}
                         danger>
-                        <DeleteIcon />
+                        <CloseIcon className='h-4 w-4' />
                       </IconButton>
                     </>
                   )}
@@ -265,6 +284,7 @@ const Directions = () => {
                           <StepRow
                             key={i}
                             id={String(i)}
+                            number={sectionFirstStep + i + 1}
                             text={step}
                             onEdit={() => presenter.setEditStep(index, i)}
                             onDelete={() => presenter.deleteStep(index, i)}
@@ -277,13 +297,13 @@ const Directions = () => {
 
                 {/* ----------------------------------------------- add step */}
                 {editStep == null && (
-                  <div className='mt-1 flex items-end gap-2 pl-6'>
+                  <div className='mt-2 flex items-end gap-2 pl-[44px]'>
                     <div className='min-w-0 flex-1'>
                       <TextField
                         id={`nextStep-${index}`}
                         name={`nextStep-${index}`}
                         fullWidth
-                        placeholder='type next step'
+                        placeholder='Type the next step'
                         ref={stepRef}
                       />
                     </div>
@@ -294,23 +314,35 @@ const Directions = () => {
                     </IconButton>
                   </div>
                 )}
-              </div>
-            ))
+                </div>
+              )
+            })
           )}
         </div>
 
-        <Button onClick={addSection}>Add New Section</Button>
+        {/* Dashed, not solid: the system draws "add another one of these" as an
+         *  open slot rather than a committed object. */}
+        <button
+          type='button'
+          onClick={addSection}
+          className='mt-6 h-12 w-full cursor-pointer border border-dashed border-ink/30 font-heading text-[15px] font-semibold tracking-[0.12em] text-steel-700 uppercase hover:border-steel hover:bg-steel-100'>
+          + Add section
+        </button>
       </div>
 
-      <Dialog open={confirmOpen} onClose={toggleConfirm} title='Delete section?'>
-        <div className='p-4'>
-          <WarningIcon className='text-brand-red' />
-          <p className='my-2'>Are you sure you want to delete this section?</p>
-          <Button onClick={toggleConfirm}>No</Button>
-          <Button onClick={confirmDeleteSection} danger>
-            Yes
-          </Button>
-        </div>
+      <Dialog
+        open={confirmOpen}
+        onClose={toggleConfirm}
+        title='Delete section?'
+        actions={
+          <>
+            <Button onClick={toggleConfirm}>Cancel</Button>
+            <Button onClick={confirmDeleteSection} variant='primary' danger>
+              Delete section
+            </Button>
+          </>
+        }>
+        This removes the section and every step in it.
       </Dialog>
     </>
   )

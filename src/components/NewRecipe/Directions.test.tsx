@@ -122,7 +122,7 @@ describe("Directions", () => {
     await user.click(screen.getByRole("button", { name: "Delete section: Shells" }))
     expect(screen.getByRole("dialog")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "Yes" }))
+    await user.click(screen.getByRole("button", { name: "Delete section" }))
     expect(presenter.getDirections()).toEqual([])
 
     presenter.dispose()

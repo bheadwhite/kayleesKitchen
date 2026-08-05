@@ -106,7 +106,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("navigation", { name: "Main" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Recipes" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Recipe Editor" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Editor" })).toBeInTheDocument()
     // Signing out lives on /profile, not in the tab bar.
     expect(screen.getByRole("link", { name: /^Account:/ })).toBeInTheDocument()
   })
@@ -115,8 +115,9 @@ describe("App", () => {
     renderApp("/profile")
     emitAuthState({ uid: "u1", email: "cook@example.test", displayName: "Sam Cook" })
 
-    expect(await screen.findByRole("heading", { name: "Account" })).toBeInTheDocument()
-    expect(screen.getByText("cook@example.test")).toBeInTheDocument()
+    expect(await screen.findByText("Sam Cook")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Your recipes" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument()
   })
 
   it("keeps the profile page behind the auth guard", async () => {

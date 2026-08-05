@@ -44,7 +44,7 @@ describe("Login validation", () => {
     const user = userEvent.setup()
     const presenter = renderLogin()
 
-    await user.click(screen.getByRole("button", { name: "Submit" }))
+    await user.click(screen.getByRole("button", { name: "Sign in" }))
 
     expect(await screen.findByText("Please enter your email address.")).toBeInTheDocument()
     expect(screen.getByText("Please enter your password.")).toBeInTheDocument()
@@ -60,7 +60,7 @@ describe("Login validation", () => {
     const presenter = renderLogin()
 
     await user.type(screen.getByLabelText("Email"), "cook@example.test")
-    await user.click(screen.getByRole("button", { name: "Submit" }))
+    await user.click(screen.getByRole("button", { name: "Sign in" }))
 
     expect(await screen.findByText("Please enter your password.")).toBeInTheDocument()
     expect(screen.queryByText("Please enter your email address.")).not.toBeInTheDocument()
@@ -75,7 +75,7 @@ describe("Login validation", () => {
 
     await user.type(screen.getByLabelText("Email"), "cook@example.test")
     await user.type(screen.getByLabelText("Password"), "hunter2")
-    await user.click(screen.getByRole("button", { name: "Submit" }))
+    await user.click(screen.getByRole("button", { name: "Sign in" }))
 
     await waitFor(() =>
       expect(signInWithEmailAndPassword).toHaveBeenCalledWith(
@@ -105,7 +105,7 @@ describe("Login abandoned Google sign-in", () => {
     await user.click(screen.getByRole("button", { name: /sign in with google/i }))
     await user.click(await screen.findByRole("button", { name: "Cancel" }))
 
-    expect(await screen.findByRole("button", { name: "Submit" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
 
     presenter.dispose()
@@ -134,7 +134,7 @@ describe("Login abandoned Google sign-in", () => {
     fireEvent(window, new Event("focus"))
     await tick(3000)
 
-    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
 
     presenter.dispose()
@@ -149,7 +149,7 @@ describe("Login abandoned Google sign-in", () => {
     await tick(10_000)
 
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument()
 
     presenter.dispose()
     vi.useRealTimers()

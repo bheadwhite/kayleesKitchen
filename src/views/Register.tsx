@@ -42,8 +42,8 @@ const Register = () => {
               }
               void handleSubmit()
             }}
-            className='w-full rounded bg-white p-4 text-center shadow sm:w-[530px] sm:p-6'>
-            <h2 className='mb-4 text-2xl font-medium'>Register</h2>
+            className='blueprint w-full bg-ground p-5 text-center sm:w-[480px] sm:p-7'>
+            <h2 className='mb-5 font-heading text-3xl font-bold tracking-[0.02em]'>Register</h2>
             <div className='mx-auto w-full max-w-[400px] text-left'>
               <TextField
                 name='firstName'
@@ -84,7 +84,13 @@ const Register = () => {
                 fullWidth
               />
               <div className='mt-4 flex justify-center max-sm:flex-col max-sm:items-stretch'>
-                {isSubmitting ? <Spinner size={32} /> : <Button type='submit'>Submit</Button>}
+                {isSubmitting ? (
+                  <Spinner size={32} />
+                ) : (
+                  <Button type='submit' variant='primary'>
+                    Create account
+                  </Button>
+                )}
               </div>
             </div>
           </form>

@@ -28,7 +28,7 @@ const AddIngredient = () => {
   const resetEditIngredient = () => presenter.resetEditIngredient()
 
   return (
-    <div className='bg-brand-well p-2'>
+    <div className='mt-2 border border-divider bg-surface p-3'>
       <div>
         <Checkbox name='optional' checked={values.optional} label='optional' />
         <Checkbox name='unique' checked={values.unique} label='unique' />
@@ -50,18 +50,15 @@ const AddIngredient = () => {
         </div>
         {isEditing ? (
           <>
-            <Button
-              onClick={updateIngredient}
-              className='bg-brand-green hover:bg-brand-green/85'
-              aria-label='Save ingredient'>
+            <Button variant='primary' icon onClick={updateIngredient} aria-label='Save ingredient'>
               <CheckIcon />
             </Button>
-            <Button onClick={resetEditIngredient} danger aria-label='Cancel editing ingredient'>
+            <Button icon onClick={resetEditIngredient} aria-label='Cancel editing ingredient'>
               <CloseIcon />
             </Button>
           </>
         ) : (
-          <Button onClick={addIngredient} aria-label='Add ingredient'>
+          <Button variant='primary' icon onClick={addIngredient} aria-label='Add ingredient'>
             <span id='add-ingredient' className='flex items-center justify-center'>
               <AddIcon />
             </span>

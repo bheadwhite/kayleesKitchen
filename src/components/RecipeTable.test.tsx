@@ -23,10 +23,10 @@ describe("RecipeTable", () => {
   it("lists recipes alphabetically", () => {
     render(<RecipeTable recipes={RECIPES} onSelect={vi.fn()} />)
 
+    // Each row is one button; its first line is the title.
     const titles = screen
-      .getAllByRole("row")
-      .slice(1)
-      .map((row) => (row as HTMLTableRowElement).cells[1].firstElementChild?.textContent)
+      .getAllByRole("button")
+      .map((row) => row.firstElementChild?.nextElementSibling?.firstElementChild?.textContent)
     expect(titles).toEqual(["Banana Bread", "Chili", "Waffles"])
   })
 
@@ -90,8 +90,18 @@ describe("RecipeTable", () => {
   it("marks the selected row as current", () => {
     render(<RecipeTable recipes={RECIPES} selectedId='chili' onSelect={vi.fn()} />)
 
-    const selected = screen.getAllByRole("row").filter((row) => row.hasAttribute("aria-current"))
+    const selected = screen
+      .getAllByRole("button")
+      .filter((row) => row.hasAttribute("aria-current"))
     expect(selected).toHaveLength(1)
     expect(selected[0]).toHaveTextContent("Chili")
+  })
+
+  it("can arrive pre-filtered to one cook", () => {
+    render(<RecipeTable recipes={RECIPES} onSelect={vi.fn()} initialFilter='Alice' />)
+
+    expect(screen.getByLabelText("Filter recipes")).toHaveValue("Alice")
+    expect(screen.getByText("Banana Bread")).toBeInTheDocument()
+    expect(screen.queryByText("Chili")).not.toBeInTheDocument()
   })
 })

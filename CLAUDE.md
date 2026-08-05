@@ -212,25 +212,57 @@ those ids, the `nameInput` / `nextStep-{i}` ids, or the `name` / `amount` / `sec
 `ref.current.querySelector("input").focus()`. Its `id` prop lands on the input, because
 the helper above focuses by element id.
 
-### Styling
+### Styling — the "Industry" design system
 
-Tailwind CSS v4 via `@tailwindcss/vite` — no `tailwind.config.js`. Design tokens live in
-the `@theme` block of `src/index.css` as `--color-brand-*`, which generate the
-`bg-brand-blue` / `text-brand-red` / `border-brand-border` utilities used throughout.
-These carry over the palette from the retired MUI theme.
+Tailwind CSS v4 via `@tailwindcss/vite`, no `tailwind.config.js`. Everything visual comes
+from one system: **steel-blue on a light technical ground, Barlow Condensed headings over
+Barlow, square corners, hairline borders, thin-stroke icons.** It replaced the palette
+carried over from the retired MUI theme — there is no `brand-blue` / `brand-red` any more.
 
-MUI is gone. Local replacements live in `src/components/ui/`: `Button`, `Dialog`,
-`Spinner`, and `Icons.tsx` (inline SVG Material paths). `Button` defaults to
-`type="button"` so the many icon buttons inside the editor's `<form>` do not submit it.
+The tokens live in the `@theme` block of `src/index.css` and are transcribed from the
+system's own `styles.css`, so a value here and the same role there must stay in step:
+
+- **Roles** — `ground` (the page), `surface` (inert fills: inputs, thumbnails, wells),
+  `ink` (all text), `divider` (every hairline), `muted` (ink at 55%).
+- **`steel` on a 100–900 ramp** — 100–300 for tinted fills and hovers, 500/DEFAULT as the
+  base, 700–900 for text sitting on those tints. This is a **mono** palette; the system's
+  rule is "no decorative color beyond the accent," so reach for a ramp step, not a new hue.
+- **`danger`** is the one deliberate addition, and only marks an irreversible action
+  (delete a recipe, sign out). It is not an emphasis color.
+- **Type** — `font-heading` (Barlow Condensed) for headings and button labels, `font-sans`
+  (Barlow) for body, `font-mono` for section headers and counters, which are set uppercase
+  with wide tracking. Fonts are **self-hosted via `@fontsource/*`**, not Google Fonts: this
+  is an offline-capable PWA, and only the named weights are imported because each one is
+  another file in the precache.
+
+Local components live in `src/components/ui/`: `Button`, `Dialog`, `Spinner`, `Avatar`,
+`SectionHeading`, and `Icons.tsx`.
+
+- `Button` takes `variant` (`secondary` by default, `primary`, `ghost`) plus `danger` and
+  `icon`. **`primary` is the solid accent fill, and the system allows one per view** — the
+  page's single real commitment (Save recipe, Apply to editor, Send). It also defaults to
+  `type="button"` so the many icon buttons inside the editor's `<form>` do not submit it.
+- `Icons.tsx` is **Lucide at stroke-width 1.5** — `fill="none"`, `stroke="currentColor"`.
+  Adding a filled Material path back would drop a solid blob among hairline drawings.
+- `SectionHeading` is the mono/uppercase rule every section of a recipe sits under. It
+  replaced the "fieldset with a floating label" boxes the editor used to draw.
+- `.blueprint` (a component-layer class in `index.css`) is the registration-mark frame:
+  hairline border plus two crosshairs at opposite corners. It needs `position: relative`
+  and must not sit inside anything that clips, because the marks are drawn *outside* the
+  box. Recipe photos, the login card, and the profile avatar wear it.
+
+Two places deviate from the supplied assets on purpose, both noted in the code: the
+manifest's `theme_color` is the ground rather than steel (it paints the Android status bar
+directly above a ground-colored header), and `danger` exists at all.
 
 ### App chrome, and the four numbers that must agree
 
 Two fixed bars sandwich the scrolling column: `components/Toolbar` (title only) at the
 top and `components/NavBar` at the bottom. The hamburger menu they replaced is gone.
 
-`NavBar`'s three tabs are Recipes, Recipe Editor, and the account — an `<Avatar>` with the
-user's name, linking to `/profile`. It is deliberately **not** a Logout button: signing
-out sat one mis-tap from the tab used most, and it is destructive here because it drops
+`NavBar`'s three tabs are Recipes, Editor, and the account — an `<Avatar>` with the user's
+first name, linking to `/profile`. It is deliberately **not** a Logout button: signing out
+sat one mis-tap from the tab used most, and it is destructive here because it drops
 whatever is half-typed in the editor. `src/views/Profile.tsx` owns signing out, behind a
 confirm dialog. `Avatar` (`components/ui/Avatar.tsx`) shows the Google `photoURL` and
 falls back to initials — on `onError` as well as when the URL is missing, because
@@ -238,6 +270,12 @@ falls back to initials — on `onError` as well as when the URL is missing, beca
 
 `NavBar` renders `null` unless `useAuthStatus()` is `"loggedIn"` — every entry needs a
 session — and `App` reads the same status to decide whether to reserve room for it.
+
+`Profile` also lists your own recipes and everyone who has contributed. Those rows link
+back with **`/recipes?open=<id>`** (opens that recipe) and **`/recipes?cook=<name>`** (seeds
+the search box). `Recipes` reads both once, on arrival — they *seed* the view rather than
+drive it, so closing a recipe or typing in the search box does not fight the URL, and a
+one-shot ref stops "All recipes" from immediately reopening what `?open=` picked.
 
 Because both bars are `position: fixed`, four places have to agree on their heights, so
 the heights are `:root` variables in `src/index.css` (`--header-h`, `--navbar-h`) rather
@@ -272,6 +310,11 @@ there with no conditional styling.
 Firestore and Auth are never cached; Storage recipe images are (`CacheFirst`, 30 days).
 `devOptions.enabled` is `false` — a worker in `npm run dev` serves stale modules and
 makes HMR look broken.
+
+The app icons in `public/icons/` come from the design assets and are the only icon files:
+the CRA-era `favicon.ico` / `logo192.png` / `logo512.png` are gone, and `index.html` points
+its `icon` and `apple-touch-icon` at `icon-192.png`. `icon-maskable-512.png` is drawn
+inside an 80% safe zone, which is what makes it safe to declare `purpose: "maskable"`.
 
 ## Tests
 

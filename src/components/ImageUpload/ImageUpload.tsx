@@ -2,7 +2,7 @@ import { useRef, useState, type ChangeEvent } from "react"
 import { useForm } from "react-final-form"
 import { toast } from "react-toastify"
 
-import { Button, Spinner } from "components"
+import { Button, DeleteIcon, ImageIcon, SparklesIcon, Spinner } from "components"
 import { useSessionUser } from "contexts/AuthProvider"
 import {
   useIngredients,
@@ -84,12 +84,40 @@ const ImageUpload = () => {
         id='icon-button-file'
         className='hidden'
       />
-      <div className='flex flex-wrap items-center gap-2'>
+      {/* The photo frame: a 16/10 blueprint plate, empty until there is an
+       *  image. Reserving the space stops the whole form jumping when one
+       *  arrives, and it reads as "a picture goes here" while empty. */}
+      <div className='blueprint mt-2 flex aspect-[16/10] w-full max-w-[420px] items-center justify-center bg-surface'>
+        {url != null && (
+          <img
+            src={url}
+            alt='recipe preview'
+            style={{ display: isLoading ? "none" : "block" }}
+            className='h-full w-full object-cover'
+            onLoad={() => presenter.setRecipeImageIsLoading(false)}
+            onError={() => {
+              // A dead URL would otherwise leave the spinner up forever, since
+              // only `onLoad` clears it.
+              presenter.setRecipeImageIsLoading(false)
+              presenter.setImageUrl(null)
+            }}
+          />
+        )}
+        {isLoading && <Spinner size={32} />}
+        {!isLoading && url == null && (
+          <span className='border border-divider bg-ground px-2.5 py-1.5 font-mono text-[11px] tracking-[0.1em] text-steel-700 uppercase'>
+            photo · finished dish
+          </span>
+        )}
+      </div>
+
+      <div className='mt-2 flex flex-wrap items-center gap-2'>
         <label htmlFor='icon-button-file'>
-          {/* Matches <Button>'s touch sizing — it is a label, not a button, because
-           *  it has to trigger the hidden file input. */}
-          <span className='bg-brand-blue hover:bg-brand-blue/85 mt-1 inline-flex min-h-11 cursor-pointer touch-manipulation items-center rounded px-4 py-2 text-base font-medium text-white sm:min-h-[34px] sm:px-3 sm:py-1.5 sm:text-sm'>
-            New Recipe Image
+          {/* Matches <Button>'s look and touch sizing — it is a label, not a
+           *  button, because it has to trigger the hidden file input. */}
+          <span className='mt-1 mr-1 inline-flex min-h-11 cursor-pointer touch-manipulation items-center gap-1.5 border border-divider px-4 py-2 font-heading text-sm font-semibold tracking-[0.09em] uppercase hover:bg-ink/7 sm:min-h-[34px] sm:px-3.5 sm:py-1.5'>
+            <ImageIcon />
+            {url == null ? "Add photo" : "Replace photo"}
           </span>
         </label>
 
@@ -102,33 +130,16 @@ const ImageUpload = () => {
               ? "Draw a picture of this recipe"
               : "Add a title or some ingredients first"
           }>
-          {isGenerating ? "Generating…" : "Generate image"}
+          <SparklesIcon />
+          {isGenerating ? "Generating…" : "Generate"}
         </Button>
 
         {!isLoading && url != null && (
-          <Button onClick={removeImage} danger>
-            Delete image
+          <Button onClick={removeImage} danger aria-label='Delete image' icon>
+            <DeleteIcon />
           </Button>
         )}
       </div>
-      <div>
-        {url != null && (
-          <img
-            src={url}
-            alt='recipe preview'
-            style={{ display: isLoading ? "none" : "block" }}
-            className='mt-1 h-auto max-w-[168px]'
-            onLoad={() => presenter.setRecipeImageIsLoading(false)}
-            onError={() => {
-              // A dead URL would otherwise leave the spinner up forever, since
-              // only `onLoad` clears it.
-              presenter.setRecipeImageIsLoading(false)
-              presenter.setImageUrl(null)
-            }}
-          />
-        )}
-      </div>
-      {isLoading && <Spinner size={32} />}
     </div>
   )
 }

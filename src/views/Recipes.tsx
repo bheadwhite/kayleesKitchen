@@ -1,5 +1,6 @@
 import clsx from "clsx"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 
 import { ArrowBackIcon, Button } from "components"
 import Recipe from "components/Recipe"
@@ -12,8 +13,27 @@ const Recipes = () => {
   const [selected, setSelected] = useState<RecipeType | null>(null)
   /** Where the list was scrolled to when the open recipe was picked. */
   const listScrollY = useRef(0)
+  // <Profile> links here with `?open=<id>` for one of your own recipes and
+  // `?cook=<name>` for everyone else's. Both are read once, on arrival: they
+  // seed this view rather than driving it, so closing the recipe or editing the
+  // search box does not fight the URL.
+  const [searchParams] = useSearchParams()
+  const openId = useRef(searchParams.get("open")).current
+  const initialFilter = useRef(searchParams.get("cook") ?? "").current
 
   useEffect(() => onRecipesSnapshot(setRecipes), [])
+
+  // The id arrives before the recipes do, so this waits for the snapshot rather
+  // than reading `recipes` at mount. `openedFromUrl` keeps it to one shot —
+  // otherwise pressing "All recipes" would immediately reopen the same recipe.
+  const openedFromUrl = useRef(false)
+  useEffect(() => {
+    if (openId == null || openedFromUrl.current) return
+    const match = recipes.find((recipe) => recipe.id === openId)
+    if (match == null) return
+    openedFromUrl.current = true
+    setSelected(match)
+  }, [recipes, openId])
 
   const openRecipe = (recipe: RecipeType) => {
     listScrollY.current = window.scrollY
@@ -34,7 +54,12 @@ const Recipes = () => {
        *  The table stays mounted — just hidden — so its filter text survives
        *  a round trip into a recipe and back. */}
       <div className={clsx(selected != null && "hidden")}>
-        <RecipeTable recipes={recipes} selectedId={selected?.id} onSelect={openRecipe} />
+        <RecipeTable
+          recipes={recipes}
+          selectedId={selected?.id}
+          onSelect={openRecipe}
+          initialFilter={initialFilter}
+        />
       </div>
 
       {selected != null && (

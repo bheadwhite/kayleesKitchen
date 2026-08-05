@@ -15,36 +15,38 @@ const ListIngredients = () => {
   }
 
   if (ingredients.length === 0) {
-    return <div className='p-2 text-brand-muted'>--</div>
+    return <p className='py-3 text-muted'>Nothing listed yet.</p>
   }
 
   return (
-    <div className='p-2'>
+    <div>
       {ingredients.map((ingredient, index) => (
         <div
           key={`${ingredient.name}-${index}-${ingredient.amount}`}
-          className='flex items-center justify-between gap-2 border-b border-black/5 py-1 last:border-b-0'>
+          className='flex items-center justify-between gap-2 border-b border-ink/8 py-1'>
           <div className='min-w-0 break-words'>
-            <span
-              className={clsx(
-                "mr-1 font-medium",
-                ingredient.unique ? "text-brand-red" : "text-brand-green"
-              )}>
+            {/* Mono palette: an unusual ingredient takes the accent rather than
+             *  a color of its own. */}
+            <span className={clsx("mr-1 font-medium", ingredient.unique && "text-steel-700")}>
               {ingredient.name}
             </span>
-            <span>{` - ${ingredient.amount}`}</span>
-            {ingredient.optional && <span className='ml-1 text-brand-muted'> (optional) </span>}
+            <span className='text-ink/70'>{`— ${ingredient.amount}`}</span>
+            {ingredient.optional && <span className='ml-1 text-sm text-muted'>(optional)</span>}
           </div>
 
           <div className='flex shrink-0 items-center'>
             <Button
+              variant='ghost'
+              icon
               onClick={() => setEditIngredient(ingredient)}
               aria-label={`Edit ${ingredient.name}`}>
               <EditIcon />
             </Button>
             <Button
-              onClick={() => deleteIngredient(index)}
+              variant='ghost'
+              icon
               danger
+              onClick={() => deleteIngredient(index)}
               aria-label={`Delete ${ingredient.name}`}>
               <DeleteIcon />
             </Button>

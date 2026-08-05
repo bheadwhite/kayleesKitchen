@@ -7,6 +7,7 @@ import type { Auth } from "firebase/auth"
 import Profile from "./Profile"
 import AuthProvider from "contexts/AuthProvider"
 import { AuthPresenter } from "presenters/AuthPresenter"
+import type { Recipe } from "@/types"
 
 let emitAuthState: (user: unknown) => void = () => {}
 const signOutMock = vi.fn().mockResolvedValue(undefined)
@@ -22,9 +23,33 @@ vi.mock("firebase/auth", () => ({
   signOut: (...args: unknown[]) => signOutMock(...args),
 }))
 
+const MY_RECIPES: Recipe[] = [
+  {
+    id: "biscuits",
+    title: "Buttermilk Biscuits",
+    contributor: "Sam Cook",
+    ingredients: [{ name: "flour", amount: "2 cups" }],
+    directions: [{ sectionTitle: "Bake", steps: ["Fold", "Cut"] }],
+  },
+]
+
+const ALL_RECIPES: Recipe[] = [
+  ...MY_RECIPES,
+  { id: "dal", title: "Dal Tadka", contributor: "Dev", ingredients: [], directions: [] },
+  { id: "adobo", title: "Chicken Adobo", contributor: "Dev", ingredients: [], directions: [] },
+]
+
 vi.mock("fire/services", () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
   loginWithGoogle: vi.fn(),
+  onRecipesSnapshot: (callback: (recipes: Recipe[]) => void) => {
+    callback(ALL_RECIPES)
+    return () => {}
+  },
+  onRecipesByEmailSnapshot: (_email: string, callback: (recipes: Recipe[]) => void) => {
+    callback(MY_RECIPES)
+    return () => {}
+  },
 }))
 
 const renderProfile = () => {
@@ -65,6 +90,30 @@ describe("Profile", () => {
 
     expect(await screen.findByText("Sam Cook")).toBeInTheDocument()
     expect(screen.getByText("sam.cook@example.test")).toBeInTheDocument()
+
+    presenter.dispose()
+  })
+
+  it("lists your own recipes", async () => {
+    const presenter = renderProfile()
+    signIn()
+
+    expect(await screen.findByText("Buttermilk Biscuits")).toBeInTheDocument()
+    // The recipes of everyone else belong to the household section, not this one.
+    expect(screen.queryByText("Dal Tadka")).not.toBeInTheDocument()
+
+    presenter.dispose()
+  })
+
+  it("counts every cook in the household", async () => {
+    const presenter = renderProfile()
+    signIn()
+
+    expect(await screen.findByText("Dev")).toBeInTheDocument()
+    expect(screen.getByText("2 recipes")).toBeInTheDocument()
+    // "1 recipe" also appears in the header and the section count, so the
+    // signed-in cook's own row is identified by its marker instead.
+    expect(screen.getByText(/\(you\)/)).toBeInTheDocument()
 
     presenter.dispose()
   })
