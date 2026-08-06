@@ -442,9 +442,20 @@ const toSession = (id: string, data: Record<string, unknown>): PlanningSession =
 /**
  * Every session this person is in, newest first.
  *
- * `array-contains` on `memberUids` is a single-field index, so nothing has to
- * be declared — which matters in a project that deploys neither indexes nor
- * rules automatically.
+ * **Sorted here rather than by Firestore**, and that is not a style choice: a
+ * filter on one field plus an `orderBy` on another needs a *composite* index,
+ * and this project declares indexes exactly as often as it declares rules —
+ * which is to say by hand, or never. `array-contains` on its own is a
+ * single-field index and needs nothing.
+ *
+ * The cost of sorting in memory is a handful of documents; the cost of the
+ * `orderBy` was a query that fails with `failed-precondition` and a Plan tab
+ * that looks empty rather than broken. Same reasoning as
+ * `onSessionShoppingSnapshot`, which also orders on the client.
+ *
+ * A session written a moment ago has a null `createdAt` until the server stamp
+ * lands, so those sort to the top — which is where a session you just started
+ * belongs anyway.
  */
 export const onMySessionsSnapshot = (
   uid: string,
@@ -452,8 +463,13 @@ export const onMySessionsSnapshot = (
   onError?: (error: Error) => void
 ) =>
   onSnapshot(
-    query(sessionsRef, where("memberUids", "array-contains", uid), orderBy("createdAt", "desc")),
-    (snapshot) => callback(snapshot.docs.map((d) => toSession(d.id, d.data()))),
+    query(sessionsRef, where("memberUids", "array-contains", uid)),
+    (snapshot) =>
+      callback(
+        snapshot.docs
+          .map((d) => toSession(d.id, d.data()))
+          .sort((a, b) => (b.createdAt?.getTime() ?? Infinity) - (a.createdAt?.getTime() ?? Infinity))
+      ),
     (error) => {
       console.error("Could not read your planning sessions", error)
       onError?.(error)
@@ -482,18 +498,59 @@ export const setSessionCovers = (sessionId: string, covers: number) =>
   updateDoc(doc(db, "sessions", sessionId), { covers })
 
 /**
- * Steps out of a session.
+ * Steps out of a session, leaving it standing for everybody else.
  *
- * The session document itself is left alone even when the owner leaves. A week
- * several people wrote into is not one person's to delete, and a session with
- * nobody in it is unreachable by every query and rule here — which is a tidier
- * end than a cascade that has to reach two subcollections and can half-finish.
+ * What a member does. The owner gets `deleteSession` instead — see below.
  */
 export const leaveSession = (session: PlanningSession, uid: string) =>
   updateDoc(doc(db, "sessions", session.id), {
     memberUids: session.memberUids.filter((member) => member !== uid),
     members: session.members.filter((member) => member.uid !== uid),
   })
+
+/** A batch caps at 500 writes; this leaves room and keeps the arithmetic obvious. */
+const BATCH_SIZE = 400
+
+const deleteAll = async (refs: Array<ReturnType<typeof doc>>) => {
+  for (let start = 0; start < refs.length; start += BATCH_SIZE) {
+    const batch = writeBatch(db)
+    refs.slice(start, start + BATCH_SIZE).forEach((ref) => batch.delete(ref))
+    await batch.commit()
+  }
+}
+
+/**
+ * Deletes a session and everything under it — the week and the shopping list.
+ *
+ * **Firestore does not cascade**, so the subcollections have to be swept by
+ * hand, and **the order is load-bearing**: children first, parent last. The
+ * rule guarding `meals` and `shopping` reads the session document to check
+ * membership, so deleting the parent first revokes the permission needed to
+ * delete the children — leaving documents that no query can reach and no rule
+ * will ever allow anyone to remove again.
+ *
+ * Not a transaction: Firestore has no atomic subtree delete, and several
+ * batches cannot be one anyway. A run that fails partway leaves the session
+ * standing with some of its contents gone, which is recoverable by pressing
+ * delete again — the failure the ordering above avoids is not.
+ *
+ * Only the owner may do this, and `firestore.rules` is what enforces it.
+ * Everyone else leaves.
+ */
+export const deleteSession = async (sessionId: string) => {
+  const [meals, shopping] = await Promise.all([
+    getDocs(sessionMealsRef(sessionId)),
+    getDocs(sessionShoppingRef(sessionId)),
+  ])
+
+  await deleteAll([...meals.docs, ...shopping.docs].map((d) => d.ref))
+
+  // Asks nobody ever answered would otherwise point at a session that is gone.
+  const asks = await getDocs(query(invitesRef, where("sessionId", "==", sessionId)))
+  await deleteAll(asks.docs.map((d) => d.ref))
+
+  await deleteDoc(doc(db, "sessions", sessionId))
+}
 
 /* ------------------------------------------------------------- invites */
 

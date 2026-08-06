@@ -35,7 +35,8 @@ type Analyse = (request: ScalingRequest) => Promise<ScalingResponse>
 export interface PlannerStore {
   watchSessions: (
     uid: string,
-    callback: (sessions: PlanningSession[]) => void
+    callback: (sessions: PlanningSession[]) => void,
+    onError: (error: Error) => void
   ) => () => void
   watchInvites: (email: string, callback: (invites: SessionInvite[]) => void) => () => void
   watchMeals: (
@@ -48,6 +49,7 @@ export interface PlannerStore {
   createSession: (owner: SessionMember, name: string, covers: number) => Promise<string>
   setCovers: (sessionId: string, covers: number) => Promise<unknown>
   leaveSession: (session: PlanningSession, uid: string) => Promise<unknown>
+  deleteSession: (sessionId: string) => Promise<unknown>
   invite: (session: PlanningSession, from: SessionMember, toEmail: string) => Promise<unknown>
   acceptInvite: (invite: SessionInvite, me: SessionMember) => Promise<unknown>
   declineInvite: (invite: SessionInvite) => Promise<unknown>
@@ -87,7 +89,7 @@ export interface PlannerStore {
  * constructor.
  */
 const FIRESTORE_PLANNER_STORE: PlannerStore = {
-  watchSessions: (uid, cb) => services.onMySessionsSnapshot(uid, cb),
+  watchSessions: (uid, cb, onError) => services.onMySessionsSnapshot(uid, cb, onError),
   watchInvites: (email, cb) => services.onMyInvitesSnapshot(email, cb),
   watchMeals: (sessionId, from, cb) => services.onSessionMealsSnapshot(sessionId, from, cb),
   watchShopping: (sessionId, cb) => services.onSessionShoppingSnapshot(sessionId, cb),
@@ -95,6 +97,7 @@ const FIRESTORE_PLANNER_STORE: PlannerStore = {
   createSession: (owner, name, covers) => services.createSession(owner, name, covers),
   setCovers: (sessionId, covers) => services.setSessionCovers(sessionId, covers),
   leaveSession: (session, uid) => services.leaveSession(session, uid),
+  deleteSession: (sessionId) => services.deleteSession(sessionId),
   invite: (session, from, toEmail) => services.inviteToSession(session, from, toEmail),
   acceptInvite: (invite, me) => services.acceptInvite(invite, me),
   declineInvite: (invite) => services.declineInvite(invite),
@@ -163,6 +166,8 @@ export class PlannerPresenter {
   private readonly _weekOffset = new Signal<number>(0)
   /** The days the next build covers. Picked, not a rolling window. */
   private readonly _shopDays = new Signal<string[]>([])
+  /** Why the session list is empty, when it is empty for a reason. */
+  private readonly _loadError = new Signal<Error | null>(null)
   private readonly _lastBuild = new Signal<BuildSummary | null>(null)
   private readonly _buildRunner = new Runner<void>(undefined)
   private readonly _sessionRunner = new Runner<void>(undefined)
@@ -210,6 +215,10 @@ export class PlannerPresenter {
     return this._shopDays.broadcast
   }
 
+  get loadErrorBroadcast() {
+    return this._loadError.broadcast
+  }
+
   get lastBuildBroadcast() {
     return this._lastBuild.broadcast
   }
@@ -255,6 +264,10 @@ export class PlannerPresenter {
     return this._lastBuild.get()
   }
 
+  getLoadError() {
+    return this._loadError.get()
+  }
+
   /** How many the session cooks for, or the default before there is one. */
   getCovers() {
     return this.getSession()?.covers ?? DEFAULT_COVERS
@@ -282,6 +295,7 @@ export class PlannerPresenter {
     this.stopWatchingMe = []
     this._sessions.set([])
     this._invites.set([])
+    this._loadError.set(null)
     // `remember: false` — signing in is not a choice about which session to
     // open, and recording it as one wipes the memory of the last real choice
     // before `settleSelection` ever gets to read it.
@@ -292,10 +306,20 @@ export class PlannerPresenter {
     // Held rather than left to the garbage collector — an unstored subscription
     // is WeakRef-collected mid-session and silently stops firing.
     this.stopWatchingMe = [
-      this.store.watchSessions(me.uid, (sessions) => {
-        this._sessions.set(sessions)
-        this.settleSelection(sessions)
-      }),
+      this.store.watchSessions(
+        me.uid,
+        (sessions) => {
+          this._loadError.set(null)
+          this._sessions.set(sessions)
+          this.settleSelection(sessions)
+        },
+        // A denied or malformed query hands back *nothing*, which renders
+        // identically to "you are in no sessions yet" — so the two have to be
+        // told apart here. The same reasoning the admin console's feeds already
+        // spell out: "the rules are denying you" and "nothing has happened yet"
+        // must not look the same.
+        (error) => this._loadError.set(error)
+      ),
       // Addressed by email — see `SessionInvite`. An account with no address
       // cannot be asked into anything, which is the honest consequence of
       // there being nothing to address the ask to.
@@ -418,6 +442,12 @@ export class PlannerPresenter {
     return this.store.invite(session, me, toEmail)
   }
 
+  /** Whether the session on screen is one this person started. */
+  iOwnThis() {
+    const session = this.getSession()
+    return session != null && this.me != null && session.ownerUid === this.me.uid
+  }
+
   leaveSession() {
     const session = this.getSession()
     const me = this.me
@@ -426,6 +456,24 @@ export class PlannerPresenter {
     return this._sessionRunner.execute(async () => {
       await this.store.leaveSession(session, me.uid)
       this.selectSession(null)
+    })
+  }
+
+  /**
+   * Deletes the session and everything in it. Owner only — everybody else
+   * leaves, which takes them out without taking the week away from whoever is
+   * still cooking it.
+   */
+  deleteSession() {
+    const session = this.getSession()
+    if (session == null || !this.iOwnThis()) return Promise.resolve()
+
+    return this._sessionRunner.execute(async () => {
+      // Let go *first*: the listeners under a session being swept out from
+      // underneath them would otherwise spend the delete reporting a week that
+      // is emptying document by document.
+      this.selectSession(null)
+      await this.store.deleteSession(session.id)
     })
   }
 
@@ -744,6 +792,7 @@ export class PlannerPresenter {
     this._sessions.dispose()
     this._sessionId.dispose()
     this._invites.dispose()
+    this._loadError.dispose()
     this._meals.dispose()
     this._items.dispose()
     this._pantry.dispose()

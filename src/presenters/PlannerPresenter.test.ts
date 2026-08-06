@@ -82,16 +82,20 @@ const item = (partial: Partial<ShoppingItem> & { id: string; name: string }): Sh
 /** A store the test drives by hand. Nothing here reaches Firestore. */
 const fakeStore = () => {
   let emitSessions: (s: PlanningSession[]) => void = () => {}
+  let failSessions: (error: Error) => void = () => {}
   let emitInvites: (i: SessionInvite[]) => void = () => {}
   let emitMeals: (m: PlannedMeal[]) => void = () => {}
   let emitItems: (i: ShoppingItem[]) => void = () => {}
   let emitPantry: (p: Record<string, string>) => void = () => {}
 
   return {
-    watchSessions: vi.fn((_uid: string, cb: (s: PlanningSession[]) => void) => {
-      emitSessions = cb
-      return () => {}
-    }),
+    watchSessions: vi.fn(
+      (_uid: string, cb: (s: PlanningSession[]) => void, onError: (e: Error) => void) => {
+        emitSessions = cb
+        failSessions = onError
+        return () => {}
+      }
+    ),
     watchInvites: vi.fn((_uid: string, cb: (i: SessionInvite[]) => void) => {
       emitInvites = cb
       return () => {}
@@ -111,6 +115,7 @@ const fakeStore = () => {
     createSession: vi.fn().mockResolvedValue("s-new"),
     setCovers: vi.fn().mockResolvedValue(undefined),
     leaveSession: vi.fn().mockResolvedValue(undefined),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
     invite: vi.fn().mockResolvedValue(undefined),
     acceptInvite: vi.fn().mockResolvedValue(undefined),
     declineInvite: vi.fn().mockResolvedValue(undefined),
@@ -125,6 +130,7 @@ const fakeStore = () => {
     clearChecked: vi.fn().mockResolvedValue(undefined),
     getScalingSpec: vi.fn().mockResolvedValue(null),
     sessions: (s: PlanningSession[]) => emitSessions(s),
+    failSessions: (error: Error) => failSessions(error),
     invites: (i: SessionInvite[]) => emitInvites(i),
     meals: (m: PlannedMeal[]) => emitMeals(m),
     items: (i: ShoppingItem[]) => emitItems(i),
@@ -183,6 +189,23 @@ describe("PlannerPresenter", () => {
       presenter.dispose()
     })
 
+    it("tells a failed listener apart from being in no sessions", () => {
+      const { presenter } = opened(store)
+      store.sessions([])
+      expect(presenter.getLoadError()).toBeNull()
+
+      // A denied or unindexed query hands back nothing, which renders exactly
+      // like "you're in none yet" unless the two are kept distinct.
+      store.failSessions(new Error("The query requires an index"))
+      expect(presenter.getLoadError()?.message).toBe("The query requires an index")
+
+      // And clears once it starts working, rather than sticking forever.
+      store.sessions([session()])
+      expect(presenter.getLoadError()).toBeNull()
+
+      presenter.dispose()
+    })
+
     it("does nothing with no session", () => {
       const presenter = new PlannerPresenter(build(), analyse(null), store as unknown as PlannerStore)
       presenter.openFor(null)
@@ -229,6 +252,41 @@ describe("PlannerPresenter", () => {
       store2.sessions([session({ id: "s9", name: "Newer" }), session()])
 
       expect(presenter.getSession()?.id).toBe("s1")
+      presenter.dispose()
+    })
+  })
+
+  describe("ending a session", () => {
+    it("lets whoever started it delete it", async () => {
+      const { presenter } = opened(store)
+      expect(presenter.iOwnThis()).toBe(true)
+
+      await presenter.deleteSession()
+
+      expect(store.deleteSession).toHaveBeenCalledWith("s1")
+      // Let go before the sweep, so the listeners are not reporting a week
+      // emptying out document by document.
+      expect(presenter.getSession()).toBeNull()
+      presenter.dispose()
+    })
+
+    it("refuses to delete somebody else's session", async () => {
+      const { presenter } = opened(store)
+      store.sessions([session({ ownerUid: DEV.uid, memberUids: [DEV.uid, ME.uid] })])
+
+      expect(presenter.iOwnThis()).toBe(false)
+      await presenter.deleteSession()
+
+      expect(store.deleteSession).not.toHaveBeenCalled()
+      presenter.dispose()
+    })
+
+    it("leaving takes you out without taking the session away", async () => {
+      const { presenter } = opened(store)
+      await presenter.leaveSession()
+
+      expect(store.leaveSession).toHaveBeenCalledWith(expect.objectContaining({ id: "s1" }), "u1")
+      expect(store.deleteSession).not.toHaveBeenCalled()
       presenter.dispose()
     })
   })

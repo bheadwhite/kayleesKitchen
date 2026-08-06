@@ -19,6 +19,7 @@ import {
   useCurrentSession,
   useLastBuild,
   usePlannedMeals,
+  usePlannerLoadError,
   usePlannerPresenter,
   usePlanningSessions,
   useSessionStatus,
@@ -94,6 +95,7 @@ const Planner = () => {
   const { isBuilding } = useBuildStatus()
   const { isBusy } = useSessionStatus()
   const lastBuild = useLastBuild()
+  const loadError = usePlannerLoadError()
   const everyone = useEveryone()
 
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -139,17 +141,38 @@ const Planner = () => {
     return (
       <div className='w-full max-w-[720px]'>
         <div className='px-1 pt-8'>
-          <h1 className='mb-3 font-heading text-[28px] leading-tight font-bold'>
-            Planning is a group thing.
-          </h1>
-          <p className='mb-6 text-[15.5px] leading-relaxed text-muted'>
-            Start a session and ask people in, or wait for someone to ask you. Whoever's in
-            it shares the week and one shopping list.
-          </p>
-          <Button variant='primary' onClick={() => setSwitching(true)} className='mt-0 mr-0'>
-            <UsersIcon />
-            {sessions.length === 0 ? "Start a session" : "Pick a session"}
-          </Button>
+          {/* A listener that failed hands back nothing, which looks exactly
+           *  like being in no sessions — so when there is a reason, it is said
+           *  outright rather than left as a cheerful invitation to start one
+           *  that will not work either. */}
+          {loadError != null ? (
+            <>
+              <h1 className='mb-3 font-heading text-[28px] leading-tight font-bold'>
+                Can't read your sessions.
+              </h1>
+              <p className='mb-3 text-[15.5px] leading-relaxed text-muted'>
+                This is the app's fault, not yours — nothing you planned is lost. Starting
+                a session won't work until it's sorted.
+              </p>
+              <p className='border border-danger/40 bg-danger-100 px-3 py-2 font-mono text-[12px] break-words text-danger'>
+                {loadError.message}
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className='mb-3 font-heading text-[28px] leading-tight font-bold'>
+                Planning is a group thing.
+              </h1>
+              <p className='mb-6 text-[15.5px] leading-relaxed text-muted'>
+                Start a session and ask people in, or wait for someone to ask you. Whoever's
+                in it shares the week and one shopping list.
+              </p>
+              <Button variant='primary' onClick={() => setSwitching(true)} className='mt-0 mr-0'>
+                <UsersIcon />
+                {sessions.length === 0 ? "Start a session" : "Pick a session"}
+              </Button>
+            </>
+          )}
         </div>
 
         <SessionSheet
@@ -165,6 +188,10 @@ const Planner = () => {
           }
           onInvite={(email) => guard(planner.invite(email), "Could not send that ask.")}
           onLeave={() => guard(planner.leaveSession(), "Could not leave that session.")}
+          onDelete={() => guard(planner.deleteSession(), "Could not delete that session.")}
+          iOwnThis={false}
+          plannedCount={0}
+          itemCount={0}
           isBusy={isBusy}
         />
       </div>
@@ -329,6 +356,10 @@ const Planner = () => {
         }
         onInvite={(email) => guard(planner.invite(email), "Could not send that ask.")}
         onLeave={() => guard(planner.leaveSession(), "Could not leave that session.")}
+        onDelete={() => guard(planner.deleteSession(), "Could not delete that session.")}
+        iOwnThis={session.ownerUid === me?.uid}
+        plannedCount={meals.length}
+        itemCount={items.length}
         isBusy={isBusy}
       />
     </div>

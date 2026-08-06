@@ -118,12 +118,17 @@ service cloud.firestore {
              && exists(/databases/$(database)/documents/invites/$(request.auth.token.email + '_' + sid))
            );
 
-      // No delete, by anyone. A week several people wrote into is not one
-      // person's to throw away, and the owner leaving is `update` like anybody
-      // else's. A session nobody is in is unreachable by every query and rule
-      // here, which is a tidier end than a cascade that has to reach two
-      // subcollections and can half-finish.
-      allow delete: if false;
+      // **Only whoever started it may delete it.** Everybody else leaves,
+      // which takes them out without taking the week away from the people
+      // still cooking it. Someone who started a session by mistake — or three —
+      // needs a way to be rid of them, and "leave" would strand them instead:
+      // invisible to every query, and still there.
+      //
+      // The client sweeps `meals` and `shopping` first and deletes this
+      // document last, because the rules below read *this* document to decide
+      // who may touch them. Deleting the parent first would revoke the
+      // permission needed to clear the children and orphan them permanently.
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
       // **Rules do not cascade**, so the two subcollections say it again for
       // themselves — and they cannot compare against the path the way
@@ -158,7 +163,12 @@ service cloud.firestore {
         && docId == request.resource.data.toEmail + '_' + request.resource.data.sessionId
         && request.resource.data.fromUid == request.auth.uid
         && inSession(request.resource.data.sessionId);
-      allow delete: if signedIn() && resource.data.toEmail == request.auth.token.email;
+      // Deleted by the person asked — both "yes" (once the join has landed) and
+      // "no thanks" — or by a member of the session, which is how an ask is
+      // withdrawn and how a deleted session takes its unanswered asks with it.
+      allow delete: if signedIn()
+        && (resource.data.toEmail == request.auth.token.email
+            || inSession(resource.data.sessionId));
     }
 
     // Which aisle an ingredient is found in. Written **only** by the Cloud

@@ -43,7 +43,14 @@ vi.mock("fire/services", () => ({
     emitRecipes = callback
     return () => {}
   },
-  onUsersSnapshot: () => () => {},
+  onUsersSnapshot: (callback: (people: unknown[]) => void) => {
+    callback([
+      { firstName: "Amy", lastName: "Ham", email: "amy@example.test" },
+      { firstName: "B", lastName: "W", email: "bw@example.test" },
+      { firstName: "Cook", lastName: "", email: "cook@example.test" },
+    ])
+    return () => {}
+  },
 }))
 
 const TODAY = todayISO()
@@ -109,6 +116,7 @@ const fakeStore = () => {
     createSession: vi.fn().mockResolvedValue("s-new"),
     setCovers: vi.fn().mockResolvedValue(undefined),
     leaveSession: vi.fn().mockResolvedValue(undefined),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
     invite: vi.fn().mockResolvedValue(undefined),
     acceptInvite: vi.fn().mockResolvedValue(undefined),
     declineInvite: vi.fn().mockResolvedValue(undefined),
@@ -375,18 +383,134 @@ describe("Planner", () => {
     planner.dispose()
   })
 
-  it("asks before letting someone leave a session", async () => {
+  it("names what deletion takes with it, and asks first", async () => {
+    const user = userEvent.setup()
+    const { auth, planner, store, meals, items } = await renderPlanner()
+    meals([PLANNED])
+    items([item({ id: "i1", name: "flour" }), item({ id: "i2", name: "butter" })])
+
+    await user.click(screen.getByRole("button", { name: /Weeknights/ }))
+    const sheet = screen.getByRole("dialog", { name: "Planning sessions" })
+
+    await user.click(within(sheet).getByRole("button", { name: /Delete Weeknights/ }))
+    expect(store.deleteSession).not.toHaveBeenCalled()
+
+    // The counts are the point: "everything will be deleted" means nothing
+    // until it says how much everything is.
+    expect(within(sheet).getByText(/1 planned meal/)).toBeInTheDocument()
+    expect(within(sheet).getByText(/2 items/)).toBeInTheDocument()
+
+    await user.click(within(sheet).getByRole("button", { name: "Delete it" }))
+    expect(store.deleteSession).toHaveBeenCalledWith("s1")
+
+    auth.dispose()
+    planner.dispose()
+  })
+
+  it("suggests people to ask in only once you type, rather than listing everyone", async () => {
     const user = userEvent.setup()
     const { auth, planner, store } = await renderPlanner()
 
     await user.click(screen.getByRole("button", { name: /Weeknights/ }))
     const sheet = screen.getByRole("dialog", { name: "Planning sessions" })
 
+    // Nothing offered at rest — the roster grows with the app, and the sheet
+    // must not grow with it.
+    expect(within(sheet).queryByRole("button", { name: /^Ask / })).not.toBeInTheDocument()
+
+    await user.type(within(sheet).getByLabelText("Search people to ask in"), "amy")
+
+    expect(within(sheet).getByText("Amy Ham")).toBeInTheDocument()
+    expect(within(sheet).queryByText("B W")).not.toBeInTheDocument()
+
+    await user.click(within(sheet).getByRole("button", { name: /Ask Amy Ham into Weeknights/ }))
+    expect(store.invite).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "s1" }),
+      expect.anything(),
+      "amy@example.test"
+    )
+
+    auth.dispose()
+    planner.dispose()
+  })
+
+  it("finds someone by address when their name is barely there", async () => {
+    const user = userEvent.setup()
+    const { auth, planner } = await renderPlanner()
+
+    await user.click(screen.getByRole("button", { name: /Weeknights/ }))
+    const sheet = screen.getByRole("dialog", { name: "Planning sessions" })
+
+    await user.type(within(sheet).getByLabelText("Search people to ask in"), "bw@")
+    expect(within(sheet).getByText("B W")).toBeInTheDocument()
+
+    auth.dispose()
+    planner.dispose()
+  })
+
+  it("never offers to ask in somebody already in the session", async () => {
+    const user = userEvent.setup()
+    const { auth, planner } = await renderPlanner()
+
+    await user.click(screen.getByRole("button", { name: /Weeknights/ }))
+    const sheet = screen.getByRole("dialog", { name: "Planning sessions" })
+
+    // "Cook" is the signed-in user and already a member.
+    await user.type(within(sheet).getByLabelText("Search people to ask in"), "cook")
+    expect(within(sheet).getByText(/Nobody here matches/)).toBeInTheDocument()
+
+    auth.dispose()
+    planner.dispose()
+  })
+
+  it("backs out of deleting", async () => {
+    const user = userEvent.setup()
+    const { auth, planner, store } = await renderPlanner()
+
+    await user.click(screen.getByRole("button", { name: /Weeknights/ }))
+    const sheet = screen.getByRole("dialog", { name: "Planning sessions" })
+
+    await user.click(within(sheet).getByRole("button", { name: /Delete Weeknights/ }))
+    await user.click(within(sheet).getByRole("button", { name: "Keep it" }))
+
+    expect(store.deleteSession).not.toHaveBeenCalled()
+    expect(within(sheet).getByRole("button", { name: /Delete Weeknights/ })).toBeInTheDocument()
+
+    auth.dispose()
+    planner.dispose()
+  })
+
+  it("offers to leave, not delete, somebody else's session", async () => {
+    const user = userEvent.setup()
+    const { auth, planner, store } = await renderPlanner()
+
+    act(() =>
+      store.sessions([
+        {
+          ...SESSION,
+          ownerUid: "u2",
+          memberUids: ["u2", "u1"],
+          members: [
+            { uid: "u2", name: "Dev", email: "dev@example.test" },
+            { uid: "u1", name: "Cook", email: "cook@example.test" },
+          ],
+        },
+      ])
+    )
+
+    await user.click(screen.getByRole("button", { name: /Weeknights/ }))
+    const sheet = screen.getByRole("dialog", { name: "Planning sessions" })
+
+    expect(
+      within(sheet).queryByRole("button", { name: /Delete Weeknights/ })
+    ).not.toBeInTheDocument()
+
     await user.click(within(sheet).getByRole("button", { name: /Leave Weeknights/ }))
-    expect(store.leaveSession).not.toHaveBeenCalled()
+    expect(within(sheet).getByText(/session carries on without you/)).toBeInTheDocument()
 
     await user.click(within(sheet).getByRole("button", { name: "Leave" }))
     expect(store.leaveSession).toHaveBeenCalled()
+    expect(store.deleteSession).not.toHaveBeenCalled()
 
     auth.dispose()
     planner.dispose()

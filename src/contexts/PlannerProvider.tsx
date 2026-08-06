@@ -44,6 +44,13 @@ export const useCurrentSession = () => {
   return sessions.find((session) => session.id === id) ?? null
 }
 
+/**
+ * Why the session list is empty, when it is empty for a reason rather than
+ * because you are in none. Null the rest of the time.
+ */
+export const usePlannerLoadError = () =>
+  useSignalValue(usePlannerPresenter().loadErrorBroadcast)
+
 /** Asks waiting on you. Shown on your own tab, never inside a session. */
 export const useSessionInvites = () => useSignalValue(usePlannerPresenter().invitesBroadcast)
 
