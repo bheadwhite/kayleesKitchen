@@ -4,7 +4,7 @@ import { Form } from "react-final-form"
 import Select from "react-select"
 import { toast } from "react-toastify"
 
-import { Button, DeleteIcon, Dialog, SectionHeading, Spinner } from "components"
+import { Button, DeleteIcon, Dialog, RedoIcon, SectionHeading, Spinner, UndoIcon } from "components"
 import { AiAssistant } from "components/AiAssistant"
 import { TextField } from "components/finalForm"
 import { ImageUpload } from "components/ImageUpload"
@@ -18,6 +18,7 @@ import {
   useEditIngredientIndex,
   useEditSection,
   useIngredients,
+  useRecipeHistory,
   useRecipeImageUrl,
   useRecipePresenter,
   useTags,
@@ -56,6 +57,9 @@ const RecipeEditor = () => {
   // the editor's fields, and it is only rebuilt when this component renders.
   const editIngredientIndex = useEditIngredientIndex()
   const currentImageUrl = useRecipeImageUrl()
+  // Subscribed for the buttons' disabled state — and because an undo restores
+  // the title, which only reaches the form through a rebuilt `initialValues`.
+  const history = useRecipeHistory()
   const usersRecipes = useUsersRecipes()
   // Every tag anyone has used, so a second recipe gets "mexican" off a chip
   // rather than "Mexican food" out of someone's memory.
@@ -75,6 +79,30 @@ const RecipeEditor = () => {
     },
     [presenter, assistant]
   )
+
+  /**
+   * ⌘Z / ⌘⇧Z for the whole recipe.
+   *
+   * Keystrokes inside a text field are left alone: the browser's own undo is
+   * already there, it is finer-grained than this one, and taking it over would
+   * mean ⌘Z inside a half-typed step threw away the step instead of the letter.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return
+
+      const target = event.target as HTMLElement | null
+      const tag = target?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return
+
+      event.preventDefault()
+      if (event.shiftKey) presenter.redo()
+      else presenter.undo()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [presenter])
 
   const options = useMemo<RecipeOption[]>(
     () =>
@@ -361,6 +389,30 @@ const RecipeEditor = () => {
               {/* The running count of what is unsaved, in the same mono voice as
                *  every other counter here. It is also the answer to "did that
                *  apply do anything?" — an assistant draft lands as a number. */}
+              {/* Undo sits with the other things you do to the whole recipe,
+               *  and stays reachable wherever the page is scrolled — the same
+               *  reason the save button is here. */}
+              <Button
+                icon
+                variant='ghost'
+                onClick={() => presenter.undo()}
+                disabled={!history.canUndo}
+                aria-label='Undo'
+                title='Undo (⌘Z)'
+                className='mt-0 mr-0'>
+                <UndoIcon />
+              </Button>
+              <Button
+                icon
+                variant='ghost'
+                onClick={() => presenter.redo()}
+                disabled={!history.canRedo}
+                aria-label='Redo'
+                title='Redo (⇧⌘Z)'
+                className='mt-0 mr-0'>
+                <RedoIcon />
+              </Button>
+
               <span className='flex-1 truncate font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
                 {changes.count === 0
                   ? editMode

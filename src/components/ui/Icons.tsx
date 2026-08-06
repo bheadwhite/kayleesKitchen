@@ -116,6 +116,20 @@ export const ActivityIcon = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 )
 
+export const UndoIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d='M9 14L4 9l5-5' />
+    <path d='M4 9h11a5 5 0 010 10h-4' />
+  </Icon>
+)
+
+export const RedoIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d='M15 14l5-5-5-5' />
+    <path d='M20 9H9a5 5 0 000 10h4' />
+  </Icon>
+)
+
 export const TagIcon = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <path d='M3 12V4a1 1 0 011-1h8l9 9-9 9-9-9z' />

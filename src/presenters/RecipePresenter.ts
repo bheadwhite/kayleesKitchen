@@ -1,7 +1,28 @@
 import { Signal } from "@tcn/state/core"
 
+import { UndoStack } from "./UndoStack"
 import type { RecipeBaseline } from "@/recipeDiff"
 import type { DirectionSection, Ingredient, Recipe } from "@/types"
+
+/**
+ * One undo step: everything the editor owns that is worth taking back.
+ *
+ * The photo is not in here. Staging one uploads a file, so "undo" would have to
+ * mean re-uploading or resurrecting a deleted object in Storage — a different
+ * kind of operation with a different failure mode, and one the Delete/Regenerate
+ * buttons already cover.
+ */
+interface EditorSnapshot {
+  title: string
+  ingredients: Ingredient[]
+  directions: DirectionSection[]
+  tags: string[]
+}
+
+export interface HistoryState {
+  canUndo: boolean
+  canRedo: boolean
+}
 
 const EMPTY_INGREDIENT: Ingredient = {
   name: "",
@@ -36,6 +57,8 @@ export class RecipePresenter {
   private readonly _directions = new Signal<DirectionSection[]>([])
   private readonly _ingredients = new Signal<Ingredient[]>([])
   private readonly _tags = new Signal<string[]>([])
+  private readonly _history = new UndoStack<EditorSnapshot>()
+  private readonly _historyState = new Signal<HistoryState>({ canUndo: false, canRedo: false })
   private readonly _imageUrl = new Signal<string | null>(null)
   private readonly _imageFile = new Signal<File | null>(null)
   // The row being edited in place, by position. An earlier version held a copy
@@ -57,6 +80,10 @@ export class RecipePresenter {
     return this._tags.broadcast
   }
 
+  get historyBroadcast() {
+    return this._historyState.broadcast
+  }
+
   get imageUrlBroadcast() {
     return this._imageUrl.broadcast
   }
@@ -71,6 +98,68 @@ export class RecipePresenter {
 
   get loadingRecipeImageBroadcast() {
     return this._loadingRecipeImage.broadcast
+  }
+
+  /* ------------------------------------------------------------- history */
+
+  private _snapshot(): EditorSnapshot {
+    return {
+      title: this._title,
+      ingredients: this._ingredients.get().map((ingredient) => ({ ...ingredient })),
+      // `editStep` is deliberately dropped: which row happens to be open is not
+      // an edit, and restoring it would reopen an editor nobody asked for.
+      directions: this._directions.get().map(({ editStep: _editStep, ...section }) => ({
+        ...section,
+        steps: section.steps.slice(),
+      })),
+      tags: this._tags.get().slice(),
+    }
+  }
+
+  /**
+   * Every mutator calls this *first*, with the state it is about to replace.
+   *
+   * Typing in the title does not come through here — `setTitle` fires on every
+   * keystroke, and an undo stack one character deep is useless. The title is
+   * still carried *in* every snapshot, so undoing anything else (an applied
+   * assistant draft, most of all) puts the title back with it, and a text input
+   * has the browser's own undo while the cursor is in it.
+   */
+  private _record() {
+    this._history.record(this._snapshot())
+    this._publishHistory()
+  }
+
+  private _publishHistory() {
+    this._historyState.set({
+      canUndo: this._history.canUndo,
+      canRedo: this._history.canRedo,
+    })
+  }
+
+  private _restore(snapshot: EditorSnapshot) {
+    this._title = snapshot.title
+    this._ingredients.set(snapshot.ingredients)
+    this._directions.set(snapshot.directions.map((section) => ({ ...section, editStep: null })))
+    this._tags.set(snapshot.tags)
+    // Both editors point at positions that may not exist in the restored list.
+    this._editIngredientIndex.set(null)
+    this._editSection.set(null)
+    this._publishHistory()
+  }
+
+  undo() {
+    const previous = this._history.undo(this._snapshot())
+    if (previous === undefined) return false
+    this._restore(previous)
+    return true
+  }
+
+  redo() {
+    const next = this._history.redo(this._snapshot())
+    if (next === undefined) return false
+    this._restore(next)
+    return true
   }
 
   /* ------------------------------------------------------------- scalars */
@@ -168,6 +257,7 @@ export class RecipePresenter {
   }
 
   addIngredient({ name, amount, unique, optional }: Ingredient) {
+    this._record()
     this._ingredients.transform((current) => [
       ...current,
       { name, amount, unique, optional },
@@ -184,6 +274,7 @@ export class RecipePresenter {
       return
     }
 
+    this._record()
     this._ingredients.transform((current) =>
       current.map((ingredient, i) =>
         i === index ? { name, amount, unique, optional } : ingredient
@@ -193,6 +284,7 @@ export class RecipePresenter {
   }
 
   deleteIngredient(index: number) {
+    this._record()
     this._ingredients.transform((current) => current.filter((_, i) => i !== index))
     // Every row below the deleted one shifts up, so an open editor would be
     // pointing at the wrong ingredient. Close it rather than re-aim it.
@@ -213,14 +305,19 @@ export class RecipePresenter {
    */
   addTag(raw: string) {
     const tag = normaliseTag(raw)
-    if (tag === "") return
+    // Nothing is about to change, so nothing is worth an undo step: a rejected
+    // duplicate that costs a press of Undo is a bug report waiting to happen.
+    if (tag === "" || this._tags.get().includes(tag) || this._tags.get().length >= MAX_TAGS) {
+      return
+    }
 
-    this._tags.transform((current) =>
-      current.includes(tag) || current.length >= MAX_TAGS ? current : [...current, tag]
-    )
+    this._record()
+    this._tags.transform((current) => [...current, tag])
   }
 
   removeTag(tag: string) {
+    if (!this._tags.get().includes(tag)) return
+    this._record()
     this._tags.transform((current) => current.filter((t) => t !== tag))
   }
 
@@ -239,6 +336,7 @@ export class RecipePresenter {
   }
 
   addNewSection(sectionTitle: string) {
+    this._record()
     this._directions.transform((current) => [
       ...current,
       { sectionTitle, steps: [], editStep: null },
@@ -249,6 +347,7 @@ export class RecipePresenter {
     const index = this._editSection.get()
     if (index == null) return
 
+    this._record()
     this._directions.transform((current) =>
       current.map((section, i) => (i === index ? { ...section, sectionTitle } : section))
     )
@@ -256,12 +355,14 @@ export class RecipePresenter {
   }
 
   deleteSection(sectionIndex: number) {
+    this._record()
     this._directions.transform((current) =>
       current.filter((_, i) => i !== sectionIndex)
     )
   }
 
   addNewStep(sectionIndex: number, stepText: string) {
+    this._record()
     this._directions.transform((current) =>
       current.map((section, i) =>
         i === sectionIndex ? { ...section, steps: [...section.steps, stepText] } : section
@@ -270,6 +371,7 @@ export class RecipePresenter {
   }
 
   deleteStep(sectionIndex: number, indexOfStep: number) {
+    this._record()
     this._directions.transform((current) =>
       current.map((section, i) =>
         i === sectionIndex
@@ -300,6 +402,7 @@ export class RecipePresenter {
   }
 
   private _moveStep(sectionIndex: number, from: number, to: number) {
+    this._record()
     this._directions.transform((current) =>
       current.map((section, i) => {
         if (i !== sectionIndex) return section
@@ -333,6 +436,7 @@ export class RecipePresenter {
     const stepIndex = section.editStep
     const nextText = String(values[`nextStep-${sectionIndex}`] ?? "")
 
+    this._record()
     this._directions.transform((current) =>
       current.map((s, i) =>
         i === sectionIndex
@@ -358,6 +462,14 @@ export class RecipePresenter {
    * changes someone would want to look over before pressing Update.
    */
   loadRecipe(recipe: Recipe, { asSaved = true }: { asSaved?: boolean } = {}) {
+    // Opening a recipe is not an edit, so its history starts empty — undo must
+    // not walk back into whatever was in the editor before. Applying a draft
+    // *is* an edit, and one big enough to be the thing people most want to take
+    // back, so it records a step like any other.
+    if (asSaved) this._history.clear()
+    else this._record()
+    this._publishHistory()
+
     this._id = recipe.id ?? null
     this._title = recipe.title
     this._directions.set(
@@ -395,6 +507,8 @@ export class RecipePresenter {
     this._tags.set([])
     this._editSection.set(null)
     this._editIngredientIndex.set(null)
+    this._history.clear()
+    this._publishHistory()
   }
 
   dispose() {
@@ -404,6 +518,7 @@ export class RecipePresenter {
     this._directions.dispose()
     this._tags.dispose()
     this._editIngredientIndex.dispose()
+    this._historyState.dispose()
     this._editSection.dispose()
     this._loadingRecipeImage.dispose()
   }

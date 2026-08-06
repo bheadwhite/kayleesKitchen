@@ -279,6 +279,36 @@ Prompt caching: the system prompt and the transcript prefix carry `cache_control
 that breakpoint as a mid-conversation `role: "system"` message — putting volatile state
 in `system` would invalidate the whole prefix on every keystroke.
 
+### Undo/redo
+
+`src/presenters/UndoStack.ts` is a generic linear undo over **whole snapshots** — a recipe
+is a few dozen short strings, and the alternative is writing an inverse for every mutator
+and keeping it correct. `RecipePresenter` owns one, and every mutator calls `_record()`
+*first*, with the state it is about to replace.
+
+**Recording an edit throws the redo stack away.** After an undo there are two possible
+futures — the one that was undone and the one just started — and nothing reconciles them, so
+the abandoned branch is unreachable by design.
+
+What is and is not in a step:
+
+- **Typing in the title records nothing.** `setTitle` fires per keystroke, and an undo stack
+  one character deep is useless. The title is still *carried in* every snapshot, so undoing
+  anything else puts it back — which is what makes "undo the assistant's draft" correct —
+  and a focused input has the browser's own undo anyway. That is also why ⌘Z is ignored while
+  the cursor is in an input or textarea.
+- **A no-op records nothing.** `addTag` normalises and checks for a duplicate before
+  recording; a press of Undo that appears to do nothing because it took back a rejected
+  duplicate is worse than no undo at all.
+- **The photo is not in a step.** Staging one uploads a file, so undo would mean re-uploading
+  or resurrecting a deleted Storage object — a different operation with a different failure
+  mode, already covered by Delete/Regenerate.
+- **`editStep` / the open ingredient row are stripped.** Which row happens to be open is not
+  an edit, and restoring it reopens an editor nobody asked for.
+
+Opening a recipe **clears** the history (undo must not walk back into the last recipe);
+applying an assistant draft **records** one (it is the step people most want to take back).
+
 ### Unsaved changes, and showing what they are
 
 `src/recipeDiff.ts` compares what is on the screen with what was last saved, and everything

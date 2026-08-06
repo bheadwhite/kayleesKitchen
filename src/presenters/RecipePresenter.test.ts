@@ -80,6 +80,92 @@ describe("RecipePresenter", () => {
     })
   })
 
+  describe("undo and redo", () => {
+    it("takes back an ingredient, and puts it back again", () => {
+      presenter.loadRecipe(recipe)
+      presenter.addIngredient({ name: "Garlic", amount: "3 cloves" })
+
+      presenter.undo()
+      expect(presenter.getIngredients().map((i) => i.name)).toEqual(["Beef", "Onion"])
+
+      presenter.redo()
+      expect(presenter.getIngredients().map((i) => i.name)).toEqual(["Beef", "Onion", "Garlic"])
+    })
+
+    it("abandons the redo once a new edit branches off an undo", () => {
+      presenter.loadRecipe(recipe)
+      presenter.addIngredient({ name: "Garlic", amount: "3 cloves" })
+      presenter.undo()
+
+      presenter.addTag("italian")
+
+      // There is no single future to return to any more — see UndoStack.
+      expect(presenter.redo()).toBe(false)
+      expect(presenter.getIngredients()).toHaveLength(2)
+      expect(presenter.getTags()).toEqual(["italian"])
+    })
+
+    it("puts the title back with whatever else the step touched", () => {
+      presenter.loadRecipe(recipe)
+      // Typing does not record a step of its own, but it is carried in the next
+      // one — so an applied draft can be undone as a whole.
+      presenter.setTitle("Lasagne")
+      presenter.loadRecipe(
+        { ...recipe, title: "Vegan lasagna", ingredients: [{ name: "Lentils", amount: "2 cups" }] },
+        { asSaved: false }
+      )
+
+      presenter.undo()
+
+      expect(presenter.getTitle()).toBe("Lasagne")
+      expect(presenter.getIngredients().map((i) => i.name)).toEqual(["Beef", "Onion"])
+    })
+
+    it("starts empty when a recipe is opened, so undo cannot reach the last one", () => {
+      presenter.addIngredient({ name: "Stray", amount: "1" })
+      presenter.loadRecipe(recipe)
+
+      expect(presenter.undo()).toBe(false)
+    })
+
+    it("spends no step on a rejected duplicate tag", () => {
+      presenter.addTag("salad")
+      presenter.addTag("Salad")
+
+      presenter.undo()
+
+      // One press of Undo, one tag gone — not a press that appears to do
+      // nothing because it took back a no-op.
+      expect(presenter.getTags()).toEqual([])
+    })
+
+    it("does not reopen an editor that was open when the step was recorded", () => {
+      presenter.loadRecipe(recipe)
+      presenter.setEditIngredientIndex(1)
+      presenter.updateIngredient({ name: "Shallot", amount: "1 cup" })
+
+      presenter.undo()
+
+      expect(presenter.getEditIngredientIndex()).toBeNull()
+      expect(presenter.getDirections().every((s) => s.editStep == null)).toBe(true)
+    })
+
+    it("broadcasts what the buttons should be doing", () => {
+      const seen: string[] = []
+      // Subscriptions are WeakRef-backed — this must stay in a variable.
+      const subscription = presenter.historyBroadcast.subscribe(({ canUndo, canRedo }) =>
+        seen.push(`${canUndo ? "undo" : "-"}/${canRedo ? "redo" : "-"}`)
+      )
+
+      presenter.addTag("salad")
+      presenter.undo()
+      presenter.redo()
+
+      expect(seen).toEqual(["undo/-", "-/redo", "undo/-"])
+      subscription.unsubscribe()
+    })
+  })
+
   describe("the saved baseline", () => {
     it("starts empty, so an unsaved recipe has nothing to differ from", () => {
       expect(presenter.getBaseline()).toBeNull()

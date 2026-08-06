@@ -38,6 +38,8 @@ export const useDirections = () => useSignalValue(useRecipePresenter().direction
 
 export const useTags = () => useSignalValue(useRecipePresenter().tagsBroadcast)
 
+export const useRecipeHistory = () => useSignalValue(useRecipePresenter().historyBroadcast)
+
 export const useEditIngredientIndex = () =>
   useSignalValue(useRecipePresenter().editIngredientIndexBroadcast)
 
