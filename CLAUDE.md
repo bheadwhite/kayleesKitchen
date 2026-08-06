@@ -325,14 +325,24 @@ holds the one address.
 
 `firestore.rules` is **not deployed by `firebase deploy`** — `firebase.json` has no
 `firestore` section, on purpose. It is the reviewed copy of what belongs in Firebase console
-→ Firestore → Rules, and the two are kept in step by hand. Read the live ruleset with:
+→ Firestore → Rules, and the two are kept in step **by hand**, which is only safe while the
+drift is visible:
 
 ```bash
-TOKEN=$(gcloud auth print-access-token)
-curl -s -H "Authorization: Bearer $TOKEN" -H "X-Goog-User-Project: whatsfordinner-e69a4" \
-  https://firebaserules.googleapis.com/v1/projects/whatsfordinner-e69a4/releases
-# then GET the rulesetName from that response
+npm run rules:copy    # local file -> clipboard, ready to paste into the console
+npm run rules:diff    # live ruleset vs. the local file; exits 1 if they differ
+npm run rules:live    # print what the console is actually serving
+npm run rules         # print the local file
 ```
+
+`scripts/liveRules.mjs` backs the last three. It reads the live ruleset through the
+Firebase Rules API, authenticating with `gcloud auth print-access-token` — so it needs the
+gcloud CLI and an account that can read the project. The project id comes from
+`.firebaserc` (override with `FIREBASE_PROJECT`).
+
+`rules:diff` is the one that matters: it shows `-` for live and `+` for local. Comment-only
+differences are normal — the console copy is whatever was last pasted — so read the diff
+for `match` blocks and `allow` lines, not prose.
 
 **`addUser` creates the auth account before writing the `users` profile, and the order is
 load-bearing.** `createUserWithEmailAndPassword` signs the new user in, which is what makes
