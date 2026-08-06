@@ -377,6 +377,13 @@ falls back to initials — on `onError` as well as when the URL is missing, beca
 `NavBar` renders `null` unless `useAuthStatus()` is `"loggedIn"` — every entry needs a
 session — and `App` reads the same status to decide whether to reserve room for it.
 
+The recipe view offers **Edit** (top right, opposite "All recipes") on recipes you own,
+linking to **`/recipes/new?edit=<id>`**. The editor reads that param once on arrival and
+runs the same `openForEditing` path as its own picker — one implementation, so a change to
+how a recipe loads cannot apply to only one of the two ways in. The button is hidden on
+other people's recipes: every signed-in cook *can* write any recipe, but offering it from
+their page invites doing it by accident, and the picker has always listed yours alone.
+
 `Profile` also lists your own recipes and everyone who has contributed. Those rows link
 back with **`/recipes?open=<id>`** (opens that recipe) and **`/recipes?cook=<name>`** (seeds
 the search box). `Recipes` reads both once, on arrival — they *seed* the view rather than

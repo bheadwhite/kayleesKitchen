@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import Recipes from "./Recipes"
@@ -11,6 +11,7 @@ const RECIPES: Recipe[] = [
     id: "carbonara",
     title: "Carbonara salad",
     contributor: "Lauren Tarver",
+    email: "lauren@example.test",
     ingredients: [{ name: "Farfalle pasta", amount: "6oz" }],
     directions: [{ sectionTitle: "", steps: ["Mix it all together"] }],
   },
@@ -18,10 +19,20 @@ const RECIPES: Recipe[] = [
     id: "won-ton",
     title: "Won Ton Salad",
     contributor: "Lisa Tarver",
+    email: "lisa@example.test",
     ingredients: [],
     directions: [],
   },
 ]
+
+vi.mock("contexts/AuthProvider", () => ({
+  useSessionUser: () => ({
+    uid: "u1",
+    email: "lauren@example.test",
+    displayName: "Lauren Tarver",
+    photoURL: null,
+  }),
+}))
 
 vi.mock("fire/services", () => ({
   onRecipesSnapshot: (callback: (recipes: Recipe[]) => void) => {
@@ -34,11 +45,20 @@ vi.mock("fire/services", () => ({
 const setScrollY = (value: number) =>
   Object.defineProperty(window, "scrollY", { value, configurable: true })
 
+/** Stands in for the editor so a navigation to it can be asserted on. */
+const EditorStub = () => {
+  const [params] = useSearchParams()
+  return <p>editing {params.get("edit")}</p>
+}
+
 /** <Recipes> reads `?open=` and `?cook=` off the URL, so it needs a router. */
 const renderRecipes = (path = "/recipes") =>
   render(
     <MemoryRouter initialEntries={[path]}>
-      <Recipes />
+      <Routes>
+        <Route path='/recipes' element={<Recipes />} />
+        <Route path='/recipes/new' element={<EditorStub />} />
+      </Routes>
     </MemoryRouter>
   )
 
@@ -127,5 +147,31 @@ describe("Recipes", () => {
     expect(screen.getByLabelText("Filter recipes")).toHaveValue("Lisa Tarver")
     expect(screen.getByText("Won Ton Salad")).toBeInTheDocument()
     expect(screen.queryByText("Carbonara salad")).not.toBeInTheDocument()
+  })
+})
+
+describe("Recipes — editing from the recipe view", () => {
+  it("offers Edit on your own recipe and links to the editor for it", async () => {
+    const user = userEvent.setup()
+    renderRecipes()
+
+    await user.click(screen.getByText("Carbonara salad"))
+
+    await user.click(screen.getByRole("button", { name: "Edit" }))
+
+    // Lands on the editor carrying the recipe's id — that query param is the
+    // contract the editor reads to preload it.
+    expect(screen.getByText("editing carbonara")).toBeInTheDocument()
+  })
+
+  it("does not offer Edit on somebody else's recipe", async () => {
+    const user = userEvent.setup()
+    renderRecipes()
+
+    await user.click(screen.getByText("Won Ton Salad"))
+
+    // Any signed-in cook *can* write any recipe; offering it here would invite
+    // editing a family member's by accident.
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
   })
 })

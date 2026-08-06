@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Form } from "react-final-form"
 import Select from "react-select"
 import { toast } from "react-toastify"
@@ -71,23 +72,51 @@ const RecipeEditor = () => {
     [usersRecipes]
   )
 
-  const handleOnPulledRecipe = async (option: RecipeOption | null) => {
-    if (option == null || user == null) return
-    const recipe = option.value
+  /**
+   * Loads a recipe into the editor. Shared by the picker and by the `?edit=`
+   * link the recipe view sends — one implementation, so a change to how a
+   * recipe is opened cannot apply to only one of the two routes in.
+   */
+  const openForEditing = useCallback(
+    async (recipe: Recipe) => {
+      if (user == null) return
 
-    presenter.loadRecipe(recipe)
-    setEditMode(true)
+      presenter.loadRecipe(recipe)
+      setEditMode(true)
 
-    if (recipe.image && recipe.id) {
-      try {
-        presenter.setImageUrl(await getImageUrlByEmailId(user.email, recipe.id))
-      } catch {
+      if (recipe.image && recipe.id) {
+        try {
+          presenter.setImageUrl(await getImageUrlByEmailId(user.email, recipe.id))
+        } catch {
+          presenter.setImageUrl(null)
+        }
+      } else {
         presenter.setImageUrl(null)
       }
-    } else {
-      presenter.setImageUrl(null)
-    }
+    },
+    [presenter, user]
+  )
+
+  const handleOnPulledRecipe = (option: RecipeOption | null) => {
+    if (option == null) return
+    void openForEditing(option.value)
   }
+
+  // Arriving from the recipe view's Edit button. `usersRecipes` is a live
+  // snapshot that lands after mount, so this waits for the recipe rather than
+  // reading an empty list. The ref keeps it to one shot — without it, pressing
+  // Cancel would immediately reload the recipe the URL still names.
+  const [searchParams] = useSearchParams()
+  const editId = useRef(searchParams.get("edit")).current
+  const openedFromUrl = useRef(false)
+
+  useEffect(() => {
+    if (editId == null || openedFromUrl.current) return
+    const match = usersRecipes.find((recipe) => recipe.id === editId)
+    if (match == null) return
+    openedFromUrl.current = true
+    void openForEditing(match)
+  }, [usersRecipes, editId, openForEditing])
 
   const handleCancelEditMode = () => {
     presenter.reset()
