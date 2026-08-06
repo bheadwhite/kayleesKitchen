@@ -114,6 +114,42 @@ const Admin = () => {
     )
   }, [usage])
 
+  /**
+   * One row per person rather than one per event. A raw feed of sign-ins is
+   * mostly the same few names repeated — what the list is actually being read
+   * for is who uses this and when they were last here, and that is a property
+   * of the person, not of any single event.
+   *
+   * Most-recent first, and keyed by email with the uid as fallback so an
+   * account with no address still gets its own row instead of being merged
+   * with every other one.
+   */
+  const byUser = useMemo(() => {
+    type Seen = { who: string; count: number; last: Date | null; methods: Set<string> }
+    const people = new Map<string, Seen>()
+
+    logins.forEach((event) => {
+      const key = event.email ?? event.uid
+      const seen = people.get(key)
+      if (seen == null) {
+        people.set(key, {
+          who: key,
+          count: 1,
+          last: event.at,
+          methods: new Set([event.method]),
+        })
+        return
+      }
+      seen.count += 1
+      seen.methods.add(event.method)
+      if (event.at != null && (seen.last == null || event.at > seen.last)) seen.last = event.at
+    })
+
+    return [...people.values()].sort(
+      (a, b) => (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0)
+    )
+  }, [logins])
+
   // A non-admin who guesses the URL goes back to their own profile rather than
   // being told the page exists.
   if (user != null && !allowed) return <Navigate to='/profile' replace />
@@ -205,20 +241,29 @@ const Admin = () => {
         </ul>
       )}
 
-      <SectionHeading meta={`last ${logins.length}`}>Sign-ins</SectionHeading>
-      {logins.length === 0 ? (
+      <SectionHeading
+        meta={
+          byUser.length > 0
+            ? `${byUser.length} ${byUser.length === 1 ? "person" : "people"} · last ${logins.length}`
+            : undefined
+        }>
+        Sign-ins
+      </SectionHeading>
+      {byUser.length === 0 ? (
         <p className='py-4 text-muted'>Nothing recorded yet.</p>
       ) : (
         <ul>
-          {logins.slice(0, 25).map((event) => (
-            <li
-              key={event.id}
-              className='flex items-baseline justify-between gap-3 border-b border-ink/8 py-2.5'>
-              <span className='min-w-0 truncate'>
-                {event.email ?? event.uid}
-                <span className='text-muted'> · {event.method}</span>
-              </span>
-              <span className='shrink-0 font-mono text-xs text-muted'>{when(event.at)}</span>
+          {byUser.map((person) => (
+            <li key={person.who} className='border-b border-ink/8 py-2.5'>
+              <div className='flex items-baseline justify-between gap-3'>
+                <span className='min-w-0 truncate font-medium'>{person.who}</span>
+                <span className='shrink-0 font-mono text-[13px] text-muted'>
+                  {number.format(person.count)} sign-in{person.count === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className='font-mono text-[11px] text-muted'>
+                {[...person.methods].join(", ")} · last {when(person.last)}
+              </div>
             </li>
           ))}
         </ul>

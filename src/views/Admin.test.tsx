@@ -64,6 +64,20 @@ const LOGINS: LoginEvent[] = [
     method: "google",
     at: new Date("2026-08-05T08:00:00Z"),
   },
+  {
+    id: "l2",
+    uid: "u1",
+    email: "cook@example.test",
+    method: "password",
+    at: new Date("2026-08-04T08:00:00Z"),
+  },
+  {
+    id: "l3",
+    uid: "u2",
+    email: "dev@example.test",
+    method: "google",
+    at: new Date("2026-08-03T08:00:00Z"),
+  },
 ]
 
 vi.mock("fire/services", () => ({
@@ -154,12 +168,20 @@ describe("Admin console", () => {
     presenter.dispose()
   })
 
-  it("lists recent sign-ins", async () => {
+  it("collapses sign-ins to one row per person", async () => {
     const presenter = renderAdmin()
     signInAs(ADMIN_EMAIL)
 
     expect(await screen.findByRole("heading", { name: "Sign-ins" })).toBeInTheDocument()
-    expect(screen.getByText(/google/)).toBeInTheDocument()
+
+    // Three events, two people — the repeated cook is one row carrying a count,
+    // not two rows saying the same name.
+    expect(screen.getByText(/2 sign-ins/)).toBeInTheDocument()
+    expect(screen.getByText(/1 sign-in\b/)).toBeInTheDocument()
+    expect(screen.getByText("dev@example.test")).toBeInTheDocument()
+
+    // Both ways that person got in, on their single row.
+    expect(screen.getByText(/google, password/)).toBeInTheDocument()
 
     presenter.dispose()
   })
