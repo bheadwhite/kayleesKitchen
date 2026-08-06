@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Auth } from "firebase/auth"
@@ -8,7 +9,7 @@ import AuthProvider from "contexts/AuthProvider"
 import { AuthPresenter } from "presenters/AuthPresenter"
 import { ADMIN_EMAIL, isAdmin } from "@/admin"
 import { APP_COMMIT, APP_VERSION } from "@/version"
-import type { AiUsageEvent, LoginEvent } from "@/types"
+import type { AiUsageEvent, DailyUsage, LoginEvent, UsageBucket } from "@/types"
 
 let emitAuthState: (user: unknown) => void = () => {}
 
@@ -51,8 +52,52 @@ const USAGE: AiUsageEvent[] = [
     cacheReadTokens: 0,
     cacheCreationTokens: 0,
     images: 0,
+    attempts: 3,
     errorCode: "internal",
+    errorStatus: 400,
+    errorMessage: "tools.0.custom: Invalid schema: Enum value 'exact' does not match declared type",
     at: new Date("2026-08-05T09:00:00Z"),
+  },
+]
+
+const bucket = (over: Partial<UsageBucket> = {}): UsageBucket => ({
+  calls: 0,
+  ok: 0,
+  failed: 0,
+  ms: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheCreationTokens: 0,
+  images: 0,
+  attempts: 0,
+  ...over,
+})
+
+/**
+ * One day of rollup. The assistant's numbers are chosen so the cost is a round
+ * figure at the Opus rates: 1M output tokens is $25 exactly, which makes the
+ * assertion about dollars readable instead of a magic decimal.
+ */
+const OPUS = bucket({ calls: 2, ok: 2, outputTokens: 1_000_000 })
+const DAILY: DailyUsage[] = [
+  {
+    ...bucket({ calls: 3, ok: 3, outputTokens: 1_000_000 }),
+    date: "2026-08-05",
+    features: {
+      assistant: { ...OPUS, models: { "claude-opus-5": OPUS } },
+      // An image call priced per call rather than per token, and a model with
+      // no rate on file — the console has to name it rather than quietly
+      // reporting a total that is missing a line.
+      image: {
+        ...bucket({ calls: 1, ok: 1 }),
+        models: { "some-unpriced-model": bucket({ calls: 1, ok: 1 }) },
+      },
+    },
+    models: {
+      "claude-opus-5": OPUS,
+      "some-unpriced-model": bucket({ calls: 1, ok: 1 }),
+    },
   },
 ]
 
@@ -94,6 +139,10 @@ vi.mock("fire/services", () => ({
     callback(LOGINS)
     return () => {}
   },
+  onDailyUsageSnapshot: (callback: (days: DailyUsage[]) => void) => {
+    callback(DAILY)
+    return () => {}
+  },
 }))
 
 const renderAdmin = () => {
@@ -113,6 +162,10 @@ const renderAdmin = () => {
 
 const signInAs = (email: string) =>
   emitAuthState({ uid: "u1", email, displayName: "Admin", photoURL: null })
+
+/** The console is tabbed; most content now lives behind one. */
+const openTab = (name: RegExp) =>
+  userEvent.click(screen.getByRole("tab", { name }))
 
 describe("isAdmin", () => {
   it("matches the one admin address, case-insensitively", () => {
@@ -175,7 +228,10 @@ describe("Admin console", () => {
     const presenter = renderAdmin()
     signInAs(ADMIN_EMAIL)
 
-    expect(await screen.findByRole("heading", { name: "Sign-ins" })).toBeInTheDocument()
+    // Sign-ins live behind their own tab now.
+    await screen.findByRole("tab", { name: /sign-ins/i })
+    await openTab(/sign-ins/i)
+    expect(screen.getByRole("heading", { name: "Sign-ins" })).toBeInTheDocument()
 
     // Three events, two people — the repeated cook is one row carrying a count,
     // not two rows saying the same name. Awaited for the same reason as the AI
@@ -209,5 +265,66 @@ describe("Admin console", () => {
     )
 
     presenter.dispose()
+  })
+})
+
+/**
+ * A failed call used to read as a bare `internal`, with the provider's own
+ * message going only to `console.error` — reachable through
+ * `gcloud functions logs read` and nowhere else. That is how a callable which
+ * had never once succeeded sat in the console looking like ordinary low
+ * traffic.
+ */
+describe("what a failed call says", () => {
+  it("shows the provider's message, not just the code", async () => {
+    renderAdmin()
+    signInAs(ADMIN_EMAIL)
+
+    await screen.findByRole("tab", { name: /calls/i })
+    await openTab(/calls/i)
+    expect(screen.getByText(/internal 400/)).toBeInTheDocument()
+    expect(screen.getByText(/Invalid schema: Enum value 'exact'/)).toBeInTheDocument()
+  })
+
+  it("says how many swings it took, when it took more than one", async () => {
+    renderAdmin()
+    signInAs(ADMIN_EMAIL)
+
+    await screen.findByRole("tab", { name: /calls/i })
+    await openTab(/calls/i)
+    expect(screen.getByText(/3 tries/)).toBeInTheDocument()
+  })
+
+  it("filters to failures, so one is not buried under successful traffic", async () => {
+    renderAdmin()
+    signInAs(ADMIN_EMAIL)
+
+    // "2 photos" belongs to the successful call's row in this feed and nowhere
+    // else — the per-person table above says "2 images". Asserting on the token
+    // text instead would pass whatever the filter did, because that string also
+    // appears in a section the filter has no business touching.
+    await screen.findByRole("tab", { name: /calls/i })
+    await openTab(/calls/i)
+    expect(screen.getByText(/2 photos/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole("button", { name: /only failures/i }))
+
+    expect(screen.queryByText(/2 photos/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Invalid schema/)).toBeInTheDocument()
+
+    // And back — a filter you cannot leave is a trap.
+    await userEvent.click(screen.getByRole("button", { name: /show all/i }))
+    expect(screen.getByText(/2 photos/)).toBeInTheDocument()
+  })
+
+  it("offers no filter when nothing has failed", async () => {
+    renderAdmin()
+    signInAs(ADMIN_EMAIL)
+    await screen.findByRole("tab", { name: /calls/i })
+    await openTab(/calls/i)
+
+    // The fixture has one failure, so the control is there. The guard being
+    // tested is that it is tied to the count rather than always rendered.
+    expect(screen.getByRole("button", { name: /only failures/i })).toBeInTheDocument()
   })
 })

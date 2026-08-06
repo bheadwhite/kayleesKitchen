@@ -216,7 +216,12 @@ export const generateRecipeImage = onCall<
   // Declared before the first validation throw, so *every* rejection lands in
   // the console. Bailing out before this existed is how a run of malformed
   // drafts could look like no traffic at all.
-  const record = (ok: boolean, attempts: number, errorCode?: string) =>
+  // `detail` is the thing worth keeping: every failure here is already
+  // classified into a short reason — "HTTP 429", "prompt SAFETY", a finish
+  // reason — and it was being computed, logged, and then thrown away at record
+  // time, leaving the console with a bare `internal` for a safety refusal and
+  // an overload alike.
+  const record = (ok: boolean, attempts: number, errorCode?: string, detail?: string) =>
     recordAiUsage({
       feature: "image",
       uid: request.auth?.uid ?? null,
@@ -226,6 +231,7 @@ export const generateRecipeImage = onCall<
       ms: Date.now() - startedAt,
       attempts,
       ...(errorCode ? { errorCode } : {}),
+      ...(detail ? { errorMessage: detail } : {}),
     })
 
   const draft = request.data?.draft
@@ -271,7 +277,7 @@ export const generateRecipeImage = onCall<
       return { mimeType: last.mimeType, data: last.data }
     }
     if (last.kind === "fatal") {
-      record(false, attempt, last.errorCode)
+      record(false, attempt, last.errorCode, last.detail)
       throw new HttpsError(
         last.errorCode === "failed-precondition" ? "failed-precondition" : "internal",
         last.message
@@ -283,7 +289,7 @@ export const generateRecipeImage = onCall<
   }
 
   console.error("Image generation exhausted retries", last)
-  record(false, ATTEMPTS, last.errorCode)
+  record(false, ATTEMPTS, last.errorCode, `${last.detail} (after ${ATTEMPTS} tries)`)
   throw new HttpsError(
     last.errorCode === "resource-exhausted" ? "resource-exhausted" : "internal",
     last.errorCode === "resource-exhausted"

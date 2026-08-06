@@ -950,6 +950,24 @@ Where each half of the data comes from, and why:
   calls are recorded too: a spike in rate-limit errors is exactly what the console is for,
   and tokens spent before a failure are still spent. `recordAiUsage` never throws and is
   never awaited — telemetry must not be able to fail a recipe transcription.
+
+  **A failed row carries the provider's own message, not just the code.** `errorCode` is
+  the `HttpsError` code, and it cannot separate two failures that need opposite responses:
+  a rejected tool schema and an overloaded model are both `internal`. The real message used
+  to go only to `console.error`, reachable through `gcloud functions logs read` and nowhere
+  else — which is how `analyseRecipeScaling` sat in the console for a whole feature's
+  lifetime looking like light traffic while having never once worked. `errorStatus` /
+  `errorMessage` are truncated to 300 characters and safe to keep because `firestore.rules`
+  limits reading `aiUsage` to the admin, and because it is the *provider's* message rather
+  than the request: no prompt or recipe content is copied in. The image path had this
+  information all along — `Attempt.detail` already said "prompt SAFETY" or "HTTP 429" — and
+  was computing it, logging it, and discarding it at record time.
+
+  **"Only failures" exists because the feed draws 25 of the 200 it holds.** A failure can be
+  recorded perfectly well and still be pushed off the bottom by ordinary successful traffic,
+  so a filter that reaches the whole window is the difference between a console that answers
+  "what broke" and one that answers it only if it broke recently. It is hidden when nothing
+  has failed — a control with one reachable state is a control that should not be drawn.
 - **Sign-ins are written by the client** (`recordLogin` in `services.ts`, called from
   `AuthPresenter`) on *explicit* sign-ins only. A restored session on page load is not a
   login; recording one would make the log a page-view counter.
@@ -957,6 +975,41 @@ Where each half of the data comes from, and why:
 Both feeds are capped and newest-first (200 AI calls, 100 sign-ins), so the totals read
 "recent", not all-time — an unbounded listener on a collection that grows with every AI call
 would eventually pull the whole history onto a phone.
+
+**That cap is why `aiUsageDaily` exists.** The raw feed cannot answer "what did last month
+cost" — a busy week pushes the start of the month off the end of it — and raising the cap
+reintroduces the exact problem the cap prevents. So `recordAiUsage` also increments one
+document per `YYYY-MM-DD`, holding the same numbers summed. A month is thirty reads. It is
+the same trick `ratingSum`/`ratingCount` play on a recipe: keep the sum, so reading it is
+arithmetic rather than a re-read of every event ever recorded.
+
+- **Two independently guarded writes**, not one block. The raw event tells you what just
+  broke; the rollup tells you what the month cost. One failing must not take the other with
+  it.
+- **The model is nested inside the feature** (`features.{f}.models.{m}`) as well as recorded
+  at the top level. Cost needs a rate, a rate belongs to a model, and pricing a feature from
+  its bare token totals only works while every callable runs the same model — which is the
+  assumption most likely to break next. Built as a nested object literal rather than
+  dot-notation field paths, because `gemini-2.5-flash-image` would otherwise be read as four
+  levels of nesting.
+- **The day is UTC**, and it is the one place in this app a date is deliberately not the
+  cook's local day (contrast `src/calendar.ts`, which exists to keep that bug out of the
+  planner). This is a billing bucket, the server cannot know the household's timezone, and
+  an evening split across two rows washes out of any weekly total.
+
+**Tokens are stored; dollars are not.** `src/aiPricing.ts` holds the rates and cost is
+computed at read time, so correcting a rate corrects every day already recorded — including
+the ones being used as the baseline for a "should we self-host this" comparison. A cost
+frozen into the record at write time is wrong forever with nothing left to recompute it
+from. The rates are transcribed by hand and go stale; the console says so on screen, and an
+unpriced model is counted as zero **and named**, because a confident wrong total is worse
+than an obvious gap when the number is the input to a spending decision.
+
+The console is **tabbed** — Spend, Calls, Sign-ins — because the call feed grows with
+traffic and was pushing the totals off the top of the page. The failure count rides on the
+Calls tab so a problem stays visible without opening it. **Build stays outside the tabs**:
+the commit is what makes "did my fix actually deploy?" answerable from a phone, and an
+answer you have to go looking for is one you stop checking.
 
 ### The build stamp
 

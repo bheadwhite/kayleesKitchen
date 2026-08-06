@@ -140,3 +140,9 @@ export const pantryRef = collection(db, "pantry")
 export const loginEventsRef = collection(db, "loginEvents")
 /** AI calls. Written **only** by the Cloud Functions — the client just reads. */
 export const aiUsageRef = collection(db, "aiUsage")
+/**
+ * The same calls summed per day, one document per `YYYY-MM-DD`. The raw feed
+ * above is capped at 200 events, so it cannot answer "what did last month
+ * cost"; this can, in thirty reads. Written only by the Cloud Functions.
+ */
+export const aiUsageDailyRef = collection(db, "aiUsageDaily")

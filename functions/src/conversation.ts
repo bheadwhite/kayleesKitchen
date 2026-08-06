@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { HttpsError } from "firebase-functions/v2/https"
 
-import { recordAiUsage, totalUsage } from "./telemetry.js"
+import { describeError, recordAiUsage, totalUsage } from "./telemetry.js"
 import type { AssistantImage } from "./types.js"
 
 /**
@@ -93,7 +93,7 @@ export const runConversation = async (
 
   /** Usage from every iteration — a paused turn bills for each one. */
   const usages: Anthropic.Message["usage"][] = []
-  const record = (ok: boolean, errorCode?: string) =>
+  const record = (ok: boolean, errorCode?: string, error?: unknown) =>
     recordAiUsage({
       feature: request.feature,
       uid: request.caller.uid,
@@ -104,6 +104,7 @@ export const runConversation = async (
       images,
       ...totalUsage(usages),
       ...(errorCode ? { errorCode } : {}),
+      ...(error === undefined ? {} : describeError(error)),
     })
 
   const client = new Anthropic({ apiKey })
@@ -158,16 +159,21 @@ export const runConversation = async (
     // Failed calls are recorded too — a spike in rate-limit errors is exactly
     // the thing the console exists to make visible, and tokens spent before a
     // failure are still spent.
+    //
+    // The provider's own message rides along with the code. A 400 naming a
+    // rejected tool schema and a 529 overload are both `internal` here, and
+    // telling them apart is the difference between "retry later" and "this has
+    // never worked and never will until someone edits the schema".
     if (error instanceof Anthropic.RateLimitError) {
-      record(false, "resource-exhausted")
+      record(false, "resource-exhausted", error)
       throw new HttpsError("resource-exhausted", "The kitchen is busy — try again shortly.")
     }
     if (error instanceof Anthropic.APIError) {
       console.error("Anthropic API error", error.status, error.message)
-      record(false, "internal")
+      record(false, "internal", error)
       throw new HttpsError("internal", "The chef could not respond.")
     }
-    record(false, "unknown")
+    record(false, "unknown", error)
     throw error
   }
 

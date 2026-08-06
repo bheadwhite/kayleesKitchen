@@ -2,8 +2,16 @@ import type { ReactNode } from "react"
 
 interface SectionHeadingProps {
   children: ReactNode
-  /** A count or status, set right — the system's "spec sheet" annotation. */
-  meta?: string
+  /**
+   * A count or status, set right — the system's "spec sheet" annotation.
+   *
+   * A node rather than a string so the annotation can also be a control, which
+   * is where a section-scoped toggle belongs: the admin console's "only
+   * failures" filter acts on the list under this heading and nothing else. The
+   * mono/uppercase styling is not applied for you — a control brings its own,
+   * or it inherits nothing and looks like neither.
+   */
+  meta?: ReactNode
   /** Heading level. The recipe view nests these under its <h1>. */
   as?: "h2" | "h3"
 }

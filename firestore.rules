@@ -270,6 +270,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The same calls, summed per day — one document per `YYYY-MM-DD`.
+    //
+    // The raw feed above is capped at 200 events and read newest-first, which
+    // makes it the wrong instrument for "what did last month cost": a busy week
+    // pushes the start of the month off the end of it. Raising the cap is not
+    // the fix — an unbounded listener on a collection that grows with every AI
+    // call is exactly what the cap exists to prevent. A rollup makes a month
+    // thirty reads, the same way `ratingSum`/`ratingCount` make an average one.
+    //
+    // Written only by the Cloud Function through the admin SDK, like `aiUsage`
+    // and `pantry`. Read by the admin alone: it is spend.
+    match /aiUsageDaily/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Sign-in log. A user may record *their own* sign-in and nothing else:
     // without the uid check anyone could forge entries for anyone. No update or
     // delete — an audit log its subjects can edit is not an audit log.

@@ -340,8 +340,56 @@ export interface AiUsageEvent {
   cacheCreationTokens: number
   /** Photos sent *to* the assistant, not images generated. */
   images: number
+  /**
+   * Calls to the provider this one request took. A feature that quietly needs
+   * three swings every time is indistinguishable from a healthy one without it.
+   */
+  attempts?: number
   errorCode?: string
+  /** The provider's HTTP status, when the failure came back as one. */
+  errorStatus?: number
+  /**
+   * What the provider actually said — the difference between "retry later" and
+   * "this has never worked". Recorded server-side; see `AiUsageEvent` in
+   * `functions/src/telemetry.ts` for why it is safe to keep.
+   */
+  errorMessage?: string
   at: Date | null
+}
+
+/** One bucket of summed usage — the shape repeated per day, feature, and model. */
+export interface UsageBucket {
+  calls: number
+  ok: number
+  failed: number
+  ms: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+  images: number
+  attempts: number
+}
+
+/**
+ * A day of AI usage, summed server-side — see `AI_USAGE_DAILY_COLLECTION`.
+ *
+ * The day is `YYYY-MM-DD` **in UTC**, which is the one place in this app a date
+ * is not the cook's local day. It is a billing bucket rather than a wall
+ * calendar, the server cannot know the household's timezone, and the split
+ * washes out of any weekly or monthly total.
+ */
+export interface DailyUsage extends UsageBucket {
+  date: string
+  /**
+   * Each feature carries its own per-model split, because cost needs a rate and
+   * a rate belongs to a model. Pricing a feature from its bare token totals only
+   * works while every callable runs the same model — which is the assumption
+   * most likely to break next.
+   */
+  features: Partial<Record<AiUsageEvent["feature"], UsageBucket & { models: Record<string, UsageBucket> }>>
+  /** Keyed by the exact model string, so a swap shows as a new row. */
+  models: Record<string, UsageBucket>
 }
 
 export interface LoginValues {

@@ -1,12 +1,14 @@
+import clsx from "clsx"
 import { useEffect, useMemo, useState } from "react"
 import { Navigate } from "react-router-dom"
 
 import { SectionHeading } from "components"
 import { useSessionUser } from "contexts/AuthProvider"
-import { onAiUsageSnapshot, onLoginEventsSnapshot } from "fire/services"
+import { onAiUsageSnapshot, onDailyUsageSnapshot, onLoginEventsSnapshot } from "fire/services"
 import { isAdmin } from "@/admin"
+import { costOf, money, unpricedModels } from "@/aiPricing"
 import { APP_BUILT_AT, APP_COMMIT, APP_VERSION, buildDate } from "@/version"
-import type { AiUsageEvent, LoginEvent } from "@/types"
+import type { AiUsageEvent, DailyUsage, LoginEvent, UsageBucket } from "@/types"
 
 const number = new Intl.NumberFormat()
 
@@ -18,6 +20,14 @@ const FEATURE_LABELS: Record<AiUsageEvent["feature"], string> = {
   shopping: "Shopping list",
   scaling: "Scaling rules",
 }
+
+const TABS = [
+  { id: "spend", label: "Spend" },
+  { id: "calls", label: "Calls" },
+  { id: "logins", label: "Sign-ins" },
+] as const
+
+type TabId = (typeof TABS)[number]["id"]
 
 /** Compact token counts — six-digit numbers make a phone table unreadable. */
 const compact = (value: number) =>
@@ -44,20 +54,29 @@ const Stat = ({ label, value, hint }: { label: string; value: string; hint?: str
  * Firestore rules are what stop another signed-in user reading `aiUsage` and
  * `loginEvents` straight from the SDK — see `firestore.rules.snippet`.
  *
- * Both feeds are capped server-side (newest 200 / 100), so the totals here are
- * "recent", not all-time. That is deliberate: an unbounded listener on a
- * collection that grows with every AI call would eventually pull the whole
- * history down to a phone. The stat labels say "recent" so the number is not
- * mistaken for a lifetime bill.
+ * **Three feeds, and the third is the one that answers "what does this cost".**
+ * The raw feeds are capped (newest 200 AI calls / 100 sign-ins) because an
+ * unbounded listener on a collection that grows with every call would
+ * eventually pull the whole history onto a phone — so their totals are
+ * "recent", not all-time, and the labels say so. The daily rollups
+ * (`onDailyUsageSnapshot`) are what make a month readable: one document per
+ * day, so sixty of them is two months rather than a slice of one week.
+ *
+ * Split across tabs because the call feed grows with traffic and was pushing
+ * the totals — the thing you open this page for — off the top. The failure
+ * count rides on the Calls tab so a problem stays visible without opening it.
  */
 const Admin = () => {
   const user = useSessionUser()
   const [usage, setUsage] = useState<AiUsageEvent[]>([])
   const [logins, setLogins] = useState<LoginEvent[]>([])
+  const [daily, setDaily] = useState<DailyUsage[]>([])
   // A denied read and an empty collection look identical otherwise — both show
   // nothing. This is the difference between "no calls yet" and "your rules are
   // rejecting me", which are very different problems.
   const [feedError, setFeedError] = useState<string | null>(null)
+  const [failuresOnly, setFailuresOnly] = useState(false)
+  const [tab, setTab] = useState<TabId>("spend")
 
   const allowed = isAdmin(user)
 
@@ -66,11 +85,74 @@ const Admin = () => {
     const onError = (error: Error) => setFeedError(error.message)
     const stopUsage = onAiUsageSnapshot(setUsage, onError)
     const stopLogins = onLoginEventsSnapshot(setLogins, onError)
+    const stopDaily = onDailyUsageSnapshot(setDaily, onError)
     return () => {
       stopUsage()
       stopLogins()
+      stopDaily()
     }
   }, [allowed])
+
+  // Counted over the whole 200-event window rather than the 25 rows drawn, so
+  // the toggle can say how many it would find — a filter offering to show
+  // failures without saying whether there are any is a guess.
+  const failedCount = usage.filter((event) => !event.ok).length
+  const shown = failuresOnly ? usage.filter((event) => !event.ok) : usage
+
+  /**
+   * Cost over the recorded days, priced at read time from `aiPricing`.
+   *
+   * Summed per (feature, model) rather than per feature, because the rate
+   * belongs to the model — the moment one callable runs something cheaper than
+   * another, pricing a feature from its bare token totals is silently wrong.
+   */
+  const spend = useMemo(() => {
+    const perFeature = new Map<
+      AiUsageEvent["feature"],
+      { cost: number; calls: number; models: Set<string> }
+    >()
+    const allModels: Record<string, UsageBucket> = {}
+    let total = 0
+
+    for (const day of daily) {
+      for (const [name, bucket] of Object.entries(day.features)) {
+        if (bucket == null) continue
+        const feature = name as AiUsageEvent["feature"]
+        const seen = perFeature.get(feature) ?? { cost: 0, calls: 0, models: new Set<string>() }
+        seen.calls += bucket.calls
+        for (const [model, usage] of Object.entries(bucket.models)) {
+          const cost = costOf(model, usage)
+          seen.cost += cost
+          total += cost
+          seen.models.add(model)
+        }
+        perFeature.set(feature, seen)
+      }
+      for (const [model, bucket] of Object.entries(day.models)) {
+        allModels[model] = bucket
+      }
+    }
+
+    // Days that recorded something, not calendar days between first and last:
+    // a quiet Tuesday with no cooking writes no document, and counting it as a
+    // zero would drag the average down and understate what a busy week costs.
+    const days = daily.length
+    return {
+      days,
+      total,
+      perDay: days > 0 ? total / days : 0,
+      unpriced: unpricedModels(allModels),
+      byFeature: [...perFeature.entries()]
+        .map(([feature, s]) => ({
+          feature,
+          cost: s.cost,
+          calls: s.calls,
+          perCall: s.calls > 0 ? s.cost / s.calls : 0,
+          models: [...s.models].sort(),
+        }))
+        .sort((a, b) => b.cost - a.cost),
+    }
+  }, [daily])
 
   const totals = useMemo(() => {
     const input = usage.reduce((n, e) => n + e.inputTokens, 0)
@@ -194,6 +276,41 @@ const Admin = () => {
         </p>
       )}
 
+      {/* Tabs rather than one long scroll: the call feed is a per-row list that
+       *  grows with traffic, and it was pushing the totals — the thing you open
+       *  this page to read — further off the top every week. The failure count
+       *  rides on the tab so a problem is visible without opening it, which is
+       *  the one thing hiding a list behind a tab could otherwise cost. */}
+      <div
+        role='tablist'
+        aria-label='Admin console sections'
+        className='mt-4 flex gap-1 border-b border-divider'>
+        {TABS.map(({ id, label }) => {
+          const active = tab === id
+          return (
+            <button
+              key={id}
+              role='tab'
+              type='button'
+              aria-selected={active}
+              onClick={() => setTab(id)}
+              className={clsx(
+                "-mb-px cursor-pointer touch-manipulation border-b-2 px-3 py-2 font-mono text-[11px] tracking-[0.14em] uppercase",
+                active
+                  ? "border-steel text-ink"
+                  : "border-transparent text-muted hover:text-ink"
+              )}>
+              {label}
+              {id === "calls" && failedCount > 0 && (
+                <span className='text-danger'> · {number.format(failedCount)}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {tab === "spend" && (
+        <>
       <SectionHeading meta={`last ${usage.length} calls`}>AI</SectionHeading>
       <div className='mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4'>
         <Stat label='Chef · editor' value={number.format(totals.assistant)} hint='calls' />
@@ -215,6 +332,58 @@ const Admin = () => {
           )}
           slowest call {(totals.slowest / 1000).toFixed(1)}s
         </p>
+      )}
+
+      {/* The question the raw feed structurally cannot answer: what does this
+       *  cost over time. Reads the daily rollups, so a month is thirty
+       *  documents rather than a slice of the newest 200 calls. */}
+      {spend.days > 0 && (
+        <>
+          <SectionHeading as='h3' meta={`${spend.days} day${spend.days === 1 ? "" : "s"}`}>
+            Spend
+          </SectionHeading>
+          <div className='mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4'>
+            <Stat label='Recorded' value={money(spend.total)} hint={`${spend.days}d`} />
+            <Stat label='Per day' value={money(spend.perDay)} hint='average' />
+            {/* Projected from the observed average, and labelled as a
+             *  projection: a fortnight of a household's cooking is a small
+             *  sample and a holiday week would move it a lot. */}
+            <Stat label='30 days' value={money(spend.perDay * 30)} hint='at this rate' />
+            <Stat label='Per year' value={money(spend.perDay * 365)} hint='at this rate' />
+          </div>
+
+          {/* The number that decides anything: what each feature costs per
+           *  call, and how often it runs. A feature that is expensive per call
+           *  but runs twice a month is not where the money is. */}
+          <ul className='mt-3'>
+            {spend.byFeature.map(({ feature, cost, calls, perCall, models }) => (
+              <li key={feature} className='border-b border-ink/8 py-2'>
+                <div className='flex items-baseline justify-between gap-3'>
+                  <span className='min-w-0 truncate font-medium'>
+                    {FEATURE_LABELS[feature] ?? feature}
+                  </span>
+                  <span className='shrink-0 font-mono text-[13px]'>{money(cost)}</span>
+                </div>
+                <div className='font-mono text-[11px] text-muted'>
+                  {number.format(calls)} call{calls === 1 ? "" : "s"} · {money(perCall)}/call ·{" "}
+                  {models.join(", ")}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <p className='mt-2 text-xs text-muted'>
+            Computed from recorded tokens at hand-maintained rates in{" "}
+            <code className='font-mono'>src/aiPricing.ts</code> — an estimate for comparison,
+            not an invoice.
+            {spend.unpriced.length > 0 && (
+              <span className='text-danger'>
+                {" "}
+                No rate on file for {spend.unpriced.join(", ")}, so those are counted as zero.
+              </span>
+            )}
+          </p>
+        </>
       )}
 
       {byPerson.length > 0 && (
@@ -248,18 +417,59 @@ const Admin = () => {
           </ul>
         </>
       )}
+        </>
+      )}
 
-      <SectionHeading as='h3'>Recent AI calls</SectionHeading>
-      {usage.length === 0 ? (
+      {/* On its own tab the feed no longer competes with the totals for the top
+       *  of the page, so it renders the **whole** window rather than the first
+       *  25 of it. The cap that matters is the listener's: `onAiUsageSnapshot`
+       *  asks for the newest 200 and nothing here can widen that.
+       *
+       *  That bound is deliberate and stays — an unbounded listener on a
+       *  collection that grows with every AI call would eventually pull the
+       *  whole history onto a phone. What changed is that it no longer costs
+       *  anything to lose the tail: `aiUsageDaily` keeps the totals forever, so
+       *  this feed is free to be what it is good at — the newest 200 calls,
+       *  with what the provider said about the ones that failed.
+       *
+       *  "Only failures" reaches that whole window rather than a page of it,
+       *  and is hidden when nothing has failed, because a filter that can only
+       *  ever empty the list is a control with one state. */}
+      {tab === "calls" && (
+        <>
+      <SectionHeading
+        as='h3'
+        meta={
+          failedCount > 0 ? (
+            <button
+              type='button'
+              onClick={() => setFailuresOnly((on) => !on)}
+              className={clsx(
+                "cursor-pointer touch-manipulation font-mono text-[10px] tracking-[0.14em] uppercase",
+                failuresOnly ? "text-danger" : "text-muted hover:text-ink"
+              )}>
+              {failuresOnly ? `${number.format(failedCount)} failed · show all` : "only failures"}
+            </button>
+          ) : undefined
+        }>
+        Recent AI calls
+      </SectionHeading>
+      {shown.length === 0 ? (
         <p className='py-4 text-muted'>Nothing recorded yet.</p>
       ) : (
         <ul>
-          {usage.slice(0, 25).map((event) => (
+          {shown.map((event) => (
             <li key={event.id} className='border-b border-ink/8 py-2.5'>
               <div className='flex items-baseline justify-between gap-3'>
                 <span className='font-medium'>
                   {FEATURE_LABELS[event.feature] ?? event.feature}
-                  {!event.ok && <span className='text-danger'> · {event.errorCode ?? "failed"}</span>}
+                  {!event.ok && (
+                    <span className='text-danger'>
+                      {" · "}
+                      {event.errorCode ?? "failed"}
+                      {event.errorStatus != null && ` ${event.errorStatus}`}
+                    </span>
+                  )}
                 </span>
                 <span className='shrink-0 font-mono text-xs text-muted'>{when(event.at)}</span>
               </div>
@@ -269,12 +479,30 @@ const Admin = () => {
                 {event.inputTokens + event.outputTokens > 0 &&
                   ` · ${compact(event.inputTokens)} in / ${compact(event.outputTokens)} out`}
                 {` · ${(event.ms / 1000).toFixed(1)}s`}
+                {/* Only worth saying when it took more than one swing — every
+                 *  successful first-try call would otherwise wear "1 try". */}
+                {event.attempts != null && event.attempts > 1 && ` · ${event.attempts} tries`}
               </div>
+              {/* What the provider actually said. `break-words` because a
+               *  rejection quotes the offending value and will not wrap on its
+               *  own; `whitespace-pre-wrap` because some arrive with newlines
+               *  and reading them as one run-on line is the thing this is
+               *  meant to fix. Events written before this was recorded simply
+               *  have none, and show the code alone as they always did. */}
+              {!event.ok && event.errorMessage && (
+                <p className='mt-1 border-l-2 border-danger/40 pl-2 font-mono text-[11px] leading-snug break-words whitespace-pre-wrap text-danger'>
+                  {event.errorMessage}
+                </p>
+              )}
             </li>
           ))}
         </ul>
       )}
+        </>
+      )}
 
+      {tab === "logins" && (
+        <>
       <SectionHeading
         meta={
           byUser.length > 0
@@ -302,7 +530,12 @@ const Admin = () => {
           ))}
         </ul>
       )}
+        </>
+      )}
 
+      {/* Outside the tabs on purpose. The commit is what makes "did my fix
+       *  actually deploy?" answerable from a phone, and an answer you have to
+       *  go looking for behind a tab is one you stop checking. */}
       <SectionHeading>Build</SectionHeading>
       <dl className='pt-3 font-mono text-[13px]'>
         <div className='flex justify-between gap-3 border-b border-ink/8 py-1.5'>

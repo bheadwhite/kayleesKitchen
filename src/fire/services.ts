@@ -33,6 +33,7 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 
 import {
+  aiUsageDailyRef,
   aiUsageRef,
   auth,
   db,
@@ -69,6 +70,8 @@ import type {
   SessionMember,
   ShoppingItem,
   TagRecord,
+  DailyUsage,
+  UsageBucket,
   UserProfile,
 } from "@/types"
 
@@ -242,7 +245,13 @@ const toAiUsageEvent = (id: string, data: Record<string, unknown>): AiUsageEvent
   cacheReadTokens: Number(data.cacheReadTokens ?? 0),
   cacheCreationTokens: Number(data.cacheCreationTokens ?? 0),
   images: Number(data.images ?? 0),
+  // Left undefined rather than defaulted: every event written before these
+  // fields existed has none, and a `0` or `""` would read as "the provider
+  // said nothing" instead of "nobody recorded it".
+  attempts: typeof data.attempts === "number" ? data.attempts : undefined,
   errorCode: (data.errorCode as string | undefined) ?? undefined,
+  errorStatus: typeof data.errorStatus === "number" ? data.errorStatus : undefined,
+  errorMessage: (data.errorMessage as string | undefined) ?? undefined,
   at: (data.at as { toDate?: () => Date } | null)?.toDate?.() ?? null,
 })
 
@@ -280,6 +289,64 @@ export const onAiUsageSnapshot = (
     (snapshot) => callback(snapshot.docs.map((d) => toAiUsageEvent(d.id, d.data()))),
     (error) => {
       console.error("Could not read AI usage", error)
+      onError?.(error)
+    }
+  )
+
+const toBucket = (data: Record<string, unknown> | undefined): UsageBucket => ({
+  calls: Number(data?.calls ?? 0),
+  ok: Number(data?.ok ?? 0),
+  failed: Number(data?.failed ?? 0),
+  ms: Number(data?.ms ?? 0),
+  inputTokens: Number(data?.inputTokens ?? 0),
+  outputTokens: Number(data?.outputTokens ?? 0),
+  cacheReadTokens: Number(data?.cacheReadTokens ?? 0),
+  cacheCreationTokens: Number(data?.cacheCreationTokens ?? 0),
+  images: Number(data?.images ?? 0),
+  attempts: Number(data?.attempts ?? 0),
+})
+
+const toModelMap = (data: unknown): Record<string, UsageBucket> =>
+  Object.fromEntries(
+    Object.entries((data as Record<string, Record<string, unknown>>) ?? {}).map(
+      ([name, bucket]) => [name, toBucket(bucket)]
+    )
+  )
+
+const toDailyUsage = (id: string, data: Record<string, unknown>): DailyUsage => {
+  const features = Object.fromEntries(
+    Object.entries((data.features as Record<string, Record<string, unknown>>) ?? {}).map(
+      ([name, bucket]) => [name, { ...toBucket(bucket), models: toModelMap(bucket?.models) }]
+    )
+  )
+  return {
+    ...toBucket(data),
+    // The document id *is* the day, so a row can never disagree with its key.
+    date: String(data.date ?? id),
+    features: features as DailyUsage["features"],
+    models: toModelMap(data.models),
+  }
+}
+
+/**
+ * The last `days` days of summed usage, newest first.
+ *
+ * Bounded like the feeds above, but the bound means something different here: a
+ * day is one document however busy it was, so 60 of them is a full picture of
+ * two months rather than a recent slice of one. This is the feed that can
+ * answer "what does this actually cost me over a month", which is the question
+ * the 200-event raw feed structurally cannot.
+ */
+export const onDailyUsageSnapshot = (
+  callback: (days: DailyUsage[]) => void,
+  onError?: (error: Error) => void,
+  days = 60
+) =>
+  onSnapshot(
+    query(aiUsageDailyRef, orderBy("date", "desc"), limit(days)),
+    (snapshot) => callback(snapshot.docs.map((d) => toDailyUsage(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read daily AI usage", error)
       onError?.(error)
     }
   )
@@ -619,6 +686,29 @@ export const onMyInvitesSnapshot = (
   )
 
 /**
+ * Asks outstanding on a session — who has been invited and has not yet answered.
+ *
+ * Readable by members because the invite rule's read clause has a second arm
+ * for exactly this (`inSession(resource.data.sessionId)`), which also has to
+ * exist for a deleted session to sweep its own unanswered asks. **Rules are not
+ * filters**: a query is rejected outright if it *could* return a document the
+ * reader is not allowed, so this query is only legal because that arm is there.
+ */
+export const onSessionInvitesSnapshot = (
+  sessionId: string,
+  callback: (invites: SessionInvite[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    query(invitesRef, where("sessionId", "==", sessionId)),
+    (snapshot) => callback(snapshot.docs.map((d) => toInvite(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read this session's invitations", error)
+      onError?.(error)
+    }
+  )
+
+/**
  * Asks someone into a session. The id is `${toEmail}_${sessionId}`, so asking
  * twice replaces rather than stacks — and so the join rule can find it.
  *
@@ -677,29 +767,6 @@ const toPlannedMeal = (id: string, data: Record<string, unknown>): PlannedMeal =
   byName: String(data.byName ?? ""),
   addedAt: (data.addedAt as { toDate?: () => Date } | null)?.toDate?.() ?? null,
 })
-
-/**
- * Asks outstanding on a session — who has been invited and has not yet answered.
- *
- * Readable by members because the invite rule's read clause has a second arm
- * for exactly this (`inSession(resource.data.sessionId)`), which also has to
- * exist for a deleted session to sweep its own unanswered asks. **Rules are not
- * filters**: a query is rejected outright if it *could* return a document the
- * reader is not allowed, so this query is only legal because that arm is there.
- */
-export const onSessionInvitesSnapshot = (
-  sessionId: string,
-  callback: (invites: SessionInvite[]) => void,
-  onError?: (error: Error) => void
-) =>
-  onSnapshot(
-    query(invitesRef, where("sessionId", "==", sessionId)),
-    (snapshot) => callback(snapshot.docs.map((d) => toInvite(d.id, d.data()))),
-    (error) => {
-      console.error("Could not read this session's invitations", error)
-      onError?.(error)
-    }
-  )
 
 /**
  * Everything planned in a session from `from` (a `YYYY-MM-DD` day) onward.
