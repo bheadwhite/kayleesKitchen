@@ -12,10 +12,12 @@ import {
 } from "contexts/AiDraftProvider"
 import { useRecipePresenter } from "contexts/RecipeProvider"
 import { MAX_IMAGES } from "@/ai/recipeAssistant"
-import type { RecipeDraft } from "@/types"
+import { diffRecipe, summariseChanges } from "@/recipeDiff"
 
-const countSteps = (draft: RecipeDraft) =>
-  draft.directions.reduce((total, section) => total + section.steps.length, 0)
+interface AiAssistantProps {
+  /** Fired after a draft is applied — the drawer closes on it. */
+  onApplied?: () => void
+}
 
 /**
  * Chat panel for the recipe editor. The assistant proposes a complete draft;
@@ -27,7 +29,7 @@ const countSteps = (draft: RecipeDraft) =>
  * while you are reading the reply you want to respond to is a chat box you have
  * to hunt for.
  */
-const AiAssistant = () => {
+const AiAssistant = ({ onApplied }: AiAssistantProps) => {
   const assistant = useAiDraftPresenter()
   const recipe = useRecipePresenter()
   const turns = useAssistantTurns()
@@ -92,8 +94,38 @@ const AiAssistant = () => {
       { asSaved: false }
     )
     assistant.clearProposedDraft()
-    toast.success("Draft applied to the editor.")
+    // Out of the way: the reason to apply a draft is to look at what it did,
+    // and the marked-up editor is behind this panel.
+    onApplied?.()
+    toast.success("Draft applied — changed lines are marked.")
   }
+
+  /**
+   * The draft against the editor as it stands. Tags and the photo are held
+   * level on both sides because the assistant proposes neither, and a summary
+   * that announced them would be describing the apply rather than the draft.
+   */
+  const summary =
+    proposedDraft == null
+      ? []
+      : summariseChanges(
+          diffRecipe(
+            {
+              title: recipe.getTitle(),
+              ingredients: recipe.getIngredients(),
+              directions: recipe.getDirections(),
+              tags: recipe.getTags(),
+              hasImage: false,
+            },
+            {
+              title: proposedDraft.title,
+              ingredients: proposedDraft.ingredients,
+              directions: proposedDraft.directions,
+              tags: recipe.getTags(),
+              hasImage: false,
+            }
+          )
+        )
 
   const canSend = !isAsking && (text.trim() !== "" || pendingImages.length > 0)
 
@@ -155,26 +187,34 @@ const AiAssistant = () => {
           <div className='font-mono text-[11px] tracking-[0.14em] text-steel-700 uppercase'>
             Proposed draft
           </div>
-          <dl className='my-2 text-sm'>
-            <div className='flex gap-2'>
-              <dt className='text-muted'>Title</dt>
-              <dd className='font-medium'>{proposedDraft.title || "—"}</dd>
-            </div>
-            <div className='flex gap-2'>
-              <dt className='text-muted'>Ingredients</dt>
-              <dd className='font-medium'>{proposedDraft.ingredients.length}</dd>
-            </div>
-            <div className='flex gap-2'>
-              <dt className='text-muted'>Directions</dt>
-              <dd className='font-medium'>
-                {proposedDraft.directions.length} section
-                {proposedDraft.directions.length === 1 ? "" : "s"}, {countSteps(proposedDraft)}{" "}
-                step{countSteps(proposedDraft) === 1 ? "" : "s"}
-              </dd>
-            </div>
-          </dl>
+
+          <p className='mt-1 font-heading text-lg leading-tight font-semibold break-words'>
+            {proposedDraft.title || "Untitled"}
+          </p>
+
+          {/* What would *change*, not what the draft contains: "12 ingredients"
+           *  is equally true of a draft that touched one of them and one that
+           *  replaced the lot, and those are not the same decision. */}
+          {summary.length === 0 ? (
+            <p className='my-2 text-sm text-muted'>
+              Nothing in the editor would change.
+            </p>
+          ) : (
+            <ul className='my-2 text-sm'>
+              {summary.map((line) => (
+                <li key={line} className='flex gap-2'>
+                  <span aria-hidden='true' className='text-steel'>
+                    ·
+                  </span>
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
+
           <p className='mb-2 text-xs text-muted'>
-            Applying replaces the title, ingredients, and directions in the editor.
+            Applying replaces the title, ingredients, and directions in the editor, and marks
+            every line it touched. Nothing is saved until you press Update.
           </p>
           <div className='flex flex-wrap gap-2 max-sm:[&>button]:mr-0'>
             <Button onClick={onApply} variant='primary'>

@@ -197,6 +197,15 @@ The flow, and why each piece is where it is:
    its argument, so the apply path re-supplies the editor's own id — dropping it would
    turn the next save into a brand-new recipe.
 
+A draft's changes are shown **twice, in two forms**. Before applying, the panel runs
+`diffRecipe` between the editor as it stands and the draft, and `summariseChanges` turns
+that into "Ingredients: 1 changed" — *what would change*, not what the draft contains, since
+"12 ingredients" is equally true of a draft that touched one of them and one that replaced
+the lot. Tags and the photo are held level on both sides of that comparison because the
+assistant proposes neither. After applying, the marks in the editor take over (see the
+unsaved-changes section) — and applying **closes the drawer**, because the reason to apply is
+to look at what it did and the marked-up editor is behind the panel.
+
 `MAX_IMAGES` is a budget for the **whole conversation**, not per message — photos stay
 attached to their turn and are re-sent with every later one, and the callable counts them
 across all turns. `AiDraftPresenter.attachImages` must therefore count sent photos as well

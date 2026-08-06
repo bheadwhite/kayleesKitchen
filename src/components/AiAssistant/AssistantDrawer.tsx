@@ -90,7 +90,7 @@ const AssistantDrawer = () => {
           </Button>
         </div>
 
-        <AiAssistant />
+        <AiAssistant onApplied={() => setOpen(false)} />
       </div>
     </>
   )

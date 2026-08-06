@@ -59,7 +59,12 @@ describe("AiAssistant", () => {
     await user.click(screen.getByRole("button", { name: "Send" }))
 
     expect(await screen.findByText("Won Ton Salad")).toBeInTheDocument()
-    expect(screen.getByText("2 sections, 3 steps")).toBeInTheDocument()
+    // Against an empty editor everything in the draft is new — and the summary
+    // counts what would *change*, not what the draft happens to contain.
+    expect(screen.getByText("A different title")).toBeInTheDocument()
+    expect(screen.getByText("Ingredients: 2 new")).toBeInTheDocument()
+    expect(screen.getByText("Steps: 3 new")).toBeInTheDocument()
+    expect(screen.getByText("Sections: 2 new")).toBeInTheDocument()
 
     // The whole point of review-then-apply: nothing has moved yet.
     expect(recipe.getTitle()).toBe("")
@@ -82,6 +87,78 @@ describe("AiAssistant", () => {
     expect(recipe.getDirections()).toHaveLength(2)
     // Applying consumes the proposal.
     expect(screen.queryByRole("button", { name: "Apply to editor" })).not.toBeInTheDocument()
+
+    assistant.dispose()
+    recipe.dispose()
+  })
+
+  it("summarises a draft as the difference from the recipe already in the editor", async () => {
+    const user = userEvent.setup()
+    const { recipe, assistant } = setup({ text: "Doubled the dressing.", draft: DRAFT })
+    recipe.loadRecipe({
+      id: "abc123",
+      title: "Won Ton Salad",
+      ingredients: [
+        { name: "cabbage", amount: "1 head" },
+        { name: "wonton strips", amount: "1/2 cup" },
+      ],
+      directions: [
+        { sectionTitle: "Salad", steps: ["Chop the cabbage.", "Toss."] },
+        { sectionTitle: "Dressing", steps: ["Whisk."] },
+      ],
+    })
+
+    await user.type(screen.getByLabelText("Message the recipe assistant"), "double the strips")
+    await user.click(screen.getByRole("button", { name: "Send" }))
+
+    // Only the one amount actually moved. A count of the draft's contents would
+    // have reported "2 ingredients" either way.
+    expect(await screen.findByText("Ingredients: 1 changed")).toBeInTheDocument()
+    expect(screen.queryByText("A different title")).toBeNull()
+    expect(screen.queryByText(/Steps:/)).toBeNull()
+
+    assistant.dispose()
+    recipe.dispose()
+  })
+
+  it("says when a draft would change nothing", async () => {
+    const user = userEvent.setup()
+    const { recipe, assistant } = setup({ text: "Already how you have it.", draft: DRAFT })
+    recipe.loadRecipe({ id: "abc123", ...DRAFT })
+
+    await user.type(screen.getByLabelText("Message the recipe assistant"), "tidy it up")
+    await user.click(screen.getByRole("button", { name: "Send" }))
+
+    expect(await screen.findByText("Nothing in the editor would change.")).toBeInTheDocument()
+
+    assistant.dispose()
+    recipe.dispose()
+  })
+
+  it("tells the drawer to get out of the way once a draft is applied", async () => {
+    const user = userEvent.setup()
+    const onApplied = vi.fn()
+    const recipe = new RecipePresenter()
+    const assistant = new AiDraftPresenter(
+      vi.fn().mockResolvedValue({ text: "Here's a draft.", draft: DRAFT }),
+      encodeImage
+    )
+
+    render(
+      <RecipeProvider presenter={recipe}>
+        <AiDraftProvider presenter={assistant}>
+          <AiAssistant onApplied={onApplied} />
+        </AiDraftProvider>
+      </RecipeProvider>
+    )
+
+    await user.type(screen.getByLabelText("Message the recipe assistant"), "go")
+    await user.click(screen.getByRole("button", { name: "Send" }))
+    await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
+
+    // The reason to apply is to look at what it did, and the marked-up editor
+    // is behind the panel.
+    expect(onApplied).toHaveBeenCalled()
 
     assistant.dispose()
     recipe.dispose()

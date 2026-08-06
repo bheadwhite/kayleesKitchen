@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { diffRecipe, type RecipeBaseline } from "./recipeDiff"
+import { diffRecipe, summariseChanges, type RecipeBaseline } from "./recipeDiff"
 
 const SAVED: RecipeBaseline = {
   title: "Lasagna",
@@ -145,5 +145,57 @@ describe("diffRecipe", () => {
     })
 
     expect(changes.count).toBe(0)
+  })
+})
+
+describe("summariseChanges", () => {
+  const summary = (change: Partial<RecipeBaseline>) =>
+    summariseChanges(diffRecipe(SAVED, edited(change)))
+
+  it("says nothing about an untouched recipe", () => {
+    // The assistant's panel reads an empty list as "nothing would change".
+    expect(summary({})).toEqual([])
+  })
+
+  it("counts each kind of ingredient change separately", () => {
+    expect(
+      summary({
+        ingredients: [
+          { name: "Beef", amount: "2 lb" }, // changed
+          { name: "Garlic", amount: "3 cloves" }, // sits where Onion was
+          { name: "Basil", amount: "1 bunch" }, // past the end
+        ],
+      })
+      // Positional, as everywhere else: replacing the second ingredient reads
+      // as a change to it, not as one removal and one addition.
+    ).toEqual(["Ingredients: 2 changed, 1 new"])
+  })
+
+  it("adds up steps across every section", () => {
+    expect(
+      summary({
+        directions: [
+          { sectionTitle: "Sauce", steps: ["Brown the beef"] },
+          { sectionTitle: "Assembly", steps: ["Layer it up", "Bake"] },
+        ],
+      })
+    ).toEqual(["Steps: 1 new, 1 removed"])
+  })
+
+  it("reports a new section and its steps", () => {
+    expect(
+      summary({
+        directions: [...SAVED.directions, { sectionTitle: "Bake", steps: ["40 minutes"] }],
+      })
+    ).toEqual(["Steps: 1 new", "Sections: 1 new"])
+  })
+
+  it("leads with the title, since that is what the draft is called", () => {
+    expect(summary({ title: "Vegan lasagna" })[0]).toBe("A different title")
+  })
+
+  it("leaves out the counts that are zero", () => {
+    // "Tags: 1 added, 0 removed" reads as though something was removed.
+    expect(summary({ tags: ["italian", "pasta"] })).toEqual(["Tags: 1 added"])
   })
 })

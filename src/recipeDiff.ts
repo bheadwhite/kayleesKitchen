@@ -42,6 +42,75 @@ export interface RecipeChanges {
   count: number
 }
 
+const tally = (rows: RowChange[]) => ({
+  changed: rows.filter((row) => row === "changed").length,
+  added: rows.filter((row) => row === "added").length,
+})
+
+/** "2 changed, 1 new" — zero counts are left out rather than written as "0". */
+const phrase = (parts: Array<[number, string]>) =>
+  parts
+    .filter(([count]) => count > 0)
+    .map(([count, word]) => `${count} ${word}`)
+    .join(", ")
+
+/**
+ * The same diff, in words — for the assistant's proposal, where the changes
+ * cannot be marked in place because they have not been applied yet.
+ *
+ * Counting what *differs* rather than what the draft contains is the point: a
+ * summary reading "12 ingredients" is true of a draft that changed one of them
+ * and of one that replaced the lot, and those are not the same decision.
+ *
+ * An empty array means nothing would change.
+ */
+export const summariseChanges = (changes: RecipeChanges): string[] => {
+  const lines: string[] = []
+
+  if (changes.title) lines.push("A different title")
+
+  const ingredients = tally(changes.ingredients)
+  const ingredientLine = phrase([
+    [ingredients.changed, "changed"],
+    [ingredients.added, "new"],
+    [changes.ingredientsRemoved, "removed"],
+  ])
+  if (ingredientLine !== "") lines.push(`Ingredients: ${ingredientLine}`)
+
+  const steps = changes.sections.reduce(
+    (total, section) => {
+      const counted = tally(section.steps)
+      return {
+        changed: total.changed + counted.changed,
+        added: total.added + counted.added,
+        removed: total.removed + section.stepsRemoved,
+      }
+    },
+    { changed: 0, added: 0, removed: 0 }
+  )
+  const stepLine = phrase([
+    [steps.changed, "changed"],
+    [steps.added, "new"],
+    [steps.removed, "removed"],
+  ])
+  if (stepLine !== "") lines.push(`Steps: ${stepLine}`)
+
+  const sectionLine = phrase([
+    [changes.sections.filter((section) => section.added).length, "new"],
+    [changes.sections.filter((section) => section.titleChanged).length, "renamed"],
+    [changes.sectionsRemoved, "removed"],
+  ])
+  if (sectionLine !== "") lines.push(`Sections: ${sectionLine}`)
+
+  const tagLine = phrase([
+    [changes.tagsAdded.length, "added"],
+    [changes.tagsRemoved.length, "removed"],
+  ])
+  if (tagLine !== "") lines.push(`Tags: ${tagLine}`)
+
+  return lines
+}
+
 const EMPTY: RecipeBaseline = {
   title: "",
   ingredients: [],
