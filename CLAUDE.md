@@ -153,8 +153,19 @@ by mocking the modules (`vi.mock("fire/firebase")`, `vi.mock("fire/services")`,
 
 ### The AI recipe assistant
 
-The editor's assistant panel takes photos of a recipe, a pasted link, or a plain
+The editor's assistant takes photos of a recipe, a pasted link, or a plain
 instruction like "double everything", and proposes a filled-in draft.
+
+It lives in a **drawer** (`components/AiAssistant/AssistantDrawer.tsx`) pulled out over the
+editor from a launcher above the save bar, not in the form. As a panel at the bottom of the
+form it put a conversation about the whole recipe below every part of it: you scrolled past
+the thing you wanted to talk about to reach the box, then scrolled back to see what changed.
+Two details are load-bearing. The panel is **kept mounted and slid off-screen** rather than
+unmounted — the message being typed is local state, and closing the drawer must not be a way
+to lose it (a fixed box translated out of the viewport adds no scrollable overflow, so this
+is free). And it renders **outside the `<form>`**, because nothing in it belongs to
+react-final-form or to the recipe's submit; `<AiAssistant>` itself is a flex column that
+fills whatever height it is given, with only the transcript scrolling.
 
 Links go through Claude's server-side `web_fetch` tool — there is no scraping code
 here, and no client change: a pasted URL is just message text, and `web_fetch` only
@@ -590,7 +601,7 @@ stays at the far end of the scroll** — it is the one action here that cannot b
 it has no business a thumb's width from Update.
 
 The **z-index scale is written out in the `:root` block of `src/index.css`** (drag 10,
-sticky filter 30, portaled menu 35, fixed chrome 40, dialog 50). Layers get set three
+sticky filter 30, portaled menu 35, fixed chrome 40, assistant drawer 48, dialog 50). Layers get set three
 different ways here — Tailwind classes, react-select's `styles` prop, and a portal into
 `<body>` — so anything new that stacks takes a value from that list. Reaching for a big
 number instead is how the editor's recipe picker ended up painting over the toolbar.

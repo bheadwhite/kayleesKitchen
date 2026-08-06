@@ -97,6 +97,7 @@
    *   35  a portaled dropdown menu (RecipeEditor's react-select)
    *   40  the fixed chrome: Toolbar, NavBar, the editor's save bar
    *   45  UpdateBanner, which sits over the header it replaces for a moment
+   *   48  the editor's assistant drawer and its backdrop
    *   50  Dialog, which covers everything including the chrome
    *
    * Anything portaled to <body> escapes its parent's stacking context, so it

@@ -2,7 +2,7 @@ import clsx from "clsx"
 import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { toast } from "react-toastify"
 
-import { Button, CloseIcon, ImageIcon, SectionHeading, SendIcon, Spinner } from "components"
+import { Button, CloseIcon, ImageIcon, SendIcon, Spinner } from "components"
 import {
   useAiDraftPresenter,
   useAssistantStatus,
@@ -20,6 +20,12 @@ const countSteps = (draft: RecipeDraft) =>
 /**
  * Chat panel for the recipe editor. The assistant proposes a complete draft;
  * nothing reaches `RecipePresenter` until "Apply to editor" is pressed.
+ *
+ * Laid out to fill whatever it is given — `<AssistantDrawer>` gives it the
+ * height of the screen. The transcript is the only part that scrolls; the
+ * composer stays pinned to the bottom, because a chat box that scrolls away
+ * while you are reading the reply you want to respond to is a chat box you have
+ * to hunt for.
  */
 const AiAssistant = () => {
   const assistant = useAiDraftPresenter()
@@ -92,14 +98,10 @@ const AiAssistant = () => {
   const canSend = !isAsking && (text.trim() !== "" || pendingImages.length > 0)
 
   return (
-    <div>
-      <SectionHeading meta={turns.length > 0 ? `${turns.length} messages` : undefined}>
-        Recipe assistant
-      </SectionHeading>
-
+    <div className='flex min-h-0 flex-1 flex-col'>
       <div
         ref={transcriptRef}
-        className='max-h-[320px] overflow-y-auto py-2'
+        className='min-h-0 flex-1 overflow-y-auto px-4 py-2'
         aria-live='polite'
         aria-label='Assistant conversation'>
         {turns.length === 0 && (
@@ -149,7 +151,7 @@ const AiAssistant = () => {
       </div>
 
       {proposedDraft != null && (
-        <div className='mt-2 border border-steel bg-steel-100 p-3'>
+        <div className='mx-4 mt-2 border border-steel bg-steel-100 p-3'>
           <div className='font-mono text-[11px] tracking-[0.14em] text-steel-700 uppercase'>
             Proposed draft
           </div>
@@ -184,7 +186,7 @@ const AiAssistant = () => {
       )}
 
       {pendingImages.length > 0 && (
-        <ul className='mt-2 flex flex-wrap gap-2' aria-label='Attached photos'>
+        <ul className='mx-4 mt-2 flex flex-wrap gap-2' aria-label='Attached photos'>
           {pendingImages.map((image) => (
             <li key={image.id} className='relative'>
               <img
@@ -204,7 +206,7 @@ const AiAssistant = () => {
         </ul>
       )}
 
-      <div className='mt-2 flex flex-wrap items-end gap-2'>
+      <div className='mt-2 flex flex-wrap items-end gap-2 border-t border-divider px-4 pt-3 pb-1'>
         <input
           ref={fileInputRef}
           type='file'
@@ -225,11 +227,13 @@ const AiAssistant = () => {
         </label>
 
         <textarea
+          id='assistant-message'
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
-            // Enter sends; Shift+Enter is a newline. This textarea lives inside
-            // the editor's <form>, so a bare Enter would otherwise submit it.
+            // Enter sends, Shift+Enter is a newline — the convention every chat
+            // box uses, and the opposite of the recipe's own step boxes, where
+            // Enter belongs to the text.
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault()
               if (canSend) void onSend()

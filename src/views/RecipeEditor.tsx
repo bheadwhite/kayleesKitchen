@@ -5,7 +5,7 @@ import Select from "react-select"
 import { toast } from "react-toastify"
 
 import { Button, DeleteIcon, Dialog, RedoIcon, SectionHeading, Spinner, UndoIcon } from "components"
-import { AiAssistant } from "components/AiAssistant"
+import { AssistantDrawer } from "components/AiAssistant"
 import { TextField } from "components/finalForm"
 import { ImageUpload } from "components/ImageUpload"
 import { AddIngredient, Directions, ListIngredients, Tags } from "components/NewRecipe"
@@ -283,6 +283,7 @@ const RecipeEditor = () => {
   }
 
   return (
+    <>
     <Form<EditorValues>
       onSubmit={onSubmit}
       validate={validate}
@@ -374,8 +375,6 @@ const RecipeEditor = () => {
           <AddIngredient />
 
           <Directions changes={changes.sections} />
-
-          <AiAssistant />
 
           {/* Saving sits on the screen rather than at the end of it. The editor
            *  is a long form — ingredients, a dozen steps, an assistant — and
@@ -496,6 +495,11 @@ const RecipeEditor = () => {
         )
       }}
     </Form>
+
+    {/* Outside the <form> on purpose: it owns a textarea and a file picker, and
+     *  nothing in it belongs to react-final-form or to the recipe's submit. */}
+    <AssistantDrawer />
+    </>
   )
 }
 
