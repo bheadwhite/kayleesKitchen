@@ -186,6 +186,25 @@ The flow, and why each piece is where it is:
    its argument, so the apply path re-supplies the editor's own id — dropping it would
    turn the next save into a brand-new recipe.
 
+**Photos are resized in the browser, never rejected for size.** `toAssistantImage`
+(`src/ai/recipeAssistant.ts`) decodes the file, downscales the long edge to **2576px**, and
+re-encodes as JPEG. That number is Claude's high-resolution ceiling for the model in
+`functions/src/index.ts` — anything larger is downscaled server-side before the model sees
+it, so sending a 4032px iPhone photo costs upload time and buys nothing. Check the model's
+tier before raising it; older models cap at 1568px.
+
+Two things fall out of resizing, and both are the point:
+
+- **The old 3MB cap is gone.** Phone cameras produce 3–5MB files as a matter of course, and
+  refusing them when a few-millisecond canvas resize fixes it was not a real limit.
+- **HEIC works.** The picker takes `image/*` rather than Claude's four formats, because
+  whatever the browser can decode leaves this function as JPEG. Safari decodes iPhone HEIC
+  natively; Claude never sees it.
+
+`imageOrientation: "from-image"` on `createImageBitmap` is load-bearing — phone photos carry
+rotation in EXIF, not in the pixels, and a canvas draw that ignores it sends a sideways
+recipe card.
+
 `functions/src/types.ts` mirrors `src/ai/types.ts` by hand; the two packages share no
 build. Changing the wire format means editing both.
 

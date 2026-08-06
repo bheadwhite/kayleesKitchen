@@ -194,7 +194,10 @@ const AiAssistant = () => {
         <input
           ref={fileInputRef}
           type='file'
-          accept='image/jpeg,image/png,image/gif,image/webp'
+          // `image/*`, not the four formats Claude takes: an iPhone shooting in
+          // High Efficiency produces HEIC, and the downscale step re-encodes
+          // whatever the browser can decode to JPEG before it is sent.
+          accept='image/*'
           multiple
           onChange={onPickImages}
           id='assistant-images'
