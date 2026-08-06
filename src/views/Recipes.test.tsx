@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import Recipes from "./Recipes"
+import ChefProvider from "contexts/ChefProvider"
+import { ChefPresenter } from "presenters/ChefPresenter"
 import type { Recipe } from "@/types"
 
 const RECIPES: Recipe[] = [
@@ -42,6 +44,10 @@ vi.mock("fire/services", () => ({
   onTagsSnapshot: () => () => {},
   getMyRating: vi.fn().mockResolvedValue(null),
   rateRecipe: vi.fn().mockResolvedValue(undefined),
+  onRecipeVariantsSnapshot: vi.fn(() => () => {}),
+  onRecipeYieldSnapshot: vi.fn(() => () => {}),
+  saveRecipeVariant: vi.fn().mockResolvedValue(undefined),
+  deleteRecipeVariant: vi.fn().mockResolvedValue(undefined),
 }))
 
 /** jsdom never scrolls, so drive `scrollY` by hand. */
@@ -54,16 +60,26 @@ const EditorStub = () => {
   return <p>editing {params.get("edit")}</p>
 }
 
-/** <Recipes> reads `?open=` and `?cook=` off the URL, so it needs a router. */
-const renderRecipes = (path = "/recipes") =>
+/**
+ * <Recipes> reads `?open=` and `?cook=` off the URL, so it needs a router — and
+ * an injected chef, so nothing here can reach the callable. Every test below is
+ * about the list and the recipe, not about the chef; the presenter is here to
+ * exist, not to answer.
+ */
+const renderRecipes = (path = "/recipes") => {
+  const chef = new ChefPresenter(vi.fn())
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path='/recipes' element={<Recipes />} />
-        <Route path='/recipes/new' element={<EditorStub />} />
-      </Routes>
-    </MemoryRouter>
+    <ChefProvider presenter={chef}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path='/recipes' element={<Recipes />} />
+          <Route path='/recipes/new' element={<EditorStub />} />
+        </Routes>
+      </MemoryRouter>
+    </ChefProvider>
   )
+  return chef
+}
 
 describe("Recipes", () => {
   beforeEach(() => {

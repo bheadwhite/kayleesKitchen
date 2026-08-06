@@ -55,7 +55,7 @@ describe("AiAssistant", () => {
     const user = userEvent.setup()
     const { recipe, assistant } = setup({ text: "Here's a draft.", draft: DRAFT })
 
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "type this up")
+    await user.type(screen.getByLabelText("Message the chef"), "type this up")
     await user.click(screen.getByRole("button", { name: "Send" }))
 
     expect(await screen.findByText("Won Ton Salad")).toBeInTheDocument()
@@ -78,7 +78,7 @@ describe("AiAssistant", () => {
     const user = userEvent.setup()
     const { recipe, assistant } = setup({ text: "Here's a draft.", draft: DRAFT })
 
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "go")
+    await user.type(screen.getByLabelText("Message the chef"), "go")
     await user.click(screen.getByRole("button", { name: "Send" }))
     await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
 
@@ -108,7 +108,7 @@ describe("AiAssistant", () => {
       ],
     })
 
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "double the strips")
+    await user.type(screen.getByLabelText("Message the chef"), "double the strips")
     await user.click(screen.getByRole("button", { name: "Send" }))
 
     // Only the one amount actually moved. A count of the draft's contents would
@@ -126,7 +126,7 @@ describe("AiAssistant", () => {
     const { recipe, assistant } = setup({ text: "Already how you have it.", draft: DRAFT })
     recipe.loadRecipe({ id: "abc123", ...DRAFT })
 
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "tidy it up")
+    await user.type(screen.getByLabelText("Message the chef"), "tidy it up")
     await user.click(screen.getByRole("button", { name: "Send" }))
 
     expect(await screen.findByText("Nothing in the editor would change.")).toBeInTheDocument()
@@ -152,7 +152,7 @@ describe("AiAssistant", () => {
       </RecipeProvider>
     )
 
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "go")
+    await user.type(screen.getByLabelText("Message the chef"), "go")
     await user.click(screen.getByRole("button", { name: "Send" }))
     await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
 
@@ -168,7 +168,7 @@ describe("AiAssistant", () => {
     const user = userEvent.setup()
     const { recipe, assistant } = setup({ text: "Here's a draft.", draft: DRAFT })
 
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "go")
+    await user.type(screen.getByLabelText("Message the chef"), "go")
     await user.click(screen.getByRole("button", { name: "Send" }))
     await user.click(await screen.findByRole("button", { name: "Discard" }))
 
@@ -184,7 +184,7 @@ describe("AiAssistant", () => {
     const { recipe, assistant } = setup({ text: "Doubled.", draft: DRAFT })
     recipe.loadRecipe({ id: "abc123", title: "Old", ingredients: [], directions: [] })
 
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "double it")
+    await user.type(screen.getByLabelText("Message the chef"), "double it")
     await user.click(screen.getByRole("button", { name: "Send" }))
     await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
 
@@ -200,7 +200,7 @@ describe("AiAssistant", () => {
     const user = userEvent.setup()
     const { recipe, assistant } = setup({ text: "About a week.", draft: null })
 
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "how long?")
+    await user.type(screen.getByLabelText("Message the chef"), "how long?")
     await user.click(screen.getByRole("button", { name: "Send" }))
 
     expect(await screen.findByText("About a week.")).toBeInTheDocument()

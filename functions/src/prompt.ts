@@ -1,4 +1,58 @@
 /**
+ * The three properties every recipe-shaped tool input carries. Shared so the
+ * editor's `propose_recipe` and the chef's `fork_recipe` cannot drift into
+ * describing an ingredient two different ways to the same model.
+ */
+export const RECIPE_BODY = {
+  title: {
+    type: "string",
+    description: "The recipe's name. Keep the user's existing title unless asked to change it.",
+  },
+  ingredients: {
+    type: "array",
+    description: "Every ingredient, in the order they are used.",
+    items: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Ingredient name, e.g. 'all-purpose flour'." },
+        amount: {
+          type: "string",
+          description: "Quantity as written, e.g. '2 cups' or '1 tbsp'. Empty string if none.",
+        },
+        optional: { type: "boolean", description: "True if the recipe marks it optional." },
+        unique: {
+          type: "boolean",
+          description:
+            "True for an ingredient worth highlighting — a specialty item the cook is " +
+            "unlikely to have on hand. Renders in red in the app.",
+        },
+      },
+      required: ["name", "amount", "optional", "unique"],
+      additionalProperties: false,
+    },
+  },
+  directions: {
+    type: "array",
+    description:
+      "Steps grouped into sections. Use one section with an empty title for a simple " +
+      "recipe; use several ('Sauce', 'Assembly') when the recipe is naturally divided.",
+    items: {
+      type: "object",
+      properties: {
+        sectionTitle: { type: "string", description: "Section heading, or an empty string." },
+        steps: {
+          type: "array",
+          description: "Ordered steps. One instruction per step.",
+          items: { type: "string" },
+        },
+      },
+      required: ["sectionTitle", "steps"],
+      additionalProperties: false,
+    },
+  },
+}
+
+/**
  * Schema for the `propose_recipe` tool. `strict: true` requires
  * `additionalProperties: false` and a `required` list on every object, so the
  * draft that comes back always matches `RecipeDraft` exactly — no parsing,
@@ -6,61 +60,17 @@
  */
 export const RECIPE_DRAFT_SCHEMA = {
   type: "object" as const,
-  properties: {
-    title: {
-      type: "string",
-      description: "The recipe's name. Keep the user's existing title unless asked to change it.",
-    },
-    ingredients: {
-      type: "array",
-      description: "Every ingredient, in the order they are used.",
-      items: {
-        type: "object",
-        properties: {
-          name: { type: "string", description: "Ingredient name, e.g. 'all-purpose flour'." },
-          amount: {
-            type: "string",
-            description: "Quantity as written, e.g. '2 cups' or '1 tbsp'. Empty string if none.",
-          },
-          optional: { type: "boolean", description: "True if the recipe marks it optional." },
-          unique: {
-            type: "boolean",
-            description:
-              "True for an ingredient worth highlighting — a specialty item the cook is " +
-              "unlikely to have on hand. Renders in red in the app.",
-          },
-        },
-        required: ["name", "amount", "optional", "unique"],
-        additionalProperties: false,
-      },
-    },
-    directions: {
-      type: "array",
-      description:
-        "Steps grouped into sections. Use one section with an empty title for a simple " +
-        "recipe; use several ('Sauce', 'Assembly') when the recipe is naturally divided.",
-      items: {
-        type: "object",
-        properties: {
-          sectionTitle: { type: "string", description: "Section heading, or an empty string." },
-          steps: {
-            type: "array",
-            description: "Ordered steps. One instruction per step.",
-            items: { type: "string" },
-          },
-        },
-        required: ["sectionTitle", "steps"],
-        additionalProperties: false,
-      },
-    },
-  },
+  properties: RECIPE_BODY,
   required: ["title", "ingredients", "directions"],
   additionalProperties: false,
 }
 
-export const SYSTEM_PROMPT = `You help someone fill in a recipe in Kitchen Help, a shared family recipe box.
+export const SYSTEM_PROMPT = `You are the chef in Kitchen Help, a shared family recipe box. Right now
+you are stood beside someone at the recipe editor, helping them get a recipe
+written down. (You are the same chef they talk to while reading a recipe, where
+the job is scaling and substitutions instead — same voice, different work.)
 
-You do four kinds of work:
+You do four kinds of work here:
 
 1. Transcription. The user attaches photos — a recipe card, a cookbook page, a
    handwritten note, a screenshot — and you read the recipe out of them into the

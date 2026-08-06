@@ -10,6 +10,13 @@ import type { AiUsageEvent, LoginEvent } from "@/types"
 
 const number = new Intl.NumberFormat()
 
+/** Which callable a row came from. A feed row must never read as a blank. */
+const FEATURE_LABELS: Record<AiUsageEvent["feature"], string> = {
+  assistant: "Chef · editor",
+  chef: "Chef · recipe",
+  image: "Image",
+}
+
 /** Compact token counts — six-digit numbers make a phone table unreadable. */
 const compact = (value: number) =>
   value >= 1_000_000
@@ -68,9 +75,14 @@ const Admin = () => {
     const output = usage.reduce((n, e) => n + e.outputTokens, 0)
     const cacheRead = usage.reduce((n, e) => n + e.cacheReadTokens, 0)
     const failed = usage.filter((e) => !e.ok).length
+    // Counted per feature rather than as "everything that wasn't the
+    // assistant": a third caller landing in the else-branch of a two-way split
+    // is the sort of thing a console reports confidently and wrongly.
     const assistant = usage.filter((e) => e.feature === "assistant").length
+    const chef = usage.filter((e) => e.feature === "chef").length
+    const images = usage.filter((e) => e.feature === "image").length
     const slowest = usage.reduce((n, e) => Math.max(n, e.ms), 0)
-    return { input, output, cacheRead, failed, assistant, images: usage.length - assistant, slowest }
+    return { input, output, cacheRead, failed, assistant, chef, images, slowest }
   }, [usage])
 
   /**
@@ -169,7 +181,8 @@ const Admin = () => {
 
       <SectionHeading meta={`last ${usage.length} calls`}>AI</SectionHeading>
       <div className='mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4'>
-        <Stat label='Assistant' value={number.format(totals.assistant)} hint='calls' />
+        <Stat label='Chef · editor' value={number.format(totals.assistant)} hint='calls' />
+        <Stat label='Chef · recipe' value={number.format(totals.chef)} hint='calls' />
         <Stat label='Images' value={number.format(totals.images)} hint='generated' />
         <Stat label='Tokens in' value={compact(totals.input)} hint={`${compact(totals.cacheRead)} cached`} />
         <Stat label='Tokens out' value={compact(totals.output)} />
@@ -224,7 +237,7 @@ const Admin = () => {
             <li key={event.id} className='border-b border-ink/8 py-2.5'>
               <div className='flex items-baseline justify-between gap-3'>
                 <span className='font-medium'>
-                  {event.feature === "assistant" ? "Assistant" : "Image"}
+                  {FEATURE_LABELS[event.feature] ?? event.feature}
                   {!event.ok && <span className='text-danger'> · {event.errorCode ?? "failed"}</span>}
                 </span>
                 <span className='shrink-0 font-mono text-xs text-muted'>{when(event.at)}</span>

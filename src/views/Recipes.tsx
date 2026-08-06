@@ -3,12 +3,31 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { ArrowBackIcon, Button, EditIcon } from "components"
+import { ChefBanner, ChefDrawer } from "components/Chef"
 import Recipe from "components/Recipe"
 import RecipeTable from "components/RecipeTable"
 import { useSessionUser } from "contexts/AuthProvider"
+import {
+  useBaseServes,
+  useChefFork,
+  useChefPresenter,
+  useRecipeYield,
+} from "contexts/ChefProvider"
 import useTagLibrary from "hooks/useTagLibrary"
 import { onRecipesSnapshot } from "fire/services"
+import { diffRecipe, type RecipeBaseline } from "@/recipeDiff"
 import type { Recipe as RecipeType } from "@/types"
+
+/**
+ * A recipe as `diffRecipe` compares them. Tags and the photo are held level on
+ * both sides because the chef proposes neither — a copy that reported "the
+ * picture changed" would be describing the comparison, not the cooking.
+ */
+const toBaseline = (
+  title: string,
+  ingredients: RecipeType["ingredients"],
+  directions: RecipeType["directions"]
+): RecipeBaseline => ({ title, ingredients, directions, tags: [], hasImage: false })
 
 const Recipes = () => {
   const navigate = useNavigate()
@@ -50,6 +69,43 @@ const Recipes = () => {
     Boolean(user?.email) && recipe.email === user?.email
 
   const selected = recipes.find((recipe) => recipe.id === selectedId) ?? null
+
+  // The chef, and the working copy it hands back. The fork lives on the
+  // presenter rather than here so it survives a trip back to the list, and is
+  // keyed to the recipe so opening a different one starts a new conversation.
+  const chef = useChefPresenter()
+  const fork = useChefFork()
+  const baseServes = useBaseServes()
+  const settledYield = useRecipeYield()
+  const [chefOpen, setChefOpen] = useState(false)
+  const [showingOriginal, setShowingOriginal] = useState(false)
+
+  useEffect(() => {
+    if (selected != null) chef.openFor(selected)
+  }, [chef, selected])
+
+  // A different recipe is a different question — nothing carries over.
+  useEffect(() => {
+    setShowingOriginal(false)
+    setChefOpen(false)
+  }, [selectedId])
+
+  /**
+   * What the page renders. A fork replaces the parts of the recipe the chef
+   * reasons about and leaves everything else — the photo, the tags, the credit,
+   * the rating — exactly where it was, because those belong to the filed recipe
+   * and rating a copy of it would be rating the copy.
+   */
+  const shown =
+    selected != null && fork != null && !showingOriginal ? { ...selected, ...fork } : selected
+
+  const changes =
+    selected != null && fork != null && !showingOriginal
+      ? diffRecipe(
+          toBaseline(selected.title, selected.ingredients, selected.directions),
+          toBaseline(fork.title, fork.ingredients, fork.directions)
+        )
+      : null
 
   const openRecipe = (recipe: RecipeType) => {
     listScrollY.current = window.scrollY
@@ -102,7 +158,31 @@ const Recipes = () => {
               </Button>
             )}
           </div>
-          <Recipe recipe={selected} tagColors={tagColors} />
+
+          <ChefBanner
+            showingOriginal={showingOriginal}
+            onToggleOriginal={() => setShowingOriginal((shown) => !shown)}
+            onOpenChef={() => setChefOpen(true)}
+          />
+
+          <Recipe
+            recipe={shown}
+            tagColors={tagColors}
+            changes={changes}
+            // The copy's own yield while you are cooking from it, the filed
+            // recipe's while you are not — the chip has to agree with the list
+            // of ingredients underneath it.
+            serves={fork != null && !showingOriginal ? fork.serves : baseServes}
+            // A serving is the same size whichever version you are reading —
+            // scaling changes how many there are, not how big one is — so the
+            // copy's own is preferred only because it is the fresher wording.
+            servingSize={
+              (fork != null && !showingOriginal ? fork.servingSize : null) ??
+              settledYield?.servingSize
+            }
+          />
+
+          <ChefDrawer open={chefOpen} onOpenChange={setChefOpen} />
         </>
       )}
     </div>

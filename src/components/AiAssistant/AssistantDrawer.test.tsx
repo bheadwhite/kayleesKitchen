@@ -39,7 +39,7 @@ const setup = () => {
  * `aria-hidden` keeps the closed panel out of the accessibility tree entirely,
  * so a role query is exactly the right test for "is it there for the user".
  */
-const openPanel = () => screen.queryByRole("dialog", { name: "Recipe assistant" })
+const openPanel = () => screen.queryByRole("dialog", { name: "Chef" })
 
 beforeEach(() => {
   URL.createObjectURL = vi.fn(() => "blob:x")
@@ -50,7 +50,7 @@ describe("AssistantDrawer", () => {
   it("starts closed, behind a launcher", () => {
     setup()
 
-    expect(screen.getByRole("button", { name: "Open the recipe assistant" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Open the chef" })).toBeVisible()
     expect(openPanel()).toBeNull()
   })
 
@@ -58,10 +58,10 @@ describe("AssistantDrawer", () => {
     const user = userEvent.setup()
     setup()
 
-    await user.click(screen.getByRole("button", { name: "Open the recipe assistant" }))
+    await user.click(screen.getByRole("button", { name: "Open the chef" }))
     expect(openPanel()).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "Close assistant" }))
+    await user.click(screen.getByRole("button", { name: "Close chef" }))
     expect(openPanel()).toBeNull()
   })
 
@@ -69,14 +69,14 @@ describe("AssistantDrawer", () => {
     const user = userEvent.setup()
     setup()
 
-    await user.click(screen.getByRole("button", { name: "Open the recipe assistant" }))
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "double everything")
-    await user.click(screen.getByRole("button", { name: "Close assistant" }))
-    await user.click(screen.getByRole("button", { name: "Open the recipe assistant" }))
+    await user.click(screen.getByRole("button", { name: "Open the chef" }))
+    await user.type(screen.getByLabelText("Message the chef"), "double everything")
+    await user.click(screen.getByRole("button", { name: "Close chef" }))
+    await user.click(screen.getByRole("button", { name: "Open the chef" }))
 
     // The panel is slid away rather than unmounted: closing it must not be a
     // way to lose what you were typing.
-    expect(screen.getByLabelText("Message the recipe assistant")).toHaveValue(
+    expect(screen.getByLabelText("Message the chef")).toHaveValue(
       "double everything"
     )
   })
@@ -85,15 +85,15 @@ describe("AssistantDrawer", () => {
     const user = userEvent.setup()
     setup()
 
-    const launcher = screen.getByRole("button", { name: "Open the recipe assistant" })
+    const launcher = screen.getByRole("button", { name: "Open the chef" })
     expect(launcher).not.toHaveTextContent("1")
 
     await user.click(launcher)
-    await user.type(screen.getByLabelText("Message the recipe assistant"), "a chicken thing")
+    await user.type(screen.getByLabelText("Message the chef"), "a chicken thing")
     await user.click(screen.getByRole("button", { name: "Send" }))
-    await user.click(screen.getByRole("button", { name: "Close assistant" }))
+    await user.click(screen.getByRole("button", { name: "Close chef" }))
 
     // Nothing else can report it with the panel shut.
-    expect(await screen.findByRole("button", { name: "Open the recipe assistant" })).toBeVisible()
+    expect(await screen.findByRole("button", { name: "Open the chef" })).toBeVisible()
   })
 })

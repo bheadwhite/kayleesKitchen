@@ -35,6 +35,8 @@ import {
   auth,
   db,
   loginEventsRef,
+  recipeVariantsRef,
+  recipeYieldRef,
   recipesRef,
   storage,
   tagsRef,
@@ -42,6 +44,9 @@ import {
 } from "./firebase"
 import type {
   AiUsageEvent,
+  ChefFork,
+  ChefVariant,
+  RecipeYield,
   LoginEvent,
   Recipe,
   RegisterValues,
@@ -305,6 +310,80 @@ export const onRecipesByEmailSnapshot = (
   onSnapshot(query(recipesRef, where("email", "==", email)), (snapshot) =>
     callback(mapSnapshot(snapshot))
   )
+
+/* -------------------------------------------------------- recipe variants */
+
+/**
+ * Copies of a recipe someone kept, newest first.
+ *
+ * Shared, like the recipe box itself: a doubled version is as useful to whoever
+ * cooks it next as it was to the person who asked for it, and the whole point
+ * of keeping one is that nobody has to pay the model to work it out twice.
+ */
+export const onRecipeVariantsSnapshot = (
+  recipeId: string,
+  callback: (variants: ChefVariant[]) => void
+) =>
+  onSnapshot(query(recipeVariantsRef(recipeId), orderBy("savedAt", "desc")), (snapshot) =>
+    callback(
+      snapshot.docs.map((d) => {
+        const data = d.data()
+        return {
+          id: d.id,
+          title: data.title ?? "",
+          ingredients: data.ingredients ?? [],
+          directions: data.directions ?? [],
+          serves: data.serves ?? 0,
+          servingSize: data.servingSize || undefined,
+          baseServes: data.baseServes ?? 0,
+          summary: data.summary ?? "",
+          label: data.label ?? `Feeds ${data.serves ?? "?"}`,
+          email: data.email ?? null,
+          // Null between the local write and the server timestamp landing.
+          savedAt: data.savedAt?.toDate?.() ?? null,
+        }
+      })
+    )
+  )
+
+/**
+ * Keeps a copy. The timestamp is the **server's** — ordering a household's
+ * saved versions by a phone with a wrong clock puts them in an order nobody
+ * recognises.
+ */
+export const saveRecipeVariant = (recipeId: string, fork: ChefFork, email: string | null) =>
+  addDoc(recipeVariantsRef(recipeId), { ...fork, email, savedAt: serverTimestamp() })
+
+export const deleteRecipeVariant = (recipeId: string, variantId: string) =>
+  deleteDoc(doc(db, "recipes", recipeId, "variants", variantId))
+
+/**
+ * The chef's settled yield for this recipe, or null if nobody has ever asked.
+ *
+ * A listener rather than a one-shot read, for the same reason the variants are:
+ * it has the lifetime of the open recipe either way, and this way the number
+ * appears the moment somebody else's phone works it out.
+ *
+ * The caller still has to check the fingerprint — this only says what is
+ * stored, not whether it still describes the recipe in hand.
+ */
+export const onRecipeYieldSnapshot = (
+  recipeId: string,
+  callback: (recipeYield: RecipeYield | null) => void
+) =>
+  onSnapshot(recipeYieldRef(recipeId), (snapshot) => {
+    const data = snapshot.data()
+    callback(
+      data == null
+        ? null
+        : {
+            baseServes: data.baseServes ?? 0,
+            basis: data.basis ?? "",
+            servingSize: data.servingSize || undefined,
+            fingerprint: data.fingerprint ?? "",
+          }
+    )
+  })
 
 /* --------------------------------------------------------------- ratings */
 

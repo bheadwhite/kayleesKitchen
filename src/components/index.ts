@@ -2,6 +2,7 @@ export { default as Avatar, firstNameFor, initialsFor, nameFor } from "./ui/Avat
 export { default as Button } from "./ui/Button"
 export { default as ChangeMark } from "./ui/ChangeMark"
 export { default as Dialog } from "./ui/Dialog"
+export { default as Drawer } from "./ui/Drawer"
 export { default as SectionHeading } from "./ui/SectionHeading"
 export { default as Spinner } from "./ui/Spinner"
 export { Stars, StarPicker } from "./ui/Stars"

@@ -70,7 +70,8 @@ The shape is always the same:
 3. **Hooks** — thin `useSignalValue(presenter.xBroadcast)` wrappers, colocated in the
    provider file (`useIngredients`, `useDirections`, `useEditSection`, `useEditIngredient`,
    `useRecipeImageUrl`, `useLoadingRecipeImage`, `useAuthStatus`, `useSessionUser`,
-   `useAssistantTurns`, `usePendingImages`, `useProposedDraft`, `useAssistantStatus`).
+   `useAssistantTurns`, `usePendingImages`, `useProposedDraft`, `useAssistantStatus`,
+`useChefTurns`, `useChefFork`, `useBaseServes`, `useChefStatus`).
 
 To add shared state: add a private `Signal` + a `xBroadcast` getter + mutators on the
 presenter, then one `useSignalValue` hook next to the others. Do not lift that state
@@ -151,21 +152,39 @@ Because the modular SDK exports free functions rather than methods, tests stub F
 by mocking the modules (`vi.mock("fire/firebase")`, `vi.mock("fire/services")`,
 `vi.mock("firebase/auth")`) — see `src/App.test.tsx`. There is no injectable auth double.
 
-### The AI recipe assistant
+### The chef
 
-The editor's assistant takes photos of a recipe, a pasted link, or a plain
-instruction like "double everything", and proposes a filled-in draft.
+**There is one chef, met in two places.** In the editor it takes photos of a recipe, a
+pasted link, or "double everything" and proposes a filled-in draft; on a recipe you are
+reading it answers questions and hands back a working copy to cook from. Same name, same
+hat, same voice in both system prompts — what differs is what it can reach, and that
+belongs to the situation rather than to two personalities. The two callables stay separate
+(`recipeAssistant` and `askChef`) because they carry different tools and different context,
+and the admin console labels them "Chef · editor" and "Chef · recipe" so their spend is
+still tellable apart.
+
+The internals keep the older names — `AiDraftPresenter`, `components/AiAssistant/`,
+`recipeAssistant` — because they describe what that half owns (a *draft*, for an editor).
+Renaming the wire format would mean a Firestore field, a deployed callable, and the usage
+history all moving at once to make a directory listing read better.
+
+#### In the editor
 
 It lives in a **drawer** (`components/AiAssistant/AssistantDrawer.tsx`) pulled out over the
 editor from a launcher above the save bar, not in the form. As a panel at the bottom of the
 form it put a conversation about the whole recipe below every part of it: you scrolled past
 the thing you wanted to talk about to reach the box, then scrolled back to see what changed.
-Two details are load-bearing. The panel is **kept mounted and slid off-screen** rather than
-unmounted — the message being typed is local state, and closing the drawer must not be a way
-to lose it (a fixed box translated out of the viewport adds no scrollable overflow, so this
-is free). And it renders **outside the `<form>`**, because nothing in it belongs to
-react-final-form or to the recipe's submit; `<AiAssistant>` itself is a flex column that
-fills whatever height it is given, with only the transcript scrolling.
+The panel mechanics live in **`components/ui/Drawer.tsx`**, shared with the recipe page's
+copy, and three of them are load-bearing. It is **kept mounted and slid off-screen** rather
+than unmounted — the message being typed is local state, and closing the drawer must not be
+a way to lose it (a fixed box translated out of the viewport adds no scrollable overflow, so
+this is free). It is `invisible` and `aria-hidden` when closed, which keeps a stray Tab out
+and makes a plain `getByRole("dialog")` the right test for "is it open". And the page behind
+is scroll-locked, or on a phone the recipe wanders off while you type.
+
+This one renders **outside the `<form>`**, because nothing in it belongs to react-final-form
+or to the recipe's submit; `<AiAssistant>` itself is a flex column that fills whatever height
+it is given, with only the transcript scrolling.
 
 Links go through Claude's server-side `web_fetch` tool — there is no scraping code
 here, and no client change: a pasted URL is just message text, and `web_fetch` only
@@ -203,7 +222,7 @@ that into "Ingredients: 1 changed" — *what would change*, not what the draft c
 "12 ingredients" is equally true of a draft that touched one of them and one that replaced
 the lot. "See what changed" expands `describeChanges` underneath it: the lines themselves,
 grouped, each with the text being replaced struck through above the text replacing it. Tags and the photo are held level on both sides of that comparison because the
-assistant proposes neither. After applying, the marks in the editor take over (see the
+chef proposes neither. After applying, the marks in the editor take over (see the
 unsaved-changes section) — and applying **closes the drawer**, because the reason to apply is
 to look at what it did and the marked-up editor is behind the panel.
 
@@ -234,6 +253,207 @@ recipe card.
 
 `functions/src/types.ts` mirrors `src/ai/types.ts` by hand; the two packages share no
 build. Changing the wire format means editing both.
+
+#### On a recipe you are reading
+
+The chef's other half. You are looking at a recipe and want to know how many it feeds,
+whether the buttermilk can be yogurt, or what it looks like for eight — and the answer to
+any of those is a **working copy** (`ChefFork`) that replaces what the page renders.
+
+**The copy is never written anywhere.** No Firestore document, no id, no rules change. That
+is the whole reason it can be offered on other people's recipes as readily as your own: it
+cannot damage anything, so it needs no ownership check and no confirmation. `ChefPresenter`
+holds it, `Recipes` renders `{...selected, ...fork}` so the photo, tags, credit, and rating
+keep belonging to the filed recipe — rating a copy would be rating the copy.
+
+It *does* survive a reload, via `sessionStorage` keyed by recipe id. An installed PWA is
+resumed rather than cold-started and a phone locks itself mid-recipe; a doubled ingredient
+list that evaporates while the oven preheats is worse than never having offered to double
+it. `openFor(recipe)` is called on every render and only resets when the **id** changes —
+the list is a live snapshot, and its owner fixing a typo must not throw away a conversation
+someone else is cooking from.
+
+**Scope discipline is the thing the prompt spends most of its words on.** Asked to scale, the
+model will happily also split "dressing" out into its component lines, reorder ingredients,
+and reword steps it thinks read better — a copy that has quietly reorganised the recipe
+looks finished, and the cook does not find out until they are at the counter with it. So
+both the prompt and the `fork_recipe` schema say the same thing at the point the field is
+being filled in: scaling changes amounts, not the *shape* — same lines, same order, same
+names, same steps worded the same way, and only a substitution the cook asked for ever
+replaces a line. "The copy must contain the FULL recipe" is a requirement to *include*
+everything, not licence to *revise* everything, and it is spelled out that way because the
+first phrasing alone reads as the second. Anything the chef would rather change goes in its
+reply. When it slips anyway, the `<ChangeMark>`s are what surface it: an ingredient line
+that was not there before wears a "new" chip.
+
+**Scaling is the model's job, not arithmetic's.** Three eggs times 1.5 is four and you say
+which way you rounded; salt and leavening do not scale on the same line as everything else;
+times and temperatures do not scale at all; pans do, and a recipe that has outgrown its dish
+is the failure that ruins the dinner and is invisible in a list of doubled quantities. A
+client-side multiplier gets every one of those wrong, and gets "a pinch" and "salt to taste"
+wrong on top. All of it is folded into the *steps* as well as the reply, because the copy
+has to be cookable by someone who never read the conversation.
+
+**The yield is cached server-side, and the cache invalidates itself.** "How many does this
+feed?" has one answer for a given recipe, costs a model call to work out, and is asked of the
+same dishes over and over — so `askChef` writes what it settled on to
+`recipes/{recipeId}/chef/yield` and the client reads it on open. For any recipe anyone has
+already asked about, the servings control is live **with no model call at all**, and the
+number appears on the recipe itself as a "Serves 4" chip beside the credit and tags.
+
+Invalidation is a **content fingerprint**, not a Firestore trigger. `recipeFingerprint`
+(mirrored by hand in both packages, like the wire types) stamps the estimate with a hash of
+the recipe it was read off; a reader that computes a different hash treats the estimate as
+absent. A trigger on recipe writes is the other way and is worse in every respect that
+matters: another deployed function, a window where the figure is live and wrong, no answer
+at all for recipes edited before it existed, and nothing to check against if it misfires. A
+stamp the reader verifies cannot be out of date, because being out of date is the thing it
+reports. If the two implementations ever drift, every lookup misses and the chef is asked
+again — wasteful, never wrong, which is the right way for this to fail.
+
+**Only the ingredients and the method are in the fingerprint.** Renaming a recipe, retagging
+it, or swapping its photo cannot change how much it makes, and invalidating on those would
+mean paying for a model call to recover from a typo fix. `unique` is out for the same reason
+— it decides how an ingredient is *drawn*.
+
+Three more decisions in there:
+
+- **Written only by the callable**, through the admin SDK; `firestore.rules` denies client
+  writes outright, exactly as it does for `aiUsage`. This is the number the model produced,
+  and the callable is the only place that knows it did not come from whoever typed it.
+- **The callable reads it too**, into the context message. It does not skip the call — the
+  turn may not be about the yield at all — but it stops the same recipe being told it feeds
+  four today and five next week, which is what would end the number being trusted.
+- **A figure settled in the current conversation outranks the stored one.** The cook is
+  allowed to say "it feeds three in this house"; that correction is what gets written, and
+  it then holds for the whole household until the recipe changes.
+
+**A cache can block its own repair, and this one did.** `servingSize` was added after the
+first estimates were already stored, and those entries could not heal: a stored *count*
+makes the servings control live, so the cook is never shown "how many does this feed?", so
+`estimate_servings` never fires, so the missing half is never written. The tool that fills
+the gap is exactly the tool the cache stops from running. Two ways out, both taken:
+
+- **A fork backfills it.** `fork_recipe` is strict, so every copy carries `baseServes` and
+  `servingSize` — the cache's own contents. Scaling is the path people actually take, so
+  the record repairs itself on the way past. `basis` is carried over from the existing entry
+  rather than blanked, and there is no risk of pairing an old basis with a new count because
+  `readCachedYield` already returns null when the fingerprint has moved.
+- **The model is told the record is incomplete**, so any conversation on that recipe repairs
+  it, not only a scaling one. Phrased as recording a missing fact rather than as a change,
+  so it cannot be read as licence to touch the recipe.
+
+Everything else about old data degrades rather than breaking: an entry with no serving size
+still supplies its count (throwing it away to force a re-ask would spend a model call to
+recover what is already in hand), and the chip simply reads "Serves 18" with nothing after
+it. The general rule for this cache is that a missing field is a missing field, never a
+fabricated default.
+
+Known gap: a **kept variant** carries the `baseServes` and `servingSize` it was saved with
+and is *not* fingerprint-checked or backfilled, so one saved before the recipe was edited —
+or before serving sizes existed — still shows as it was. It is a saved artifact rather than
+a cache, and still a valid thing to cook; stamping it and marking stale chips is one field
+away if that turns out to matter.
+
+Two tools rather than one, and the split is the servings control:
+
+- **`estimate_servings`** — a recipe records no yield, so until the chef has read one off
+  the ingredients and the method there is no number for a stepper to count from. So the
+  control's first state is a single button asking exactly that. It reports a **serving
+  size** alongside the count, and that pairing is the point: "serves 18" is unreadable for
+  a batch of cookies until you know whether a serving is one of them or three. The size is
+  invariant under scaling — more servings, not bigger ones — so a fork carries the same one
+  through, and the recipe's chip reads "Serves 18 · 2 cookies".
+- **`fork_recipe`** — the whole recipe plus `serves`, `baseServes`, and a one-line
+  `summary`. `baseServes` rides on every fork rather than being remembered from an earlier
+  estimate, because the cook is allowed to correct it ("it feeds three in this house") and
+  the fork has to be scaled from whatever the current answer is. **Every scale is computed
+  from the recipe as filed, never from a copy** — otherwise repeated adjustments compound
+  their own rounding.
+
+**"Double it" is one tap, and is the only scale offered before the yield is known.** Twice
+the recipe is a complete instruction on its own, so making it wait behind "how many does
+this feed?" would be spending a model call to enable a model call. It always means twice
+*the filed recipe*, never twice the copy on screen — pressing it with a doubled copy loaded
+gives that same copy back, because compounding would make one button mean two different
+things on consecutive presses. It hides itself once the copy already is doubled, by the same
+rule "Scale to N" follows.
+
+**Stepping the servings does not send.** Each send is a model call, and walking from four to
+eight would otherwise be four of them; you set the number and then press "Scale to 8", which
+is also what makes the button honest about what it costs. It disappears when the number
+already matches the copy, because a live button meaning "ask again for what you have" spends
+a call to say nothing.
+
+The changes are shown **twice, in two forms**, the same way an applied draft is in the
+editor. `diffRecipe` between the filed recipe and the copy marks each changed row with a
+`<ChangeMark>` — on a scaled list that is the difference between "everything moved" and
+"only the flour did", which no summary sentence can say. And `<ChefBanner>` names the copy,
+because a doubled ingredient list looks exactly like a recipe always written for eight, and
+someone arriving from a lock screen has no other way to tell. **"Show original" swaps the
+whole page** rather than annotating a line: the editor's peek answers "what did this row say
+before" for one row, but here the question is "is this still the recipe", and the answer is
+the recipe. Nothing is lost by looking.
+
+The banner is **rendered twice** — a card in the flow of the page carrying the chef's
+summary, and a compact bar `fixed` under the toolbar that fades in once the card has
+scrolled away, so "which version am I reading" stays answerable from the middle of a long
+recipe. Not one `position: sticky` card that sheds its summary when it sticks: that changes
+the height of an element still in the flow, and everything below it jumps the moment you
+scroll past. Two elements, one out of flow, nothing moves.
+
+Two details in there are load-bearing. The bar is **kept mounted and hidden** rather than
+conditionally rendered, because the scroll check reads *its own* `getBoundingClientRect()`
+— a `fixed` element's top is the resolved offset under the toolbar, safe-area inset
+included, which beats parsing a `calc()` over two custom properties back out of the
+stylesheet — and `aria-hidden` plus `visibility: hidden` keep its duplicate controls out of
+the accessibility tree and the tab order meanwhile. And the card **keeps its summary, muted,
+while the original is showing**: "Show original" is reachable from the bar halfway down the
+recipe, and dropping four lines out of a card above you shunts the step you were reading up
+the screen.
+
+**Copies can be kept, and that is the one thing here that is written down.**
+`recipes/{recipeId}/variants/{id}` — `ChefVariant`, the fork plus who kept it and when.
+Everything else about the chef is scratch, but "double it" is a question a household asks
+of the same recipe every year and the answer does not change between askings; paying the
+model to work it out again is paying twice for the same sentence. Loading one is a Firestore
+read and **no model call at all** — no wait, and the same answer you cooked from last time
+rather than a fresh one that might differ in a detail.
+
+- **A subcollection**, because a variant has no meaning away from its recipe. Note that
+  **rules do not cascade into subcollections**: `firestore.rules` matches `variants` in its
+  own block, and `match /recipes/{docId}` reaches the recipe document and nothing beneath
+  it. As ever, the rules file is not deployed — `npm run rules:diff`, then paste.
+- **Shared, like the recipe box.** A doubled version is as useful to whoever cooks next as
+  to whoever asked for it. `allow update: if false` — a variant is a snapshot of what the
+  chef handed back at a moment, and an editable one is a recipe wearing the wrong label;
+  keep another and forget this one.
+- **The chef names it** (`label` on the fork schema — "Feeds 8", "Dairy-free"), so keeping
+  one is a single tap. A copy you have to stop and title is a copy nobody keeps, and an
+  untitled pile of them is no better than none. `label` post-dates the first stored
+  sessions, so `restore()` falls back to `Feeds ${serves}` rather than rendering a nameless
+  chip.
+- **`savedAs` is what stops a duplicate.** It holds the id of the loaded variant, survives
+  the reload alongside the fork, and is cleared the moment the chef hands back something
+  new — so the offer to keep comes back for a fresh copy and not for one already filed.
+- **`ChefPresenter` owns the listener**, subscribing in `openFor` and unsubscribing when the
+  recipe id changes, because that is exactly the lifetime. The subscription is *stored* —
+  an unheld one is `WeakRef`-collected mid-session and silently stops firing. The store is
+  injectable (`VariantStore`) so no test reaches Firestore.
+- **Forgetting one is behind a confirm; discarding the copy on screen is not.** Discard
+  costs a tap to undo; forgetting costs a model call, and it is shared, so what is being
+  thrown away may be something someone else kept.
+
+No `web_fetch` here, deliberately. The editor's half needs it because a pasted link is one
+of the things it is for; this half is looking at a recipe already in the request, and a tool
+that can wander off is an invitation to answer "can I swap the buttermilk" with somebody
+else's recipe. `httpsCallable` gets an explicit **180s timeout** (`CALL_TIMEOUT_MS` in
+`src/ai/chef.ts`) — the 70s default abandons calls the server goes on to finish and bill.
+
+`functions/src/conversation.ts` is the shared half of both callables: transcript to content
+blocks, cache breakpoint, the `pause_turn` resume loop, telemetry, and provider-error
+mapping. Only the system prompt, the tools, and the context message differ between them, and
+that is exactly what `runConversation` takes as arguments.
 
 ### Generated recipe images — a second, non-Anthropic model
 
@@ -315,7 +535,7 @@ What is and is not in a step:
 
 - **Typing in the title records nothing.** `setTitle` fires per keystroke, and an undo stack
   one character deep is useless. The title is still *carried in* every snapshot, so undoing
-  anything else puts it back — which is what makes "undo the assistant's draft" correct —
+  anything else puts it back — which is what makes "undo the chef's draft" correct —
   and a focused input has the browser's own undo anyway. That is also why ⌘Z is ignored while
   the cursor is in an input or textarea.
 - **A no-op records nothing.** `addTag` normalises and checks for a duplicate before
@@ -328,7 +548,7 @@ What is and is not in a step:
   an edit, and restoring it reopens an editor nobody asked for.
 
 Opening a recipe **clears** the history (undo must not walk back into the last recipe);
-applying an assistant draft **records** one (it is the step people most want to take back).
+applying a chef's draft **records** one (it is the step people most want to take back).
 
 ### Unsaved changes, and showing what they are
 
@@ -358,7 +578,7 @@ stray tap cannot leave a destructive button sitting where the next one falls. Th
 `revertIngredient` / `revertStep` / `revertSectionTitle` restore from `_baseline` and go
 through `_record()` like any other edit, so a revert is itself undoable. **A row the saved
 recipe does not have is removed rather than restored** — that is what reverting an addition
-means, and refusing would leave the change an assistant makes most of with no way back.
+means, and refusing would leave the change the chef makes most of with no way back.
 
 Marks are suppressed entirely until a recipe has been saved once (`marked` in
 `RecipeEditor`): with no baseline every line is "new", and a brand-new recipe wearing a flag
@@ -367,7 +587,7 @@ and a tint on every row it has is saying nothing.
 Three decisions hold this together:
 
 - **`loadRecipe(recipe, { asSaved })`.** Opening a stored recipe re-bases; applying an
-  assistant draft must not, because re-basing there would report the assistant's rewrite as
+  a chef's draft must not, because re-basing there would report the chef's rewrite as
   no change at all — which is exactly the thing worth looking over before pressing Update.
   A stray keystroke and an applied draft are marked the same way, deliberately: to someone
   about to save, they are the same kind of event.
@@ -495,7 +715,7 @@ and the rules would have to leave that collection open to the internet.
 
 Where each half of the data comes from, and why:
 
-- **AI usage is written server-side** (`functions/src/telemetry.ts`, called from both
+- **AI usage is written server-side** (`functions/src/telemetry.ts`, called from all three
   callables). Token counts only exist on the provider's response, which never reaches the
   browser — and a client-reported usage number is a number the client can make up. Failed
   calls are recorded too: a spike in rate-limit errors is exactly what the console is for,
@@ -667,7 +887,7 @@ stays at the far end of the scroll** — it is the one action here that cannot b
 it has no business a thumb's width from Update.
 
 The **z-index scale is written out in the `:root` block of `src/index.css`** (drag 10,
-sticky filter 30, portaled menu 35, fixed chrome 40, assistant drawer 48, dialog 50). Layers get set three
+sticky filter 30, portaled menu 35, fixed chrome 40, drawer 48, dialog 50). Layers get set three
 different ways here — Tailwind classes, react-select's `styles` prop, and a portal into
 `<body>` — so anything new that stacks takes a value from that list. Reaching for a big
 number instead is how the editor's recipe picker ended up painting over the toolbar.

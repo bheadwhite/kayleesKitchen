@@ -1,14 +1,23 @@
 import clsx from "clsx"
 import { useState } from "react"
 
-import { SectionHeading } from "components"
+import { ChangeMark, SectionHeading } from "components"
+import type { RowDiff } from "@/recipeDiff"
 import type { Ingredient } from "@/types"
 
 interface IngredientsProps {
   ingredients?: Ingredient[]
+  /**
+   * One entry per ingredient, when the list on screen is the chef's copy rather
+   * than the filed recipe. Absent means "this is the recipe" — a list wearing a
+   * flag on every row would be saying nothing.
+   */
+  changes?: RowDiff[]
+  /** How many the filed recipe had that this copy does not. */
+  removed?: number
 }
 
-const Ingredients = ({ ingredients }: IngredientsProps) => {
+const Ingredients = ({ ingredients, changes, removed = 0 }: IngredientsProps) => {
   const [checked, setChecked] = useState<string[]>([])
 
   const toggle = (key: string) =>
@@ -26,6 +35,7 @@ const Ingredients = ({ ingredients }: IngredientsProps) => {
       {ingredients?.map((ingredient, index) => {
         const key = `${ingredient.name}-${index}`
         const isChecked = checked.includes(key)
+        const change = changes?.[index]?.kind
         return (
           <button
             key={key}
@@ -44,9 +54,21 @@ const Ingredients = ({ ingredients }: IngredientsProps) => {
             </span>
             <span className='text-ink/70'>{`— ${ingredient.amount}`}</span>
             {ingredient.optional && <span className='text-sm text-muted'>(optional)</span>}
+            {/* The mark is the fastest read of what the chef touched: on a
+             *  scaled list it is the difference between "everything moved" and
+             *  "only the flour did", and a summary sentence cannot say which
+             *  line. Unpressable here — there is nothing to revert to on a copy
+             *  you can drop whole. */}
+            <ChangeMark change={change} className='ml-auto self-center' />
           </button>
         )
       })}
+
+      {removed > 0 && (
+        <p className='py-2.5 text-sm text-muted'>
+          {removed} ingredient{removed === 1 ? "" : "s"} dropped from the original.
+        </p>
+      )}
     </div>
   )
 }

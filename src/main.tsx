@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom"
 import App from "./App"
 import AiDraftProvider from "contexts/AiDraftProvider"
 import AuthProvider from "contexts/AuthProvider"
+import ChefProvider from "contexts/ChefProvider"
 import RecipeProvider from "contexts/RecipeProvider"
 import "react-toastify/dist/ReactToastify.css"
 import "./index.css"
@@ -18,9 +19,11 @@ createRoot(container).render(
     <AuthProvider>
       <RecipeProvider>
         <AiDraftProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <ChefProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </ChefProvider>
         </AiDraftProvider>
       </RecipeProvider>
     </AuthProvider>

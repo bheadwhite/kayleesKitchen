@@ -35,6 +35,28 @@ export const AddIcon = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 )
 
+export const MinusIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d='M5 12h14' />
+  </Icon>
+)
+
+export const ChefHatIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d='M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z' />
+    <path d='M6 17h12' />
+  </Icon>
+)
+
+export const UsersIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' />
+    <circle cx='9' cy='7' r='4' />
+    <path d='M22 21v-2a4 4 0 0 0-3-3.87' />
+    <path d='M16 3.13a4 4 0 0 1 0 7.75' />
+  </Icon>
+)
+
 export const CheckIcon = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <path d='M20 6L9 17l-5-5' />

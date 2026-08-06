@@ -29,7 +29,7 @@ interface AiAssistantProps {
 }
 
 /**
- * Chat panel for the recipe editor. The assistant proposes a complete draft;
+ * The chef, as met inside the recipe editor. It proposes a complete draft;
  * nothing reaches `RecipePresenter` until "Apply to editor" is pressed.
  *
  * Laid out to fill whatever it is given — `<AssistantDrawer>` gives it the
@@ -82,7 +82,7 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
       })
     } catch (error) {
       setText(message) // Put it back so the message is not lost.
-      toast.error(error instanceof Error ? error.message : "The assistant could not respond.")
+      toast.error(error instanceof Error ? error.message : "The chef could not respond.")
     }
   }
 
@@ -93,13 +93,13 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
         ...proposedDraft,
         // `loadRecipe` reads `id` off the argument; keep the editor's own.
         id: recipe.getId() ?? undefined,
-        // The assistant does not propose tags, and `loadRecipe` replaces
+        // The chef does not propose tags, and `loadRecipe` replaces
         // everything it is handed — without this, applying a draft would quietly
         // strip the tags already on the recipe.
         tags: recipe.getTags(),
       },
       // A draft is a pile of unsaved edits, not the saved recipe: leaving the
-      // baseline where it is makes every line the assistant touched show up as
+      // baseline where it is makes every line the chef touched show up as
       // changed, which is the point of looking at it before pressing Update.
       { asSaved: false }
     )
@@ -112,7 +112,7 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
 
   /**
    * The draft against the editor as it stands. Tags and the photo are held
-   * level on both sides because the assistant proposes neither, and a summary
+   * level on both sides because the chef proposes neither, and a summary
    * that announced them would be describing the apply rather than the draft.
    */
   const sides =
@@ -146,7 +146,7 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
         ref={transcriptRef}
         className='min-h-0 flex-1 overflow-y-auto px-4 py-2'
         aria-live='polite'
-        aria-label='Assistant conversation'>
+        aria-label='Conversation with the chef'>
         {turns.length === 0 && (
           <div className='py-2 text-sm text-muted'>
             <p>You can:</p>
@@ -339,7 +339,7 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
           }}
           rows={2}
           placeholder='Describe a recipe, paste a link, or ask for a change…'
-          aria-label='Message the recipe assistant'
+          aria-label='Message the chef'
           className='min-w-0 flex-1 basis-full border border-divider bg-surface px-3 py-2 text-base hover:border-ink/45 focus-visible:border-steel focus-visible:outline-offset-0 sm:basis-0'
         />
 

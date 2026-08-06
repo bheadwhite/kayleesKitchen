@@ -25,6 +25,37 @@ service cloud.firestore {
     // any ownership field being reliably set.
     match /recipes/{docId} {
       allow read, write: if signedIn();
+
+      // Copies of the recipe the chef made and someone kept — "feeds 8",
+      // "dairy-free". Same shared-household stance as the recipe above them:
+      // a doubled version is as useful to whoever cooks next as to the person
+      // who asked for it, and the whole point of keeping one is that nobody
+      // pays the model to work it out twice.
+      //
+      // **Rules do not cascade into subcollections**, so this block is what
+      // grants access here — the `recipes/{docId}` rule above reaches the
+      // recipe document and nothing beneath it.
+      //
+      // No update: a variant is a snapshot of what the chef handed back at a
+      // moment, and an editable one is a recipe wearing the wrong label. Keep
+      // another and forget this one.
+      match /variants/{variantId} {
+        allow read, create, delete: if signedIn();
+        allow update: if false;
+      }
+
+      // What the chef worked out about the recipe — currently one document,
+      // `yield`, holding how many it feeds and how that was read off it.
+      //
+      // **Written only by the `askChef` Cloud Function**, through the admin SDK,
+      // which bypasses these rules entirely. So the client needs no write access
+      // at all, and saying so outright is better than a rule nobody exercises —
+      // same reasoning as `aiUsage`. It also means the figure on screen is one
+      // the model produced and not one a client made up.
+      match /chef/{docId} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
     }
 
     // The tag registry — one document per tag, holding only the colour it is
