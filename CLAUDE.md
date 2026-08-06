@@ -237,8 +237,9 @@ in `system` would invalidate the whole prefix on every keystroke.
 
 ### The admin console
 
-`src/views/Admin.tsx` at `/admin` shows AI spend and sign-ins. It is reached from a link in
-`<Profile>` that only the admin sees, and `src/admin.ts` holds the one address.
+`src/views/Admin.tsx` at `/admin` shows AI spend and sign-ins. It is a **fourth nav tab that
+only the admin sees** — `NavBar` switches to `grid-cols-4` for them — and `src/admin.ts`
+holds the one address.
 
 > ⚠️ **`isAdmin()` is a UI affordance, not access control.** It decides what to render; it
 > cannot decide what Firestore hands out. Until the rules in **`firestore.rules.snippet`**
@@ -352,7 +353,8 @@ directly above a ground-colored header), and `danger` exists at all.
 Two fixed bars sandwich the scrolling column: `components/Toolbar` (title only) at the
 top and `components/NavBar` at the bottom. The hamburger menu they replaced is gone.
 
-`NavBar`'s three tabs are Recipes, Editor, and the account — an `<Avatar>` with the user's
+`NavBar`'s tabs are Recipes, Editor, and the account — plus an Admin tab for the one admin
+address (see the admin console section) — an `<Avatar>` with the user's
 first name, linking to `/profile`. It is deliberately **not** a Logout button: signing out
 sat one mis-tap from the tab used most, and it is destructive here because it drops
 whatever is half-typed in the editor. `src/views/Profile.tsx` owns signing out, behind a

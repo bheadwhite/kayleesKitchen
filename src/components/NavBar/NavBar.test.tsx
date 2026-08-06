@@ -7,6 +7,7 @@ import type { Auth } from "firebase/auth"
 import NavBar from "./NavBar"
 import AuthProvider from "contexts/AuthProvider"
 import { AuthPresenter } from "presenters/AuthPresenter"
+import { ADMIN_EMAIL } from "@/admin"
 
 let emitAuthState: (user: unknown) => void = () => {}
 const signOutMock = vi.fn().mockResolvedValue(undefined)
@@ -43,6 +44,7 @@ const renderNavBar = (initialPath = "/recipes") => {
           <Route path='/recipes' element={<p>recipe list</p>} />
           <Route path='/recipes/new' element={<p>recipe editor</p>} />
           <Route path='/profile' element={<p>profile</p>} />
+          <Route path='/admin' element={<p>admin console</p>} />
           <Route path='/login' element={<p>login</p>} />
         </Routes>
       </MemoryRouter>
@@ -52,8 +54,8 @@ const renderNavBar = (initialPath = "/recipes") => {
   return presenter
 }
 
-const signIn = () =>
-  emitAuthState({ uid: "u1", email: "cook@example.test", displayName: "Cook" })
+const signIn = (email = "cook@example.test") =>
+  emitAuthState({ uid: "u1", email, displayName: "Cook" })
 
 describe("NavBar", () => {
   beforeEach(() => {
@@ -121,6 +123,34 @@ describe("NavBar", () => {
     await screen.findByRole("navigation", { name: "Main" })
     expect(screen.queryByRole("button", { name: /sign ?out|logout/i })).not.toBeInTheDocument()
     expect(signOutMock).not.toHaveBeenCalled()
+
+    presenter.dispose()
+  })
+})
+
+describe("NavBar — the admin tab", () => {
+  beforeEach(() => {
+    emitAuthState = () => {}
+  })
+
+  it("is hidden from everyone but the admin", async () => {
+    const presenter = renderNavBar()
+    signIn("cook@example.test")
+
+    await screen.findByRole("navigation", { name: "Main" })
+    // Not just unreachable — a non-admin should not learn the console exists.
+    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument()
+
+    presenter.dispose()
+  })
+
+  it("takes the admin to the console", async () => {
+    const user = userEvent.setup()
+    const presenter = renderNavBar()
+    signIn(ADMIN_EMAIL)
+
+    await user.click(await screen.findByRole("link", { name: "Admin" }))
+    expect(screen.getByText("admin console")).toBeInTheDocument()
 
     presenter.dispose()
   })

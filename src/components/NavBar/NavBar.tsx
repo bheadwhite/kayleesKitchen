@@ -1,8 +1,9 @@
 import clsx from "clsx"
 import { NavLink } from "react-router-dom"
 
-import { Avatar, EditIcon, PotIcon, firstNameFor, nameFor } from "components"
+import { ActivityIcon, Avatar, EditIcon, PotIcon, firstNameFor, nameFor } from "components"
 import { useAuthStatus, useSessionUser } from "contexts/AuthProvider"
+import { isAdmin } from "@/admin"
 
 const itemClass =
   "flex cursor-pointer touch-manipulation flex-col items-center justify-center gap-[5px] " +
@@ -45,6 +46,11 @@ const NavBar = () => {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     clsx(itemClass, isActive ? activeClass : idleClass)
 
+  // The admin gets a fourth tab. Everyone else must not even see that the
+  // console exists — and `isAdmin` only decides rendering, never access: the
+  // Firestore rules are what stop a non-admin reading the collections.
+  const showAdmin = isAdmin(user)
+
   return (
     <nav
       aria-label='Main'
@@ -52,7 +58,11 @@ const NavBar = () => {
       // inner one: the bar's background has to reach the bottom of the screen,
       // but its buttons must sit above the home indicator, not under it.
       className='fixed right-0 bottom-0 left-0 z-40 border-t border-divider bg-ground pb-[var(--sai-bottom)]'>
-      <div className='mx-auto grid h-[var(--navbar-h)] w-full max-w-[900px] grid-cols-3'>
+      <div
+        className={clsx(
+          "mx-auto grid h-[var(--navbar-h)] w-full max-w-[900px]",
+          showAdmin ? "grid-cols-4" : "grid-cols-3"
+        )}>
         {/* `end`, or /recipes/new would light up both tabs. */}
         <NavLink to='/recipes' end className={linkClass}>
           <PotIcon className={iconClass} />
@@ -62,6 +72,12 @@ const NavBar = () => {
           <EditIcon className={iconClass} />
           Editor
         </NavLink>
+        {showAdmin && (
+          <NavLink to='/admin' className={linkClass}>
+            <ActivityIcon className={iconClass} />
+            Admin
+          </NavLink>
+        )}
         {/* The label prefixes rather than replaces the visible name: on its own,
          *  a nav item announced as "Sam" says nothing about where it goes, but
          *  an accessible name that omits the visible text breaks voice control. */}
