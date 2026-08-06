@@ -1,6 +1,8 @@
 import { GoogleAuth } from "google-auth-library"
 import { HttpsError, onCall } from "firebase-functions/v2/https"
 
+import { recordAiUsage } from "./telemetry.js"
+
 import type { GenerateImageRequest, GenerateImageResponse, RecipeDraft } from "./types.js"
 
 /**
@@ -71,6 +73,21 @@ export const generateRecipeImage = onCall<
     )
   }
 
+  const startedAt = Date.now()
+  // Vertex does not report tokens for image generation, so a call is the unit
+  // here — the console shows counts and latency rather than fabricating a
+  // token number the provider never gave us.
+  const record = (ok: boolean, errorCode?: string) =>
+    recordAiUsage({
+      feature: "image",
+      uid: request.auth?.uid ?? null,
+      email: request.auth?.token.email ?? null,
+      model: MODEL,
+      ok,
+      ms: Date.now() - startedAt,
+      ...(errorCode ? { errorCode } : {}),
+    })
+
   const projectId = await auth.getProjectId()
   const clientAuth = await auth.getClient()
   const url =
@@ -91,6 +108,7 @@ export const generateRecipeImage = onCall<
     parts = response.data.candidates?.[0]?.content?.parts ?? []
   } catch (error) {
     console.error("Vertex image generation failed", error)
+    record(false, "internal")
     throw new HttpsError("internal", "Could not generate an image just now.")
   }
 
@@ -99,8 +117,10 @@ export const generateRecipeImage = onCall<
     // The model answers in text when it declines — surface that, not a crash.
     const text = parts.find((part) => part.text)?.text
     console.warn("No image part returned", text)
+    record(false, "no-image")
     throw new HttpsError("internal", "The model did not return an image. Try again.")
   }
 
+  record(true)
   return { mimeType: image.mimeType, data: image.data }
 })

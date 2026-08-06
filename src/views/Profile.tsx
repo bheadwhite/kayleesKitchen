@@ -13,6 +13,8 @@ import {
 } from "components"
 import { useAuthPresenter, useAuthStatus, useSessionUser } from "contexts/AuthProvider"
 import useUsersRecipes from "hooks/useUsersRecipes"
+import { isAdmin } from "@/admin"
+import { buildDate, buildLabel } from "@/version"
 import { onRecipesSnapshot } from "fire/services"
 import type { Recipe } from "@/types"
 
@@ -153,6 +155,22 @@ const Profile = () => {
         </ul>
       )}
 
+      {isAdmin(user) && (
+        <>
+          <SectionHeading>Admin</SectionHeading>
+          <button
+            type='button'
+            onClick={() => navigate("/admin")}
+            className='flex w-full cursor-pointer items-center gap-3 border-b border-ink/10 py-3.5 text-left hover:bg-ink/4'>
+            <span className='min-w-0 flex-1'>
+              <span className='block font-heading text-lg font-semibold'>Admin console</span>
+              <span className='text-[13.5px] text-muted'>AI usage and sign-ins</span>
+            </span>
+            <ChevronRightIcon className='h-4 w-4 shrink-0 text-muted' />
+          </button>
+        </>
+      )}
+
       <SectionHeading>Session</SectionHeading>
       <div className='pt-3'>
         <Button
@@ -164,6 +182,14 @@ const Profile = () => {
           {status === "loggingOut" ? "Signing out…" : "Sign out"}
         </Button>
       </div>
+
+      {/* Which build is running. Bottom of the page and quiet, but always
+       *  present — "did my fix actually deploy?" should be answerable from a
+       *  phone without asking anyone. */}
+      <p className='mt-8 border-t border-divider pt-3 font-mono text-[11px] tracking-[0.1em] text-muted'>
+        {buildLabel()}
+        {buildDate() && ` · ${buildDate()}`}
+      </p>
 
       <Dialog
         open={confirmOpen}

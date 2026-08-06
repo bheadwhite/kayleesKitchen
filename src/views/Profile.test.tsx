@@ -43,6 +43,7 @@ const ALL_RECIPES: Recipe[] = [
 vi.mock("fire/services", () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
   loginWithGoogle: vi.fn(),
+  recordLogin: vi.fn(),
   linkGoogleToExistingAccount: vi.fn(),
   ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL: "auth/account-exists-with-different-credential",
   onRecipesSnapshot: (callback: (recipes: Recipe[]) => void) => {

@@ -56,6 +56,37 @@ export interface SessionUser {
   photoURL: string | null
 }
 
+/** One sign-in, as shown in the admin console. */
+export interface LoginEvent {
+  id: string
+  uid: string
+  email: string | null
+  method: "password" | "google" | "register"
+  /** Null for the instant between the local write and the server timestamp. */
+  at: Date | null
+}
+
+/**
+ * One AI call. Written by the Cloud Functions — the token counts only exist on
+ * the provider's response, which never reaches the browser.
+ */
+export interface AiUsageEvent {
+  id: string
+  feature: "assistant" | "image"
+  email: string | null
+  model: string
+  ok: boolean
+  ms: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+  /** Photos sent *to* the assistant, not images generated. */
+  images: number
+  errorCode?: string
+  at: Date | null
+}
+
 export interface LoginValues {
   email?: string
   password?: string

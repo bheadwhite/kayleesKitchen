@@ -15,6 +15,7 @@ const linkGoogleToExistingAccount = vi.fn()
 vi.mock("fire/services", () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
   loginWithGoogle: (...args: unknown[]) => loginWithGoogle(...args),
+  recordLogin: vi.fn(),
   linkGoogleToExistingAccount: (...args: unknown[]) => linkGoogleToExistingAccount(...args),
   ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL: "auth/account-exists-with-different-credential",
 }))

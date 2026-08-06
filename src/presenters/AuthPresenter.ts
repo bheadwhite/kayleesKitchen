@@ -14,6 +14,7 @@ import {
   getUserProfile,
   linkGoogleToExistingAccount,
   loginWithGoogle,
+  recordLogin,
 } from "fire/services"
 import type { SessionUser } from "@/types"
 
@@ -166,7 +167,10 @@ export class AuthPresenter {
 
   logIn(email: string, password: string) {
     return this._loginRunner.execute(async () => {
-      await signInWithEmailAndPassword(this.auth, email, password)
+      const credential = await signInWithEmailAndPassword(this.auth, email, password)
+      // Explicit sign-ins only. Restoring a persisted session on page load is
+      // not a login, and logging it would make this a page-view counter.
+      recordLogin(credential.user, "password")
     })
   }
 
@@ -184,6 +188,7 @@ export class AuthPresenter {
     return this._loginRunner.execute(async () => {
       try {
         await this.googleSignIn(this.auth)
+        if (this.auth.currentUser) recordLogin(this.auth.currentUser, "google")
         this._clearPendingLink()
       } catch (error) {
         const email = emailFromError(error)
@@ -219,6 +224,7 @@ export class AuthPresenter {
       if (email == null || credential == null) return
 
       await this.googleLink(this.auth, { email, password, credential })
+      if (this.auth.currentUser) recordLogin(this.auth.currentUser, "google")
       this._clearPendingLink()
     })
   }

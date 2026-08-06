@@ -235,6 +235,44 @@ Prompt caching: the system prompt and the transcript prefix carry `cache_control
 that breakpoint as a mid-conversation `role: "system"` message — putting volatile state
 in `system` would invalidate the whole prefix on every keystroke.
 
+### The admin console
+
+`src/views/Admin.tsx` at `/admin` shows AI spend and sign-ins. It is reached from a link in
+`<Profile>` that only the admin sees, and `src/admin.ts` holds the one address.
+
+> ⚠️ **`isAdmin()` is a UI affordance, not access control.** It decides what to render; it
+> cannot decide what Firestore hands out. Until the rules in **`firestore.rules.snippet`**
+> are merged into the ruleset in the Firebase console, any signed-in user can read `aiUsage`
+> and `loginEvents` straight from the SDK. That snippet is deliberately **not** wired into
+> `firebase.json` — this repo has never held a copy of the project's rules, so deploying an
+> invented rules file would overwrite whatever protects `recipes` and `users` today.
+
+Where each half of the data comes from, and why:
+
+- **AI usage is written server-side** (`functions/src/telemetry.ts`, called from both
+  callables). Token counts only exist on the provider's response, which never reaches the
+  browser — and a client-reported usage number is a number the client can make up. Failed
+  calls are recorded too: a spike in rate-limit errors is exactly what the console is for,
+  and tokens spent before a failure are still spent. `recordAiUsage` never throws and is
+  never awaited — telemetry must not be able to fail a recipe transcription.
+- **Sign-ins are written by the client** (`recordLogin` in `services.ts`, called from
+  `AuthPresenter`) on *explicit* sign-ins only. A restored session on page load is not a
+  login; recording one would make the log a page-view counter.
+
+Both feeds are capped and newest-first (200 AI calls, 100 sign-ins), so the totals read
+"recent", not all-time — an unbounded listener on a collection that grows with every AI call
+would eventually pull the whole history onto a phone.
+
+### The build stamp
+
+`vite.config.ts` `define` inlines `__APP_VERSION__` / `__APP_COMMIT__` / `__APP_BUILT_AT__`
+at build time; `src/version.ts` wraps them with dev fallbacks. The version line sits at the
+bottom of `<Profile>` for everyone and in full on the admin console. The commit is the part
+that matters — it makes "did my fix actually deploy?" answerable from a phone.
+
+Vitest reads the same `vite.config.ts`, so `define` applies in tests too: assertions see the
+real stamp, not the fallbacks.
+
 ### Forms
 
 `react-final-form` throughout. `src/components/finalForm/{TextField,Checkbox}.tsx` bridge

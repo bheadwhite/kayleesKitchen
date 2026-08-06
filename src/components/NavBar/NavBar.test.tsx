@@ -26,6 +26,7 @@ vi.mock("firebase/auth", () => ({
 vi.mock("fire/services", () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
   loginWithGoogle: vi.fn(),
+  recordLogin: vi.fn(),
   linkGoogleToExistingAccount: vi.fn(),
   ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL: "auth/account-exists-with-different-credential",
 }))

@@ -3,6 +3,7 @@ import { defineSecret } from "firebase-functions/params"
 import { HttpsError, onCall } from "firebase-functions/v2/https"
 
 import { RECIPE_DRAFT_SCHEMA, SYSTEM_PROMPT } from "./prompt.js"
+import { recordAiUsage, totalUsage } from "./telemetry.js"
 import type { AssistantRequest, AssistantResponse, AssistantTurn } from "./types.js"
 
 export { generateRecipeImage } from "./generateImage.js"
@@ -84,6 +85,30 @@ export const recipeAssistant = onCall<AssistantRequest, Promise<AssistantRespons
 
     assertShape(request.data)
 
+    const startedAt = Date.now()
+    const caller = {
+      uid: request.auth.uid,
+      email: request.auth.token.email ?? null,
+      images: request.data.turns.reduce(
+        (total, turn) => total + (turn.role === "user" ? turn.images.length : 0),
+        0
+      ),
+    }
+    /** Usage from every iteration — a paused turn bills for each one. */
+    const usages: Anthropic.Message["usage"][] = []
+    const record = (ok: boolean, errorCode?: string) =>
+      recordAiUsage({
+        feature: "assistant",
+        uid: caller.uid,
+        email: caller.email,
+        model: MODEL,
+        ok,
+        ms: Date.now() - startedAt,
+        images: caller.images,
+        ...totalUsage(usages),
+        ...(errorCode ? { errorCode } : {}),
+      })
+
     const client = new Anthropic({ apiKey: anthropicApiKey.value() })
     const messages = toMessages(request.data.turns)
 
@@ -125,6 +150,7 @@ export const recipeAssistant = onCall<AssistantRequest, Promise<AssistantRespons
     try {
       response = await send()
       collected.push(...response.content)
+      usages.push(response.usage)
 
       // `pause_turn` means the server-side web_fetch loop hit its iteration cap
       // mid-task. Re-send with the partial assistant turn appended and it picks
@@ -134,18 +160,27 @@ export const recipeAssistant = onCall<AssistantRequest, Promise<AssistantRespons
         messages.push({ role: "assistant", content: response.content })
         response = await send()
         collected.push(...response.content)
+        usages.push(response.usage)
         continuations += 1
       }
     } catch (error) {
+      // Failed calls are recorded too — a spike in rate-limit errors is exactly
+      // the thing the console exists to make visible, and tokens spent before a
+      // failure are still spent.
       if (error instanceof Anthropic.RateLimitError) {
+        record(false, "resource-exhausted")
         throw new HttpsError("resource-exhausted", "The assistant is busy — try again shortly.")
       }
       if (error instanceof Anthropic.APIError) {
         console.error("Anthropic API error", error.status, error.message)
+        record(false, "internal")
         throw new HttpsError("internal", "The assistant could not respond.")
       }
+      record(false, "unknown")
       throw error
     }
+
+    record(true)
 
     // Safety classifiers can decline a request; `content` is empty or partial.
     if (response.stop_reason === "refusal") {

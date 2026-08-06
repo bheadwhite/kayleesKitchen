@@ -43,3 +43,7 @@ export const functions = getFunctions(app)
 
 export const userRef = collection(db, "users")
 export const recipesRef = collection(db, "recipes")
+/** Sign-in events, for the admin console. Written by the client on each sign-in. */
+export const loginEventsRef = collection(db, "loginEvents")
+/** AI calls. Written **only** by the Cloud Functions — the client just reads. */
+export const aiUsageRef = collection(db, "aiUsage")

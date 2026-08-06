@@ -16,16 +16,19 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
+  serverTimestamp,
   updateDoc,
   where,
   type QuerySnapshot,
 } from "firebase/firestore"
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 
-import { auth, db, recipesRef, storage, userRef } from "./firebase"
-import type { Recipe, RegisterValues, UserProfile } from "@/types"
+import { aiUsageRef, auth, db, loginEventsRef, recipesRef, storage, userRef } from "./firebase"
+import type { AiUsageEvent, LoginEvent, Recipe, RegisterValues, UserProfile } from "@/types"
 
 /* ------------------------------------------------------------------ auth */
 
@@ -128,6 +131,70 @@ export const linkGoogleToExistingAccount = async (
   await ensureUserProfile(existing.user)
   return existing
 }
+
+/* ------------------------------------------------------------- telemetry */
+
+/**
+ * Records a sign-in for the admin console.
+ *
+ * Fire-and-forget by design: this is bookkeeping, and a failed write must never
+ * turn into a failed sign-in. It is also *only* called on an explicit sign-in —
+ * restoring a persisted session on page load is not a login, and recording one
+ * would turn the log into a page-view counter.
+ */
+export const recordLogin = (
+  user: { uid: string; email: string | null },
+  method: LoginEvent["method"]
+): void => {
+  void addDoc(loginEventsRef, {
+    uid: user.uid,
+    email: user.email,
+    method,
+    at: serverTimestamp(),
+  }).catch((error) => console.warn("Could not record sign-in", error))
+}
+
+const toLoginEvent = (id: string, data: Record<string, unknown>): LoginEvent => ({
+  id,
+  uid: String(data.uid ?? ""),
+  email: (data.email as string | null) ?? null,
+  method: (data.method as LoginEvent["method"]) ?? "password",
+  at: (data.at as { toDate?: () => Date } | null)?.toDate?.() ?? null,
+})
+
+const toAiUsageEvent = (id: string, data: Record<string, unknown>): AiUsageEvent => ({
+  id,
+  feature: (data.feature as AiUsageEvent["feature"]) ?? "assistant",
+  email: (data.email as string | null) ?? null,
+  model: String(data.model ?? ""),
+  ok: data.ok !== false,
+  ms: Number(data.ms ?? 0),
+  inputTokens: Number(data.inputTokens ?? 0),
+  outputTokens: Number(data.outputTokens ?? 0),
+  cacheReadTokens: Number(data.cacheReadTokens ?? 0),
+  cacheCreationTokens: Number(data.cacheCreationTokens ?? 0),
+  images: Number(data.images ?? 0),
+  errorCode: (data.errorCode as string | undefined) ?? undefined,
+  at: (data.at as { toDate?: () => Date } | null)?.toDate?.() ?? null,
+})
+
+/**
+ * The admin console's two feeds. Both are capped and newest-first — the console
+ * is a dashboard, not an export, and an unbounded listener on a collection that
+ * grows with every AI call would eventually pull the whole history into a phone.
+ */
+export const onLoginEventsSnapshot = (
+  callback: (events: LoginEvent[]) => void,
+  max = 100
+) =>
+  onSnapshot(query(loginEventsRef, orderBy("at", "desc"), limit(max)), (snapshot) =>
+    callback(snapshot.docs.map((d) => toLoginEvent(d.id, d.data())))
+  )
+
+export const onAiUsageSnapshot = (callback: (events: AiUsageEvent[]) => void, max = 200) =>
+  onSnapshot(query(aiUsageRef, orderBy("at", "desc"), limit(max)), (snapshot) =>
+    callback(snapshot.docs.map((d) => toAiUsageEvent(d.id, d.data())))
+  )
 
 /* --------------------------------------------------------------- recipes */
 

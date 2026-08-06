@@ -6,7 +6,7 @@ import { Spinner } from "components"
 import NavBar from "components/NavBar"
 import Toolbar from "components/Toolbar"
 import { useAuthStatus } from "contexts/AuthProvider"
-import { Login, Profile, RecipeEditor, Recipes, Register } from "views"
+import { Admin, Login, Profile, RecipeEditor, Recipes, Register } from "views"
 
 /**
  * Route guard. `initializing` covers the first Firebase auth round-trip, so a
@@ -54,6 +54,7 @@ const App = () => {
             <Route path='/recipes' element={<Recipes />} />
             <Route path='/recipes/new' element={<RecipeEditor />} />
             <Route path='/profile' element={<Profile />} />
+            <Route path='/admin' element={<Admin />} />
             <Route path='*' element={<Recipes />} />
           </Route>
         </Routes>
