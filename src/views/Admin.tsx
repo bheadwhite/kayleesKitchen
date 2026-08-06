@@ -45,13 +45,18 @@ const Admin = () => {
   const user = useSessionUser()
   const [usage, setUsage] = useState<AiUsageEvent[]>([])
   const [logins, setLogins] = useState<LoginEvent[]>([])
+  // A denied read and an empty collection look identical otherwise — both show
+  // nothing. This is the difference between "no calls yet" and "your rules are
+  // rejecting me", which are very different problems.
+  const [feedError, setFeedError] = useState<string | null>(null)
 
   const allowed = isAdmin(user)
 
   useEffect(() => {
     if (!allowed) return
-    const stopUsage = onAiUsageSnapshot(setUsage)
-    const stopLogins = onLoginEventsSnapshot(setLogins)
+    const onError = (error: Error) => setFeedError(error.message)
+    const stopUsage = onAiUsageSnapshot(setUsage, onError)
+    const stopLogins = onLoginEventsSnapshot(setLogins, onError)
     return () => {
       stopUsage()
       stopLogins()
@@ -119,6 +124,12 @@ const Admin = () => {
         Admin console
       </p>
       <h1 className='font-heading text-[30px] leading-tight font-bold'>Usage</h1>
+
+      {feedError && (
+        <p className='mt-3 border border-danger/40 bg-danger-100 px-3 py-2 text-sm text-danger'>
+          Could not read the logs: {feedError}
+        </p>
+      )}
 
       <SectionHeading meta={`last ${usage.length} calls`}>AI</SectionHeading>
       <div className='mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4'>

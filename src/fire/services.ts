@@ -194,18 +194,38 @@ const toAiUsageEvent = (id: string, data: Record<string, unknown>): AiUsageEvent
  * The admin console's two feeds. Both are capped and newest-first — the console
  * is a dashboard, not an export, and an unbounded listener on a collection that
  * grows with every AI call would eventually pull the whole history into a phone.
+ *
+ * Both take an error callback, because without one a rejected listener is
+ * *silent*: `onSnapshot` never calls back, the console renders its empty state,
+ * and "the security rules are denying you" is indistinguishable from "nothing
+ * has happened yet". Those two need to look different.
  */
 export const onLoginEventsSnapshot = (
   callback: (events: LoginEvent[]) => void,
+  onError?: (error: Error) => void,
   max = 100
 ) =>
-  onSnapshot(query(loginEventsRef, orderBy("at", "desc"), limit(max)), (snapshot) =>
-    callback(snapshot.docs.map((d) => toLoginEvent(d.id, d.data())))
+  onSnapshot(
+    query(loginEventsRef, orderBy("at", "desc"), limit(max)),
+    (snapshot) => callback(snapshot.docs.map((d) => toLoginEvent(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read sign-in events", error)
+      onError?.(error)
+    }
   )
 
-export const onAiUsageSnapshot = (callback: (events: AiUsageEvent[]) => void, max = 200) =>
-  onSnapshot(query(aiUsageRef, orderBy("at", "desc"), limit(max)), (snapshot) =>
-    callback(snapshot.docs.map((d) => toAiUsageEvent(d.id, d.data())))
+export const onAiUsageSnapshot = (
+  callback: (events: AiUsageEvent[]) => void,
+  onError?: (error: Error) => void,
+  max = 200
+) =>
+  onSnapshot(
+    query(aiUsageRef, orderBy("at", "desc"), limit(max)),
+    (snapshot) => callback(snapshot.docs.map((d) => toAiUsageEvent(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read AI usage", error)
+      onError?.(error)
+    }
   )
 
 /* --------------------------------------------------------------- recipes */
