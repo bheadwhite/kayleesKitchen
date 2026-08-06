@@ -58,6 +58,13 @@ export interface AiUsageEvent {
   cacheCreationTokens?: number
   /** How many images went *in* (photo transcription), not how many came out. */
   images?: number
+  /**
+   * How many calls to the provider this one request took. Image generation
+   * retries transient failures, and a feature that quietly needs three swings
+   * every time reads as healthy without this — same successes, same latency
+   * bucket, three times the spend.
+   */
+  attempts?: number
   /** Set when `ok` is false — the HttpsError code, not the raw provider error. */
   errorCode?: string
 }

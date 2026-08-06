@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Form } from "react-final-form"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ImageUpload from "./ImageUpload"
 import RecipeProvider from "contexts/RecipeProvider"
@@ -39,6 +39,10 @@ const setup = (seed?: (presenter: RecipePresenter) => void) => {
 }
 
 describe("ImageUpload — generate", () => {
+  // Call history only; `clearAllMocks` leaves the implementations set above in
+  // place, so counting calls in one test cannot be thrown off by an earlier one.
+  beforeEach(() => vi.clearAllMocks())
+
   it("is disabled with nothing to picture", () => {
     const presenter = setup()
 
@@ -87,6 +91,59 @@ describe("ImageUpload — generate", () => {
     presenter.dispose()
   })
 
+  it("can generate again once an image already exists", async () => {
+    const user = userEvent.setup()
+    const first = new File(["one"], "generated-recipe.png", { type: "image/png" })
+    const second = new File(["two"], "generated-recipe.png", { type: "image/png" })
+    generateRecipeImage.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    uploadRecipeEditorImage
+      .mockResolvedValueOnce("https://example.test/staged.png?staged=1")
+      .mockResolvedValueOnce("https://example.test/staged.png?staged=2")
+
+    const presenter = setup((p) => p.setTitle("Won Ton Salad"))
+
+    await user.click(screen.getByRole("button", { name: "Generate" }))
+    await waitFor(() =>
+      expect(presenter.getImageUrl()).toBe("https://example.test/staged.png?staged=1")
+    )
+
+    // Only the <img>'s onLoad clears the spinner, and jsdom never fires it on
+    // its own. "Delete image" appearing is that spinner having cleared.
+    fireEvent.load(screen.getByAltText("recipe preview"))
+    expect(await screen.findByRole("button", { name: "Delete image" })).toBeInTheDocument()
+
+    // The staging path is one fixed file per user, so the two uploads differ
+    // only by the cache-buster — which is the whole reason the second one is
+    // visible at all.
+    await user.click(screen.getByRole("button", { name: "Regenerate" }))
+
+    await waitFor(() =>
+      expect(presenter.getImageUrl()).toBe("https://example.test/staged.png?staged=2")
+    )
+    expect(presenter.getImageFile()).toBe(second)
+
+    presenter.dispose()
+  })
+
+  it("keeps the generated image when only the preview upload fails", async () => {
+    const user = userEvent.setup()
+    const file = new File(["png"], "generated-recipe.png", { type: "image/png" })
+    generateRecipeImage.mockResolvedValue(file)
+    uploadRecipeEditorImage.mockRejectedValueOnce(new Error("storage offline"))
+
+    const presenter = setup((p) => p.setTitle("Won Ton Salad"))
+
+    await user.click(screen.getByRole("button", { name: "Generate" }))
+
+    // Saving re-uploads getImageFile(), so holding on to the file is what makes
+    // the recipe still end up with its picture. Throwing it away meant paying
+    // for a second generation to recover from a blip in Storage.
+    await waitFor(() => expect(presenter.getImageFile()).toBe(file))
+    expect(presenter.getImageUrl()).toBeNull()
+
+    presenter.dispose()
+  })
+
   it("clears the spinner when generation fails", async () => {
     const user = userEvent.setup()
     generateRecipeImage.mockRejectedValue(new Error("model unavailable"))
@@ -100,6 +157,42 @@ describe("ImageUpload — generate", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled()
     )
+
+    presenter.dispose()
+  })
+
+  it("does not let a slow generation overwrite a photo picked after it", async () => {
+    const user = userEvent.setup()
+    const generated = new File(["gen"], "generated-recipe.png", { type: "image/png" })
+    let finishGenerating: (file: File) => void = () => {}
+    generateRecipeImage.mockReturnValue(
+      new Promise<File>((resolve) => {
+        finishGenerating = resolve
+      })
+    )
+    uploadRecipeEditorImage.mockResolvedValue("https://example.test/picked.png")
+
+    const presenter = setup((p) => p.setTitle("Won Ton Salad"))
+
+    await user.click(screen.getByRole("button", { name: "Generate" }))
+    expect(screen.getByRole("button", { name: "Generating…" })).toBeDisabled()
+
+    // The file picker is never disabled while a generation runs, so this is
+    // reachable by anyone who gets bored waiting.
+    const picked = new File(["pick"], "picked.png", { type: "image/png" })
+    const input = document.getElementById("icon-button-file") as HTMLInputElement
+    fireEvent.change(input, { target: { files: [picked] } })
+    await waitFor(() => expect(presenter.getImageUrl()).toBe("https://example.test/picked.png"))
+
+    finishGenerating(generated)
+    // "Regenerate" because the picked photo is now in place.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled())
+
+    // The pick is newer, so it owns the editor — and `imageFile` matters as much
+    // as the URL, because that is the one "Save recipe" uploads.
+    expect(presenter.getImageUrl()).toBe("https://example.test/picked.png")
+    expect(presenter.getImageFile()).toBe(picked)
+    expect(uploadRecipeEditorImage).toHaveBeenCalledTimes(1)
 
     presenter.dispose()
   })

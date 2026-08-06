@@ -22,48 +22,79 @@ const ImageUpload = () => {
   const { change } = useForm()
   const inputRef = useRef<HTMLInputElement>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  /**
+   * Monotonic ticket for the newest image request.
+   *
+   * Generation takes tens of seconds, and nothing stops someone picking a photo
+   * from the file picker while it runs — the picker is never disabled. Whichever
+   * upload resolved last used to win, so a generation started first could land
+   * *after* the picked file and silently replace it.
+   */
+  const requestRef = useRef(0)
 
   // With neither, the prompt is "photograph a home-cooked meal" — a stock photo
   // of nothing in particular. The function rejects it too; this just says so first.
   const canGenerate = presenter.getTitle().trim() !== "" || ingredients.length > 0
 
   /** Shared tail of both paths: stage the file, upload it, point the form at it. */
-  const acceptImageFile = async (file: File, email: string) => {
+  const acceptImageFile = async (file: File, email: string, ticket: number) => {
+    // Checked on the way in as well as after the upload: `setImageFile` is what
+    // "Save recipe" actually uploads, so a superseded generation landing here
+    // would save a picture the editor is not even showing.
+    if (requestRef.current !== ticket) return
     presenter.setImageFile(file)
     presenter.setRecipeImageIsLoading(true)
     const uploadedUrl = await uploadRecipeEditorImage(file, email)
+    // A newer image was chosen while this one uploaded — that one owns the
+    // editor now, and writing this URL would quietly undo their choice.
+    if (requestRef.current !== ticket) return
     presenter.setImageUrl(uploadedUrl)
     change("image", uploadedUrl)
   }
 
   const onGenerate = async () => {
     if (user == null) return
+    const ticket = (requestRef.current += 1)
     setIsGenerating(true)
     presenter.setRecipeImageIsLoading(true)
+
+    let file: File
     try {
-      const file = await generateRecipeImage({
+      file = await generateRecipeImage({
         title: presenter.getTitle(),
         ingredients,
         directions: presenter.getDirections(),
       })
-      await acceptImageFile(file, user.email)
     } catch (error) {
-      presenter.setRecipeImageIsLoading(false)
+      if (requestRef.current === ticket) presenter.setRecipeImageIsLoading(false)
       toast.error(error instanceof Error ? error.message : "Could not generate an image.")
-    } finally {
       setIsGenerating(false)
+      return
+    }
+    setIsGenerating(false)
+
+    try {
+      await acceptImageFile(file, user.email, ticket)
+    } catch {
+      // The picture exists and took half a minute to make. Only the *preview*
+      // upload failed, so keep it on the presenter: "Save recipe" uploads
+      // `getImageFile()` itself, and the image survives. Discarding it here
+      // meant paying for a second generation to recover from a blip.
+      if (requestRef.current === ticket) presenter.setRecipeImageIsLoading(false)
+      toast.error("Image generated, but the preview could not be uploaded. Saving will keep it.")
     }
   }
 
   const onChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file == null || user == null) return
+    const ticket = (requestRef.current += 1)
 
     try {
-      await acceptImageFile(file, user.email)
+      await acceptImageFile(file, user.email, ticket)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not upload image.")
-      presenter.setRecipeImageIsLoading(false)
+      if (requestRef.current === ticket) presenter.setRecipeImageIsLoading(false)
     } finally {
       if (inputRef.current) inputRef.current.value = ""
     }
@@ -127,11 +158,16 @@ const ImageUpload = () => {
           disabled={isGenerating || !canGenerate}
           title={
             canGenerate
-              ? "Draw a picture of this recipe"
+              ? url == null
+                ? "Draw a picture of this recipe"
+                : "Draw a different picture — the current one is replaced"
               : "Add a title or some ingredients first"
           }>
           <SparklesIcon />
-          {isGenerating ? "Generating…" : "Generate"}
+          {/* The model gives a different picture every run, so a second press
+           *  is a normal thing to want. Saying "Regenerate" is what makes that
+           *  legible — "Generate" beside a finished photo reads as spent. */}
+          {isGenerating ? "Generating…" : url == null ? "Generate" : "Regenerate"}
         </Button>
 
         {!isLoading && url != null && (
