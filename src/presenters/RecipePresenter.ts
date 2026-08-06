@@ -162,6 +162,70 @@ export class RecipePresenter {
     return true
   }
 
+  /* -------------------------------------------------------------- revert */
+
+  /*
+   * Putting one row back to what was saved, without touching the rest.
+   *
+   * All three go through `_record()` like any other edit, so a revert is itself
+   * undoable — pressing it by accident on the wrong line must not be the one
+   * action in this editor you cannot take back.
+   *
+   * A row the saved recipe does not have is *removed* rather than restored.
+   * That is what reverting an addition means, and the alternative — refusing —
+   * would leave the one kind of change an assistant makes most of with no way
+   * back except the delete button beside it.
+   */
+
+  revertIngredient(index: number) {
+    const baseline = this._baseline
+    if (baseline == null) return
+    const saved = baseline.ingredients[index]
+
+    this._record()
+    this._ingredients.transform((current) =>
+      saved == null
+        ? current.filter((_, i) => i !== index)
+        : current.map((ingredient, i) => (i === index ? { ...saved } : ingredient))
+    )
+    this.clearEditIngredient()
+  }
+
+  revertStep(sectionIndex: number, stepIndex: number) {
+    const baseline = this._baseline
+    if (baseline == null) return
+    const saved = baseline.directions[sectionIndex]?.steps[stepIndex]
+
+    this._record()
+    this._directions.transform((current) =>
+      current.map((section, i) => {
+        if (i !== sectionIndex) return section
+        return {
+          ...section,
+          steps:
+            saved == null
+              ? section.steps.filter((_, s) => s !== stepIndex)
+              : section.steps.map((step, s) => (s === stepIndex ? saved : step)),
+          editStep: null,
+        }
+      })
+    )
+  }
+
+  /** Only a *renamed* section: a new one has no saved title to go back to. */
+  revertSectionTitle(sectionIndex: number) {
+    const saved = this._baseline?.directions[sectionIndex]
+    if (saved == null) return
+
+    this._record()
+    this._directions.transform((current) =>
+      current.map((section, i) =>
+        i === sectionIndex ? { ...section, sectionTitle: saved.sectionTitle } : section
+      )
+    )
+    this._editSection.set(null)
+  }
+
   /* ------------------------------------------------------------- scalars */
 
   getId() {

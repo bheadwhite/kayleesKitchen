@@ -121,6 +121,82 @@ describe("ListIngredients — peeking at what a row said", () => {
     presenter.dispose()
   })
 
+  /**
+   * Moves the second ingredient away from what was loaded, as an edit would.
+   * Inside `act` so the row has finished re-rendering before anything is
+   * queried — the row's key changes with its contents, so a node found before
+   * the flush is a node about to be thrown away.
+   */
+  const editRow = (presenter: RecipePresenter) =>
+    act(() => {
+      presenter.setEditIngredientIndex(1)
+      presenter.updateIngredient({ name: "Shallot", amount: "2 cups" })
+    })
+
+  it("reverts a line from its own mark, in two taps", async () => {
+    const user = userEvent.setup()
+    const presenter = setup(CHANGED)
+    editRow(presenter)
+
+    // The mark is the affordance: it already points at the line that moved.
+    await user.click(screen.getByRole("button", { name: "changed — revert this line" }))
+    await user.click(screen.getByRole("button", { name: "Revert this line" }))
+    // The confirmation lands under the finger already there — no dialog, no
+    // travel.
+    await user.click(screen.getByRole("button", { name: "Confirm revert" }))
+
+    expect(presenter.getIngredients()[1]).toMatchObject({ name: "Onion", amount: "1/2 cup" })
+    presenter.dispose()
+  })
+
+  it("does nothing until the second tap", async () => {
+    const user = userEvent.setup()
+    const presenter = setup(CHANGED)
+    editRow(presenter)
+
+    await user.click(screen.getByRole("button", { name: "changed — revert this line" }))
+    await user.click(screen.getByRole("button", { name: "Revert this line" }))
+
+    expect(screen.getByRole("button", { name: "Confirm revert" })).toBeInTheDocument()
+    expect(presenter.getIngredients()[1]).toMatchObject({ name: "Shallot" })
+    presenter.dispose()
+  })
+
+  it("disarms itself if it is left alone", () => {
+    vi.useFakeTimers()
+    try {
+      const presenter = setup(CHANGED)
+      const mark = screen.getByRole("button", { name: "changed — revert this line" })
+
+      fireEvent.click(mark)
+      expect(screen.getByRole("button", { name: "Revert this line" })).toBeInTheDocument()
+
+      // A destructive button must not sit armed under wherever the next tap
+      // lands.
+      act(() => void vi.advanceTimersByTime(5000))
+      expect(screen.queryByRole("button", { name: "Revert this line" })).toBeNull()
+      presenter.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("can be undone like any other edit", async () => {
+    const user = userEvent.setup()
+    const presenter = setup(CHANGED)
+    editRow(presenter)
+
+    await user.click(screen.getByRole("button", { name: "changed — revert this line" }))
+    await user.click(screen.getByRole("button", { name: "Revert this line" }))
+    await user.click(screen.getByRole("button", { name: "Confirm revert" }))
+    presenter.undo()
+
+    // Pressing revert on the wrong line must not be the one thing here that
+    // cannot be taken back.
+    expect(presenter.getIngredients()[1]).toMatchObject({ name: "Shallot" })
+    presenter.dispose()
+  })
+
   it("offers no hold on a row that has not changed", () => {
     const presenter = setup(CHANGED)
     // The unchanged row keeps the plain title: there is nothing to look at.

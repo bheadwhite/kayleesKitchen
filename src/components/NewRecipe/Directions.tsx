@@ -80,10 +80,11 @@ interface StepRowProps {
   change?: RowDiff
   onEdit: () => void
   onDelete: () => void
+  onRevert: () => void
 }
 
 /** One draggable step: number over grip, click-to-edit text, delete. */
-const StepRow = ({ id, number, text, change, onEdit, onDelete }: StepRowProps) => {
+const StepRow = ({ id, number, text, change, onEdit, onDelete, onRevert }: StepRowProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
   const { peeking, handlers } = usePeek(change?.before != null)
@@ -116,19 +117,24 @@ const StepRow = ({ id, number, text, change, onEdit, onDelete }: StepRowProps) =
         </button>
       </div>
 
-      <button
-        type='button'
-        onClick={onEdit}
-        // `pre-wrap` keeps the line breaks the textarea editor allows; without
-        // it a step written as several lines reads back as one run-on.
-        className='min-w-0 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words whitespace-pre-wrap select-none hover:text-steel-700'
-        title={
-          change?.before != null ? "Click to edit · hold to see what it said" : "Click to edit"
-        }
-        {...handlers}>
-        {peeking ? <span className='text-muted line-through'>{change?.before}</span> : text}
-        <ChangeMark change={change?.kind} className='ml-2 align-[3px]' />
-      </button>
+      {/* The mark is a sibling of the text, not inside it: it is a button of
+       *  its own now, and a button inside a button is both invalid markup and
+       *  a press that opens the editor. */}
+      <div className='flex min-w-0 items-start gap-2'>
+        <button
+          type='button'
+          onClick={onEdit}
+          // `pre-wrap` keeps the line breaks the textarea editor allows; without
+          // it a step written as several lines reads back as one run-on.
+          className='min-w-0 flex-1 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words whitespace-pre-wrap select-none hover:text-steel-700'
+          title={
+            change?.before != null ? "Click to edit · hold to see what it said" : "Click to edit"
+          }
+          {...handlers}>
+          {peeking ? <span className='text-muted line-through'>{change?.before}</span> : text}
+        </button>
+        <ChangeMark change={change?.kind} onRevert={onRevert} className='mt-1.5' />
+      </div>
 
       <IconButton onClick={onDelete} label={`Delete step: ${text}`} danger>
         <CloseIcon className='h-4 w-4' />
@@ -145,10 +151,11 @@ interface SectionTitleProps {
   before?: string
   onEdit: () => void
   onDelete: () => void
+  onRevert: () => void
 }
 
 /** A section's heading: click to rename, hold to see what it was called. */
-const SectionTitle = ({ title, mark, before, onEdit, onDelete }: SectionTitleProps) => {
+const SectionTitle = ({ title, mark, before, onEdit, onDelete, onRevert }: SectionTitleProps) => {
   const { peeking, handlers } = usePeek(before != null)
   // A section renamed *from* nothing has an empty previous title, and an empty
   // strikethrough reads as a bug rather than as an answer.
@@ -172,8 +179,14 @@ const SectionTitle = ({ title, mark, before, onEdit, onDelete }: SectionTitlePro
         ) : (
           title
         )}
-        <ChangeMark change={mark} className='ml-2 align-[3px]' />
       </button>
+      {/* Reverting only means something where there is a saved title to go
+       *  back to — a brand-new section has the delete button beside it. */}
+      <ChangeMark
+        change={mark}
+        onRevert={before != null ? onRevert : undefined}
+        className='mt-2'
+      />
       <IconButton
         onClick={onDelete}
         label={`Delete section: ${title || "untitled"}`}
@@ -328,6 +341,7 @@ const Directions = ({ changes = [] }: DirectionsProps) => {
                       before={sectionChange?.titleBefore}
                       onEdit={() => presenter.setEditSection(index)}
                       onDelete={() => handleDeleteSection(index)}
+                      onRevert={() => presenter.revertSectionTitle(index)}
                     />
                   )}
                 </div>
@@ -379,6 +393,7 @@ const Directions = ({ changes = [] }: DirectionsProps) => {
                             change={sectionChange?.steps[i]}
                             onEdit={() => presenter.setEditStep(index, i)}
                             onDelete={() => presenter.deleteStep(index, i)}
+                            onRevert={() => presenter.revertStep(index, i)}
                           />
                         )
                       )}

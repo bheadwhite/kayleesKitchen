@@ -301,6 +301,10 @@ const RecipeEditor = () => {
           hasImage: currentImageUrl != null || presenter.getImageFile() != null,
         })
 
+        // Nothing has been saved yet, so "new" is not news: a brand-new recipe
+        // would otherwise wear a flag and a tint on every line it has.
+        const marked = presenter.getBaseline() != null
+
         return (
         <form
           onSubmit={(event) => {
@@ -363,18 +367,24 @@ const RecipeEditor = () => {
 
           <ImageUpload />
 
-          <Tags known={tagLibrary} added={changes.tagsAdded} removed={changes.tagsRemoved} />
+          <Tags
+            known={tagLibrary}
+            added={marked ? changes.tagsAdded : []}
+            removed={marked ? changes.tagsRemoved : []}
+          />
 
           <SectionHeading
             meta={`${ingredients.length} item${ingredients.length === 1 ? "" : "s"}${
-              changes.ingredientsRemoved > 0 ? ` · ${changes.ingredientsRemoved} removed` : ""
+              marked && changes.ingredientsRemoved > 0
+                ? ` · ${changes.ingredientsRemoved} removed`
+                : ""
             }`}>
             Ingredients
           </SectionHeading>
-          <ListIngredients changes={changes.ingredients} />
+          <ListIngredients changes={marked ? changes.ingredients : undefined} />
           <AddIngredient />
 
-          <Directions changes={changes.sections} />
+          <Directions changes={marked ? changes.sections : undefined} />
 
           {/* Saving sits on the screen rather than at the end of it. The editor
            *  is a long form — ingredients, a dozen steps, an assistant — and

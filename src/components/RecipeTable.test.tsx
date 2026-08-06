@@ -167,14 +167,15 @@ describe("RecipeTable", () => {
       expect(screen.getByText('No recipes match "porridge" in "mexican".')).toBeInTheDocument()
     })
 
-    it("searches tags from the box as well", async () => {
+    it("leaves tags to their own buttons rather than the search box", async () => {
       const user = userEvent.setup()
       render(<RecipeTable recipes={TAGGED} onSelect={vi.fn()} />)
 
       await user.type(screen.getByLabelText("Filter recipes"), "mexican")
 
-      expect(screen.getByText("Enchiladas")).toBeInTheDocument()
-      expect(screen.queryByText("Porridge")).not.toBeInTheDocument()
+      // Typing a tag name used to quietly do something different from pressing
+      // the chip of the same name. The chips are one tap away.
+      expect(screen.getByText(/No recipes match "mexican"/)).toBeInTheDocument()
     })
   })
 

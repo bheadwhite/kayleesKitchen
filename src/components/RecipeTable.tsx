@@ -22,10 +22,13 @@ interface RecipeTableProps {
   tagColors?: Record<string, string>
 }
 
+/**
+ * Title and cook only. Tags have their own row of one-tap filters directly
+ * below this box, and matching them here too made typing "salad" quietly do
+ * something different from pressing SALAD.
+ */
 const matches = (recipe: Recipe, filter: string) =>
-  `${recipe.title} ${recipe.contributor ?? ""} ${(recipe.tags ?? []).join(" ")}`
-    .toLowerCase()
-    .includes(filter)
+  `${recipe.title} ${recipe.contributor ?? ""}`.toLowerCase().includes(filter)
 
 const NEW_FOR_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -128,7 +131,7 @@ const RecipeTable = ({
             type='search'
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder='Search recipes, cooks and tags'
+            placeholder='Search recipes and cooks'
             aria-label='Filter recipes'
             className='h-12 w-full border border-divider bg-surface pr-3 pl-10 text-base tracking-[0.01em] hover:border-ink/45 focus-visible:border-steel focus-visible:outline-offset-0'
           />
@@ -136,10 +139,10 @@ const RecipeTable = ({
 
         {/* One scrolling row, not a wrapping block: the bar is sticky, and a
             dozen tags wrapping to four lines would eat the list underneath it.
-            `-mx-` + `px-` so the row bleeds to the edges as it scrolls while
-            the chips still line up with the column. */}
+            No negative margin bleed — a `-mx-` wider than the column has
+            nothing clipping it here, so it pushed the whole *page* sideways. */}
         {allTags.length > 0 && (
-          <div className='-mx-4 mt-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+          <div className='mt-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
             <div className='flex w-max gap-2'>
               {allTags.map((name) => {
                 const isActive = activeTag === name

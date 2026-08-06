@@ -18,10 +18,11 @@ interface RowProps {
   change?: RowDiff
   onEdit: () => void
   onDelete: () => void
+  onRevert?: () => void
 }
 
 /** One listed ingredient: press and hold a changed row to see what it said. */
-const IngredientRow = ({ ingredient, change, onEdit, onDelete }: RowProps) => {
+const IngredientRow = ({ ingredient, change, onEdit, onDelete, onRevert }: RowProps) => {
   const { peeking, handlers } = usePeek(change?.before != null)
   const changed = change != null && change.kind !== "same"
 
@@ -59,7 +60,7 @@ const IngredientRow = ({ ingredient, change, onEdit, onDelete }: RowProps) => {
       </button>
 
       <div className='flex shrink-0 items-center gap-1'>
-        <ChangeMark change={change?.kind} />
+        <ChangeMark change={change?.kind} onRevert={onRevert} />
         <Button variant='ghost' icon onClick={onEdit} aria-label={`Edit ${ingredient.name}`}>
           <EditIcon />
         </Button>
@@ -148,6 +149,7 @@ const ListIngredients = ({ changes = [] }: ListIngredientsProps) => {
             change={changes[index]}
             onEdit={() => presenter.setEditIngredientIndex(index)}
             onDelete={() => presenter.deleteIngredient(index)}
+            onRevert={() => presenter.revertIngredient(index)}
           />
         )
       )}

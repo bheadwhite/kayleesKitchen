@@ -351,6 +351,19 @@ so `usePeek` swallows the click that ends a hold (`onClickCapture`), and callers
 `select-none` or a long press raises the phone's selection magnifier over the text being
 looked at.
 
+**The mark is also the way back.** Tap a `<ChangeMark>` and it offers "Revert"; tap that and
+it asks "Sure?" in the same spot — two taps in one place, no dialog and no travel, so the
+confirmation lands under the finger already there. It disarms itself after four seconds so a
+stray tap cannot leave a destructive button sitting where the next one falls. The presenter's
+`revertIngredient` / `revertStep` / `revertSectionTitle` restore from `_baseline` and go
+through `_record()` like any other edit, so a revert is itself undoable. **A row the saved
+recipe does not have is removed rather than restored** — that is what reverting an addition
+means, and refusing would leave the change an assistant makes most of with no way back.
+
+Marks are suppressed entirely until a recipe has been saved once (`marked` in
+`RecipeEditor`): with no baseline every line is "new", and a brand-new recipe wearing a flag
+and a tint on every row it has is saying nothing.
+
 Three decisions hold this together:
 
 - **`loadRecipe(recipe, { asSaved })`.** Opening a stored recipe re-bases; applying an
