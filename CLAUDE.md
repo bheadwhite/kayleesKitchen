@@ -822,26 +822,32 @@ holds the one address.
 > ⚠️ **`isAdmin()` is a UI affordance, not access control.** It decides what to render; it
 > cannot decide what Firestore hands out. **`firestore.rules`** is what enforces it.
 
-`firestore.rules` is **not deployed by `firebase deploy`** — `firebase.json` has no
-`firestore` section, on purpose. It is the reviewed copy of what belongs in Firebase console
-→ Firestore → Rules, and the two are kept in step **by hand**, which is only safe while the
-drift is visible:
+**`firestore.rules` is deployed by `firebase deploy`** — `firebase.json` points at it, so
+the repo is the source of truth and the console is downstream. There is no clipboard step.
 
 ```bash
-npm run rules:copy    # local file -> clipboard, ready to paste into the console
+npm run deploy:check  # what is out of step: master, rules, functions
+npm run ship          # push, then deploy whatever drifted
+npm run deploy        # deploy whatever drifted, without pushing
+
 npm run rules:diff    # live ruleset vs. the local file; exits 1 if they differ
-npm run rules:live    # print what the console is actually serving
+npm run rules:live    # print what the server is actually serving
 npm run rules         # print the local file
 ```
 
-`scripts/liveRules.mjs` backs the last three. It reads the live ruleset through the
+> ⚠️ This section used to say the opposite — that there was no `firestore` section and the
+> rules had to be pasted into the console by hand. That stopped being true in `b809afc`,
+> and the note outlived it by long enough to send a whole feature's worth of work through a
+> clipboard for no reason, and to leave a client deployed against rules that denied it.
+> **If a deploy step here looks manual, check `firebase.json` before believing it.**
+
+`scripts/liveRules.mjs` backs the `rules:*` scripts. It reads the live ruleset through the
 Firebase Rules API, authenticating with `gcloud auth print-access-token` — so it needs the
 gcloud CLI and an account that can read the project. The project id comes from
 `.firebaserc` (override with `FIREBASE_PROJECT`).
 
-`rules:diff` is the one that matters: it shows `-` for live and `+` for local. Comment-only
-differences are normal — the console copy is whatever was last pasted — so read the diff
-for `match` blocks and `allow` lines, not prose.
+`rules:diff` shows `-` for live and `+` for local. Comment-only differences are normal when
+the server copy predates the file, so read the diff for `match` blocks and `allow` lines.
 
 **`addUser` creates the auth account before writing the `users` profile, and the order is
 load-bearing.** `createUserWithEmailAndPassword` signs the new user in, which is what makes
@@ -1094,6 +1100,26 @@ and `firebase deploy --only hosting` works, but **nothing reaches users that way
 updates `whatsfordinner-e69a4.web.app`, which is not the URL the app is used from. Deploying
 the client means pushing to the branch Cloudflare builds. Firebase deploys are still how the
 **Cloud Functions** and **Firestore rules** ship.
+
+**Three targets that move independently, and one command that says where each stands.**
+`npm run deploy:check` answers "what needs updating — the functions, the rules, or just a
+push?", which otherwise takes three commands and some archaeology, and which has twice been
+answered wrongly here by shipping a client against rules that denied it. `npm run ship`
+pushes and then deploys whatever actually drifted.
+
+The two deploy targets are checked in deliberately different ways, and the difference is
+worth knowing when one of them lies:
+
+- **Rules are observed.** `rules:diff` fetches the live ruleset, so it reports what is
+  really there.
+- **Functions are recorded**, against a `deployed/functions` git tag moved on each
+  successful deploy. Cloud Functions will not cheaply say which source it is running, so
+  this is a record of intent — shared and versioned, but capable of being wrong if a deploy
+  succeeds and the tag push does not. It says so when it has never been set at all.
+
+`.githooks/pre-push` prints the same report and **never blocks**: the failures this exists
+for came from not knowing, and a hook that refuses a docs typo because the functions are
+stale gets disabled within a week. `npm install` installs it via the `prepare` script.
 
 Cloudflare Pages gives every deployment its own `<hash>.<project>.pages.dev`; only a
 *production* deployment also updates the stable `<project>.pages.dev`. A production branch

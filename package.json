@@ -10,8 +10,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "ship": "node scripts/ship.mjs",
+    "deploy": "node scripts/ship.mjs --deploy",
+    "deploy:check": "node scripts/ship.mjs --check",
+    "prepare": "git config core.hooksPath .githooks || true",
     "rules": "cat firestore.rules",
-    "rules:copy": "pbcopy < firestore.rules && echo 'firestore.rules copied — paste into Firebase console -> Firestore -> Rules'",
     "rules:live": "node scripts/liveRules.mjs",
     "rules:diff": "node scripts/liveRules.mjs --diff"
   },

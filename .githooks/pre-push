@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# Says what will be out of step once this push lands. **Never blocks.**
+#
+# The failures this exists for came from not knowing, not from being unable —
+# a client shipped against rules that denied it, twice. A hook that refused a
+# docs typo because the functions were stale would be disabled inside a week,
+# and then it would catch nothing at all.
+#
+# Installed by `npm install` via the `prepare` script, which points
+# `core.hooksPath` here. Nothing to remember, and it is versioned with the code.
+node scripts/ship.mjs --check || {
+  printf '\n  ^ still out of step after this push. `npm run deploy` when ready.\n\n'
+}
+exit 0
