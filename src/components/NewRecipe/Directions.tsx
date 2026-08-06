@@ -39,7 +39,7 @@ import {
 import { TextArea, TextField } from "components/finalForm"
 import { useDirections, useEditSection, useRecipePresenter } from "contexts/RecipeProvider"
 import usePeek from "hooks/usePeek"
-import type { RowDiff, SectionChanges } from "@/recipeDiff"
+import type { RowChange, RowDiff, SectionChanges } from "@/recipeDiff"
 
 interface DirectionsProps {
   /** Per-section difference from the saved recipe, from `diffRecipe`. */
@@ -134,6 +134,53 @@ const StepRow = ({ id, number, text, change, onEdit, onDelete }: StepRowProps) =
         <CloseIcon className='h-4 w-4' />
       </IconButton>
     </div>
+  )
+}
+
+interface SectionTitleProps {
+  title: string
+  /** "added" for a whole new section, "changed" for a renamed one. */
+  mark: RowChange
+  /** What it was called before. Absent unless it was renamed. */
+  before?: string
+  onEdit: () => void
+  onDelete: () => void
+}
+
+/** A section's heading: click to rename, hold to see what it was called. */
+const SectionTitle = ({ title, mark, before, onEdit, onDelete }: SectionTitleProps) => {
+  const { peeking, handlers } = usePeek(before != null)
+  // A section renamed *from* nothing has an empty previous title, and an empty
+  // strikethrough reads as a bug rather than as an answer.
+  const previous = before === "" ? "Untitled section" : before
+
+  return (
+    <>
+      <button
+        type='button'
+        onClick={onEdit}
+        title={before != null ? "Click to edit · hold to see what it said" : "Click to edit"}
+        className={clsx(
+          "min-w-0 flex-1 cursor-text py-1 text-left font-heading text-xl font-semibold",
+          "tracking-[0.06em] break-words text-steel-700 uppercase select-none"
+        )}
+        {...handlers}>
+        {peeking ? (
+          <span className='text-muted line-through'>{previous}</span>
+        ) : title === "" ? (
+          <span className='text-muted'>Section title</span>
+        ) : (
+          title
+        )}
+        <ChangeMark change={mark} className='ml-2 align-[3px]' />
+      </button>
+      <IconButton
+        onClick={onDelete}
+        label={`Delete section: ${title || "untitled"}`}
+        danger>
+        <CloseIcon className='h-4 w-4' />
+      </IconButton>
+    </>
   )
 }
 
@@ -269,35 +316,19 @@ const Directions = ({ changes = [] }: DirectionsProps) => {
                       </IconButton>
                     </div>
                   ) : (
-                    <>
-                      <button
-                        type='button'
-                        onClick={() => presenter.setEditSection(index)}
-                        title='Click to edit'
-                        className='min-w-0 flex-1 cursor-text py-1 text-left font-heading text-xl font-semibold tracking-[0.06em] break-words text-steel-700 uppercase'>
-                        {sectionTitle === "" ? (
-                          <span className='text-muted'>Section title</span>
-                        ) : (
-                          sectionTitle
-                        )}
-                        <ChangeMark
-                          change={
-                            sectionChange?.added
-                              ? "added"
-                              : sectionChange?.titleChanged
-                                ? "changed"
-                                : "same"
-                          }
-                          className='ml-2 align-[3px]'
-                        />
-                      </button>
-                      <IconButton
-                        onClick={() => handleDeleteSection(index)}
-                        label={`Delete section: ${sectionTitle || "untitled"}`}
-                        danger>
-                        <CloseIcon className='h-4 w-4' />
-                      </IconButton>
-                    </>
+                    <SectionTitle
+                      title={sectionTitle}
+                      mark={
+                        sectionChange?.added
+                          ? "added"
+                          : sectionChange?.titleChanged
+                            ? "changed"
+                            : "same"
+                      }
+                      before={sectionChange?.titleBefore}
+                      onEdit={() => presenter.setEditSection(index)}
+                      onDelete={() => handleDeleteSection(index)}
+                    />
                   )}
                 </div>
 

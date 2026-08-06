@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Form } from "react-final-form"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import Directions from "./Directions"
 import RecipeProvider, { useDirections, useEditSection } from "contexts/RecipeProvider"
+import type { SectionChanges } from "@/recipeDiff"
 import { RecipePresenter } from "presenters/RecipePresenter"
 
 const RECIPE = {
@@ -17,7 +18,7 @@ const RECIPE = {
  * Mirrors how RecipeEditor feeds the form: `initialValues` is rebuilt from the
  * presenter, so the step under edit arrives in `nextStep-{i}`.
  */
-const setup = () => {
+const setup = (changes?: SectionChanges[]) => {
   const presenter = new RecipePresenter()
   presenter.loadRecipe(RECIPE)
 
@@ -38,7 +39,7 @@ const setup = () => {
 
     return (
       <Form onSubmit={() => {}} initialValues={initialValues}>
-        {() => <Directions />}
+        {() => <Directions changes={changes} />}
       </Form>
     )
   }
@@ -120,6 +121,36 @@ describe("Directions", () => {
     // Edit mode: still exactly one, so the field name stays unambiguous.
     expect(document.querySelectorAll('[name="nextStep-0"]')).toHaveLength(1)
     presenter.dispose()
+  })
+
+  it("holds a renamed section to show what it was called", () => {
+    vi.useFakeTimers()
+    try {
+      const presenter = setup([
+        {
+          added: false,
+          titleChanged: true,
+          titleBefore: "Pastry",
+          steps: [{ kind: "same" }, { kind: "same" }],
+          stepsRemoved: 0,
+        },
+      ])
+      const heading = screen.getByTitle("Click to edit · hold to see what it said")
+
+      fireEvent.pointerDown(heading)
+      act(() => void vi.advanceTimersByTime(400))
+      expect(screen.getByText("Pastry")).toBeInTheDocument()
+
+      fireEvent.pointerUp(heading)
+      expect(screen.queryByText("Pastry")).toBeNull()
+      // A hold is a look: the heading must not swap itself for an input.
+      fireEvent.click(heading)
+      expect(presenter.getEditSection()).toBeNull()
+
+      presenter.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("deletes a step from its row", async () => {

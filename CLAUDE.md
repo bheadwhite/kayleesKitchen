@@ -342,8 +342,8 @@ Signal** — it moves only on load and on save, both of which already move somet
 editor subscribes to.
 
 **Each row diff carries the text it replaced** (`RowDiff.before`), and `usePeek`
-(`src/hooks/usePeek.ts`) turns that into a press-and-hold: hold a changed ingredient or step
-and the saved version appears in its place until you let go. A flag saying "changed" says
+(`src/hooks/usePeek.ts`) turns that into a press-and-hold: hold a changed ingredient, step,
+or section title and the saved version appears in its place until you let go. A flag saying "changed" says
 where to look but not whether the change was the one you wanted, and the answer is one line
 of text with nowhere to live — showing both at once doubles the height of every edited row,
 and a dialog to read six words is worse than not knowing. The rows are click-to-edit buttons,
