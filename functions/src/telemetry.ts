@@ -14,7 +14,7 @@ export const AI_USAGE_COLLECTION = "aiUsage"
 
 export interface AiUsageEvent {
   /** Which callable — the console splits cost by feature. */
-  feature: "assistant" | "chef" | "image"
+  feature: "assistant" | "chef" | "image" | "shopping" | "scaling"
   uid: string | null
   email: string | null
   model: string

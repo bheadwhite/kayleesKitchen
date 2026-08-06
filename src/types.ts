@@ -128,6 +128,159 @@ export interface RecipeYield {
   fingerprint: string
 }
 
+/** Which meal of the day a planned recipe belongs to. */
+export type MealSlot = "breakfast" | "lunch" | "dinner"
+
+/** Somebody in a session, denormalised so a member list needs no second read. */
+export interface SessionMember {
+  uid: string
+  name: string
+  email: string | null
+}
+
+/**
+ * A planning session — `sessions/{sessionId}`.
+ *
+ * **Planning is a group thing**, and the session is the group: a name, however
+ * many are eating, a week, and one shopping list, shared by whoever is in it.
+ * Somebody can be in several at once — a household's weeknights, a supper club,
+ * a camping trip — and switching between them swaps the whole Plan tab. That is
+ * why the plan hangs off a session rather than off a person: two people cooking
+ * the same Thursday need one week between them, not two.
+ *
+ * `memberUids` is the access list *and* the query key: `array-contains` finds
+ * your sessions on a single-field index, and the rules compare against it
+ * directly rather than reading a membership document.
+ */
+export interface PlanningSession {
+  id: string
+  name: string
+  ownerUid: string
+  /**
+   * How many the session cooks for by default. Every meal planned into it is
+   * scaled to this unless that meal says otherwise — see `PlannedMeal.serves`.
+   */
+  covers: number
+  memberUids: string[]
+  members: SessionMember[]
+  createdAt: Date | null
+}
+
+/**
+ * An ask to join a session — `invites/{toEmail}_{sessionId}`.
+ *
+ * The composite id is doing real work, exactly as it does for a rating: a second
+ * ask replaces the first rather than stacking, and — because the id can be
+ * *derived* rather than looked up — the security rule can check that an ask
+ * exists without being handed its id. That is what lets someone join a session
+ * they are not yet a member of, with no Cloud Function in the middle.
+ *
+ * **Addressed by email, not by uid**, for the plain reason that a uid is not
+ * something anyone can look up: the `users` profile documents hold names and
+ * addresses and nothing else. An address is also what the rule can check
+ * cheaply, since Firebase puts it in the token — the same way `isAdmin()` reads
+ * it. The uid only has to exist at the moment of joining, and at that moment it
+ * is `request.auth.uid`, supplied by the person joining about themselves.
+ */
+export interface SessionInvite {
+  id: string
+  sessionId: string
+  /** Carried so the ask can be shown without reading a session you cannot read. */
+  sessionName: string
+  covers: number
+  fromUid: string
+  fromName: string
+  toEmail: string
+  createdAt: Date | null
+}
+
+/**
+ * One recipe slotted into one meal of one day —
+ * `sessions/{sessionId}/meals/{mealId}`.
+ */
+export interface PlannedMeal {
+  id: string
+  /**
+   * The calendar day, as `YYYY-MM-DD`.
+   *
+   * A **string, not a Timestamp**, and that is the whole point: a Timestamp is
+   * an *instant*, and an instant renders as a different day depending on where
+   * the phone is and what time the meal was planned at. "Thursday's dinner" is a
+   * day on a wall calendar. The format also sorts lexicographically, so the
+   * range query needs no conversion at either end.
+   */
+  date: string
+  slot: MealSlot
+  recipeId: string
+  /**
+   * Denormalised off the recipe. A meal has to be able to name itself after its
+   * recipe is deleted or while the list has not loaded — an agenda of blank rows
+   * is worse than one naming a dish that is no longer filed.
+   */
+  title: string
+  /**
+   * How many this one meal is for, when it differs from the session's `covers`.
+   * Absent means "whatever the session cooks for", so changing the session's
+   * number moves every meal that has not been spoken for individually.
+   *
+   * Free to vary: the scaling spec is keyed by the recipe alone, so a meal set
+   * to eleven costs no more to work out than the fourth meal set to four.
+   */
+  serves?: number
+  /** Who put it up. A shared week wants to say whose idea a Tuesday was. */
+  byUid: string
+  byName: string
+  /** Null for the instant between the local write and the server timestamp. */
+  addedAt: Date | null
+}
+
+/**
+ * One line on the shopping list — `sessions/{sessionId}/shopping/{itemId}`.
+ *
+ * The list is **persistent and appended to**, not derived from the plan: it is
+ * read in a shop, and a recipe swapped at home while somebody is standing in the
+ * dairy aisle must not rewrite what they are reading. That is also what gives
+ * manual items — milk, paper towels — somewhere to live.
+ */
+export interface ShoppingItem {
+  id: string
+  /** "yellow onion". Normalised lowercase, like a tag, so two spellings merge. */
+  name: string
+  /** "3 medium", "1 cup + 2 tbsp", "to taste". Empty for a bare manual item. */
+  amount: string
+  /** A key from `SECTIONS` in `src/shoppingList.ts`; anything else reads as other. */
+  section: string
+  /** Recipe titles this line came from. Empty for something typed in by hand. */
+  from: string[]
+  checked: boolean
+  /** Order within the section, as the chef listed it. */
+  sort: number
+  /** Typed in by hand rather than read off a recipe. */
+  manual?: boolean
+  /** Who put it on the list, and who ticked it off. Null before either. */
+  byUid?: string | null
+  tickedByUid?: string | null
+  /** Null for the instant between the local write and the server timestamp. */
+  addedAt: Date | null
+}
+
+/**
+ * Which aisle an ingredient is found in — `pantry/{normalisedName}`.
+ *
+ * The same idea as the tag registry, and the same idea as the yield cache:
+ * **what the chef works out is written down as data the app can then read
+ * without it.** "Butter is in the dairy aisle" is a fact about a shop, not
+ * about this list, and re-buying it on every build would be paying repeatedly
+ * for an answer that never changes. Written only by the callable, read by
+ * everyone — including a household with no AI entitlement at all, who get
+ * correctly sorted lists for nothing.
+ */
+export interface PantryEntry {
+  name: string
+  /** A key from `SECTIONS` in `src/shoppingList.ts`. */
+  section: string
+}
+
 /**
  * One entry in the tag registry (`tags/{name}`). The name is both the document
  * id and the value stored on recipes; `color` is an id from `src/tagColors.ts`,
@@ -176,7 +329,7 @@ export interface LoginEvent {
  */
 export interface AiUsageEvent {
   id: string
-  feature: "assistant" | "chef" | "image"
+  feature: "assistant" | "chef" | "image" | "shopping" | "scaling"
   email: string | null
   model: string
   ok: boolean

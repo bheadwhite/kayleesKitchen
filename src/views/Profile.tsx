@@ -11,7 +11,13 @@ import {
   SectionHeading,
   nameFor,
 } from "components"
+import { SessionInvites } from "components/Planner"
 import { useAuthPresenter, useAuthStatus, useSessionUser } from "contexts/AuthProvider"
+import {
+  usePlannerPresenter,
+  useSessionInvites,
+  useSessionStatus,
+} from "contexts/PlannerProvider"
 import useUsersRecipes from "hooks/useUsersRecipes"
 import { APP_COMMIT, APP_VERSION, buildDate } from "@/version"
 import { onRecipesSnapshot } from "fire/services"
@@ -66,6 +72,10 @@ const Profile = () => {
     [myRecipes]
   )
 
+  const planner = usePlannerPresenter()
+  const invites = useSessionInvites()
+  const { isBusy } = useSessionStatus()
+
   const handleSignOut = async () => {
     setConfirmOpen(false)
     try {
@@ -93,6 +103,32 @@ const Profile = () => {
           </p>
         </div>
       </div>
+
+      {/* Asks to join a planning session land here rather than on the Plan tab:
+       *  an ask is addressed to you, not to any session, and the week it
+       *  belongs to is not yours to see until you have taken it. */}
+      <SessionInvites
+        invites={invites}
+        onAccept={(invite) => {
+          void planner
+            .acceptInvite(invite)
+            .then(() => {
+              toast.success(`You're in. ${invite.sessionName} is on your Plan tab.`)
+              navigate("/plan")
+            })
+            .catch((error: unknown) => {
+              console.error("Could not join that session", error)
+              toast.error("Could not join that session.")
+            })
+        }}
+        onDecline={(invite) => {
+          void planner.declineInvite(invite).catch((error: unknown) => {
+            console.error("Could not turn down that ask", error)
+            toast.error("Could not turn that down.")
+          })
+        }}
+        isBusy={isBusy}
+      />
 
       <SectionHeading meta={plural(mine.length, "recipe")}>Your recipes</SectionHeading>
       {mine.length === 0 ? (

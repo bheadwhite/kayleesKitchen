@@ -1,4 +1,6 @@
-import type { ChefFork, RecipeDraft } from "@/types"
+import type { ScalingSpec } from "@/scaling"
+import type { ProposedItem } from "@/shoppingList"
+import type { ChefFork, Ingredient, RecipeDraft } from "@/types"
 
 /** Formats Claude accepts as image input. */
 export type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp"
@@ -66,4 +68,67 @@ export interface ChefResponse {
   fork: ChefFork | null
   /** What the chef reckons the filed recipe makes. Null when it did not say. */
   baseServes: number | null
+}
+
+/** One planned meal, as the shopping list is built from it. */
+export interface ShoppingMeal {
+  /** The recipe's title — what the list credits a line to. */
+  title: string
+  ingredients: Ingredient[]
+}
+
+/** A line already on the list, as the chef is shown it. */
+export interface ShoppingKnown {
+  id: string
+  name: string
+  amount: string
+  section: string
+}
+
+/**
+ * Request body for the `buildShoppingList` callable.
+ *
+ * `existing` carries **only the unticked rows**, and that is what makes the
+ * "never merge into something already bought" rule hold: the chef cannot merge
+ * into a row it was never shown. `mergePlan` re-checks it anyway — the guarantee
+ * is not the model's to keep — but this is where it is actually made true.
+ *
+ * `meals` arrive **already scaled** to however many are eating, so this call is
+ * merging and nothing else. `known` is the pantry: ingredient name → aisle, for
+ * every name anyone has ever shopped for, so the chef is only asked about names
+ * nobody has seen before.
+ */
+export interface ShoppingRequest {
+  meals: ShoppingMeal[]
+  existing: ShoppingKnown[]
+  known: Record<string, string>
+}
+
+/** Request body for the `analyseRecipeScaling` callable. */
+export interface ScalingRequest {
+  recipeId: string
+  recipe: RecipeDraft
+  /**
+   * The ingredients stamp this is being worked out for. Sent rather than
+   * recomputed server-side so the document the callable writes is keyed by
+   * exactly what the client will look for — the two implementations are
+   * mirrored by hand, and a drift would otherwise mean every lookup misses.
+   */
+  fingerprint: string
+}
+
+/**
+ * Response from the callable: how this recipe's ingredient lines respond to
+ * cooking for more people. Asked **once per version of the ingredient list**,
+ * then applied locally for any number — see `src/scaling.ts`.
+ */
+export interface ScalingResponse {
+  spec: ScalingSpec
+}
+
+/** Response from the callable: the list as it should now read. */
+export interface ShoppingResponse {
+  items: ProposedItem[]
+  /** A sentence for the cook — what was folded together, what looked odd. */
+  note: string
 }

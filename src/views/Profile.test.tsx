@@ -6,14 +6,16 @@ import type { Auth } from "firebase/auth"
 
 import Profile from "./Profile"
 import AuthProvider from "contexts/AuthProvider"
+import PlannerProvider from "contexts/PlannerProvider"
 import { AuthPresenter } from "presenters/AuthPresenter"
+import { PlannerPresenter, type PlannerStore } from "presenters/PlannerPresenter"
 import { APP_COMMIT, APP_VERSION } from "@/version"
 import type { Recipe } from "@/types"
 
 let emitAuthState: (user: unknown) => void = () => {}
 const signOutMock = vi.fn().mockResolvedValue(undefined)
 
-vi.mock("fire/firebase", () => ({ auth: {} }))
+vi.mock("fire/firebase", () => ({ auth: {}, functions: {} }))
 
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: (_auth: unknown, callback: (user: unknown) => void) => {
@@ -57,17 +59,30 @@ vi.mock("fire/services", () => ({
   },
 }))
 
+/** A planner that reaches nothing — the invites panel needs one to exist. */
+const idlePlannerStore = {
+  watchSessions: () => () => {},
+  watchInvites: () => () => {},
+  watchMeals: () => () => {},
+  watchShopping: () => () => {},
+  watchPantry: () => () => {},
+} as unknown as PlannerStore
+
 const renderProfile = () => {
   const presenter = new AuthPresenter({} as Auth)
+  const planner = new PlannerPresenter(vi.fn(), vi.fn(), idlePlannerStore)
 
   render(
     <AuthProvider presenter={presenter}>
-      <MemoryRouter initialEntries={["/profile"]}>
-        <Routes>
-          <Route path='/profile' element={<Profile />} />
-          <Route path='/login' element={<p>login</p>} />
-        </Routes>
-      </MemoryRouter>
+      <PlannerProvider presenter={planner}>
+        <MemoryRouter initialEntries={["/profile"]}>
+          <Routes>
+            <Route path='/profile' element={<Profile />} />
+            <Route path='/plan' element={<p>meal plan</p>} />
+            <Route path='/login' element={<p>login</p>} />
+          </Routes>
+        </MemoryRouter>
+      </PlannerProvider>
     </AuthProvider>
   )
 

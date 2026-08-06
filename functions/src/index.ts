@@ -8,6 +8,8 @@ import type { AssistantRequest, AssistantResponse } from "./types.js"
 
 export { generateRecipeImage } from "./generateImage.js"
 export { askChef } from "./chef.js"
+export { buildShoppingList } from "./shoppingList.js"
+export { analyseRecipeScaling } from "./analyseScaling.js"
 
 /**
  * The Anthropic key. Stored in Secret Manager, never in the client bundle:

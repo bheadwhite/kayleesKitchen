@@ -71,7 +71,9 @@ The shape is always the same:
    provider file (`useIngredients`, `useDirections`, `useEditSection`, `useEditIngredient`,
    `useRecipeImageUrl`, `useLoadingRecipeImage`, `useAuthStatus`, `useSessionUser`,
    `useAssistantTurns`, `usePendingImages`, `useProposedDraft`, `useAssistantStatus`,
-`useChefTurns`, `useChefFork`, `useBaseServes`, `useChefStatus`).
+`useChefTurns`, `useChefFork`, `useBaseServes`, `useChefStatus`, `usePlanningSessions`,
+`useCurrentSession`, `useSessionInvites`, `usePlannedMeals`, `useShoppingItems`,
+`useWeekOffset`, `useShopDays`, `useLastBuild`, `useBuildStatus`, `useSessionStatus`).
 
 To add shared state: add a private `Signal` + a `xBroadcast` getter + mutators on the
 presenter, then one `useSignalValue` hook next to the others. Do not lift that state
@@ -636,6 +638,139 @@ said anything.
 keeping a copy — a copy taken at click time goes stale the moment anything about that recipe
 changes, which rating it from that very page does immediately.
 
+### The planner — sessions, a week, and the shop it implies
+
+`/plan` is the fifth nav tab. It holds a **planning session**: a name, however many
+are eating, a week of breakfast/lunch/dinner slots, and one shopping list, shared by
+whoever is in it.
+
+**Planning is a group thing, and the session is the group.** A recipe is worth the
+same to everyone, which is why the recipe box is one shared collection; a week is
+not, and it is not one person's either — two people cooking the same Thursday need
+one week between them. So `sessions/{id}` is scoped to `memberUids`, which is both
+the access list and the query key (`array-contains`, a single-field index). Somebody
+can be in several sessions at once and switch between them; the Plan tab swaps the
+week, the list, and the covers together.
+
+Rules do not cascade, so `meals` and `shopping` each carry their own block, and each
+one costs a `get()` of the session to check membership — a real read per tick in a
+shop, and the price of membership meaning anything.
+
+**A date is a `YYYY-MM-DD` string, never a Timestamp.** A Timestamp is an *instant*,
+and an instant renders as a different day depending on where the phone is;
+"Thursday's dinner" is a day on a wall calendar. `src/calendar.ts` exists to keep
+that one bug out, and the two obvious one-liners are both wrong and both absent from
+it: `new Date().toISOString().slice(0, 10)` reads the *UTC* day, and
+`new Date("2026-08-06")` parses as UTC midnight, which renders as the 5th.
+
+#### Joining, without a Cloud Function
+
+`invites/{toEmail}_{sessionId}` — a composite id like `ratings`, so a second ask
+replaces the first, and, because the id is **derivable**, `firestore.rules` can
+`exists()` it without being handed one. That is what lets somebody write to a
+session they are not yet in: the join clause allows an update that touches only
+`memberUids`/`members`, adds only your own uid, and is backed by an ask addressed
+to you.
+
+**Addressed by email, not uid**, because a uid is not something this app can look
+anybody up by — `users` holds names and addresses — and because the address is in
+the auth token, so checking it costs no read. The uid only has to exist at the
+moment of joining, and there it is `request.auth.uid`.
+
+`acceptInvite` is **two writes in a fixed order**: join, then delete the ask. Not a
+transaction, and not the other way round — the rule that lets a stranger write to
+the session is the one that reads the invite, so consuming it first would revoke
+the permission for the write that follows. The failure mode of this order is a
+stale ask for a session you are already in, which the list filters out; the other
+order loses the session.
+
+#### Scaling is a cached *rule*, not a cached answer
+
+This is the piece that decides what the feature costs. Three jobs, and only one
+recurs:
+
+| Job | Keyed by | Cost |
+| --- | --- | --- |
+| Yield | recipe content | once per recipe version, ever |
+| **Scaling rules** | **ingredient lines** | **once per version — answers every serving count** |
+| Consolidating the list | nothing | once per build; the only recurring cost |
+
+`analyseRecipeScaling` asks the chef **how each ingredient line responds** to
+cooking for more people — linear, sublinear, or fixed, with rounding and a
+preferred direction — and stores that at `recipes/{id}/scaling/{fingerprint}`.
+`applyScale` in `src/scaling.ts` then produces the list for *any* number, purely,
+instantly, offline, for nothing.
+
+That drops a whole dimension off the cache key. Caching scaled *lists* would cost a
+call per (recipe, N) pair, so an unusual eleven costs as much as the fourth
+doubling; caching the *rule* means a session cooking for eleven pays nothing a
+session cooking for four has not already paid. It is also what makes per-meal
+serving overrides free, and why the agenda offers them on every card.
+
+**It is data, not code.** A model can write a scaling function in JavaScript, and
+running one in the browser is executing text a model produced — a code-execution
+hole with a Firestore document for a delivery mechanism, which the PWA's CSP would
+refuse anyway. A closed vocabulary of rules is inspectable, testable, and cannot do
+anything but produce an amount.
+
+**Keyed by `ingredientsFingerprint`, not `recipeFingerprint`** — deliberately
+narrower than the yield's stamp. A rule about how much flour to buy is not changed
+by a clearer instruction on how to fold it in, so rewriting step four must not throw
+the spec away and buy it again. The yield keeps the wider stamp because how much a
+recipe makes *can* turn on the method.
+
+**Scaling happens lazily, at build time**, for the meals in the picked days only.
+Firing a call as each meal is planned would spend money on meals that get moved or
+deleted before any shop, and buys nothing: the stepper shows the target covers,
+which is a number the cook set. Within one build, specs are memoised by recipe, so a
+week with Tuesday's and Friday's chilli asks once.
+
+**A spec is validated on the way out of the cache, not only on the way in**
+(`isUsableSpec`). It is model output read for months, and the failure it must never
+have is a confident wrong quantity — so anything malformed or stale is treated as
+absent and the amounts go through as written.
+
+#### The list
+
+**Persistent and appended to**, not derived from the plan: it is read in a shop,
+where the plan changing underneath is a rug-pull rather than a correction. Days are
+**picked** rather than a rolling "next N", because the run people shop for is rarely
+a prefix — presets cover the common ones.
+
+`buildShoppingList` receives meals **already scaled** and the pantry already known,
+so it is merging and nothing else. **`pantry/{name}`** is the third cache on the
+same principle: which aisle an ingredient is in is a fact about a shop, not about
+this list, and re-buying it every build pays repeatedly for an answer that never
+changes. The callable writes back only names it did not already have, and never
+writes "other" — that is the chef declining to place something, not a fact.
+
+Every layer degrades rather than failing. No spec means amounts as written; no chef
+means `consolidateVerbatim` merges by name with the pantry still supplying aisles.
+**The shop is never blocked** — which is the whole point of writing the chef's work
+down as data.
+
+**A ticked row is never merged into**, enforced twice: the request carries only
+unticked rows, so the chef cannot merge into something already bought, and
+`mergePlan` re-checks because "should not" is not "cannot".
+
+#### The AI seam
+
+`functions/src/entitlement.ts` holds `assertCanSpend(caller, feature)`, which every
+callable calls before spending and which lets everybody through today. It exists as
+a **seam**: metering, tiers, or caps later are a change to that function's body
+rather than a hunt through five callables for the places that quietly cost money.
+
+The seam only means anything because of what sits behind it — the yield, the
+scaling specs, and the pantry are durable data the app reads on its own. A household
+that cannot spend still plans, still builds lists, and still scales any recipe
+anyone has ever analysed. **What would be sold is the asking, not the using.**
+
+The admin console's "Scaling rules" tile should trend to nothing. A number that
+keeps climbing means the cache is missing — most likely the two hand-mirrored
+`ingredientsFingerprint` implementations have drifted, which the callable also
+guards against outright by comparing the client's stamp with its own.
+
+
 ### Tags
 
 Recipes carry free-form labels — "salad", "mexican" — and the recipe list filters on them.
@@ -659,7 +794,7 @@ hex would let a tag be drawn as pure red on white, and would need contrast-check
 render. `<TagChip>` applies it as an **inline style**, because Tailwind builds its stylesheet
 by scanning source text and a class assembled from a runtime value would simply not exist.
 
-**`/tags` (`views/TagManager.tsx`) is the fifth nav tab**, and it manages tags rather than
+**`/tags` (`views/TagManager.tsx`) is a nav tab of its own**, and it manages tags rather than
 creating them: a tag with no recipe on it is an empty filter, and the moment you know you
 want one is the recipe you are writing. What it owns is the part the editor cannot — the
 colour, and the rename that has to reach **every recipe already wearing the word**.
@@ -680,8 +815,8 @@ second Firestore listener out of a component rendered once per row.
 
 ### The admin console
 
-`src/views/Admin.tsx` at `/admin` shows AI spend and sign-ins. It is a **fifth nav tab that
-only the admin sees** — `NavBar` switches to `grid-cols-5` for them — and `src/admin.ts`
+`src/views/Admin.tsx` at `/admin` shows AI spend and sign-ins. It is a **sixth nav tab that
+only the admin sees** — `NavBar` switches to `grid-cols-6` for them — and `src/admin.ts`
 holds the one address.
 
 > ⚠️ **`isAdmin()` is a UI affordance, not access control.** It decides what to render; it
@@ -715,7 +850,7 @@ and the rules would have to leave that collection open to the internet.
 
 Where each half of the data comes from, and why:
 
-- **AI usage is written server-side** (`functions/src/telemetry.ts`, called from all three
+- **AI usage is written server-side** (`functions/src/telemetry.ts`, called from all five
   callables). Token counts only exist on the provider's response, which never reaches the
   browser — and a client-reported usage number is a number the client can make up. Failed
   calls are recorded too: a spike in rate-limit errors is exactly what the console is for,
@@ -840,7 +975,7 @@ tags section).
 Two fixed bars sandwich the scrolling column: `components/Toolbar` (title only) at the
 top and `components/NavBar` at the bottom. The hamburger menu they replaced is gone.
 
-`NavBar`'s tabs are Recipes, Editor, Tags, and the account — plus an Admin tab for the one
+`NavBar`'s tabs are Recipes, Editor, Plan, Tags, and the account — plus an Admin tab for the one
 admin address (see the admin console section). The account tab is an `<Avatar>` with the
 user's first name, linking to `/profile`. It is deliberately **not** a Logout button: signing out
 sat one mis-tap from the tab used most, and it is destructive here because it drops

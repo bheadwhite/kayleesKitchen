@@ -56,6 +56,120 @@ service cloud.firestore {
         allow read: if signedIn();
         allow write: if false;
       }
+
+      // How this recipe's ingredient lines respond to cooking for more people,
+      // one document per version of those lines (the id is the ingredients
+      // fingerprint). **Written only by the Cloud Function**, same as the
+      // yield above it and for the same reason.
+      //
+      // This is the cache that matters most: one document answers *every*
+      // serving count, so a session cooking for eleven costs nothing that a
+      // session cooking for four has not already paid. Reading it needs no AI
+      // entitlement — the chef's work becomes data the app uses on its own.
+      match /scaling/{fingerprint} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+    }
+
+    // Planning sessions — the first thing here scoped to a *group* rather than
+    // to the household or to one person.
+    //
+    // Recipes are shared on the argument that a recipe is worth the same to
+    // everyone. A week is not: it belongs to whoever is cooking it together,
+    // which is neither "everybody signed in" nor "just me". `memberUids` is
+    // both the access list and the query key.
+    function sessionMembers(sid) {
+      return get(/databases/$(database)/documents/sessions/$(sid)).data.memberUids;
+    }
+
+    function inSession(sid) {
+      return signedIn() && request.auth.uid in sessionMembers(sid);
+    }
+
+    match /sessions/{sid} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
+      // Starting one puts you in it and nobody else. Adding the others is the
+      // invite flow below, which needs their consent.
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid];
+
+      // A member may change the session — its name, how many it cooks for, or
+      // the member list (asking someone in, or stepping out).
+      //
+      // The second clause is how somebody who is *not* yet a member joins one,
+      // with no Cloud Function in the middle. It is deliberately narrow: the
+      // only fields that may move are the two membership ones, the only uid
+      // that may be added is your own, and an ask addressed to you has to
+      // exist. That last check is only expressible because the invite id is
+      // `{toUid}_{sessionId}` — derivable from what the rule already knows,
+      // rather than something the client would otherwise have to be trusted to
+      // name. (A caller who lies about the id simply fails `exists`.)
+      allow update: if inSession(sid)
+        || (
+             signedIn()
+             && !(request.auth.uid in resource.data.memberUids)
+             && request.auth.uid in request.resource.data.memberUids
+             && request.resource.data.memberUids.size() == resource.data.memberUids.size() + 1
+             && request.resource.data.diff(resource.data)
+                  .affectedKeys().hasOnly(['memberUids', 'members'])
+             && exists(/databases/$(database)/documents/invites/$(request.auth.token.email + '_' + sid))
+           );
+
+      // No delete, by anyone. A week several people wrote into is not one
+      // person's to throw away, and the owner leaving is `update` like anybody
+      // else's. A session nobody is in is unreachable by every query and rule
+      // here, which is a tidier end than a cascade that has to reach two
+      // subcollections and can half-finish.
+      allow delete: if false;
+
+      // **Rules do not cascade**, so the two subcollections say it again for
+      // themselves — and they cannot compare against the path the way
+      // `plans/{uid}` once did, because membership lives in the parent
+      // document. Each operation therefore costs one `get()` of the session.
+      // That is a real read per tick in a shop, and it is the price of
+      // membership meaning anything.
+      match /meals/{mealId} {
+        allow read, write: if inSession(sid);
+      }
+
+      match /shopping/{itemId} {
+        allow read, write: if inSession(sid);
+      }
+    }
+
+    // Asks to join a session, id `{toEmail}_{sessionId}`.
+    //
+    // Addressed by **email**, because a uid is not something the app can look
+    // anybody up by — the `users` profiles hold names and addresses — and
+    // because the address is in the token, so this costs no read. The id is
+    // pinned to the document's own contents so a caller cannot file an ask at
+    // one address and address it to another.
+    //
+    // Readable only by the person asked: an invite list is who wants whom in
+    // what, and nobody else's business. Written by a member of the session
+    // being offered; deleted by the person asked, which is both "yes" (once the
+    // join has landed) and "no thanks".
+    match /invites/{docId} {
+      allow read: if signedIn() && resource.data.toEmail == request.auth.token.email;
+      allow create, update: if signedIn()
+        && docId == request.resource.data.toEmail + '_' + request.resource.data.sessionId
+        && request.resource.data.fromUid == request.auth.uid
+        && inSession(request.resource.data.sessionId);
+      allow delete: if signedIn() && resource.data.toEmail == request.auth.token.email;
+    }
+
+    // Which aisle an ingredient is found in. Written **only** by the Cloud
+    // Function through the admin SDK, exactly like `aiUsage` and the yield —
+    // this is what the chef worked out, and the callable is the only place that
+    // knows it did not come from whoever typed it. Read by everyone, including
+    // a household with no AI entitlement at all: that is the point of writing
+    // it down.
+    match /pantry/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
     }
 
     // The tag registry — one document per tag, holding only the colour it is

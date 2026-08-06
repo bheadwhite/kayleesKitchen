@@ -7,7 +7,16 @@ import NavBar from "components/NavBar"
 import Toolbar from "components/Toolbar"
 import UpdateBanner from "components/UpdateBanner"
 import { useAuthStatus } from "contexts/AuthProvider"
-import { Admin, Login, Profile, RecipeEditor, Recipes, Register, TagManager } from "views"
+import {
+  Admin,
+  Login,
+  Planner,
+  Profile,
+  RecipeEditor,
+  Recipes,
+  Register,
+  TagManager,
+} from "views"
 
 /**
  * Route guard. `initializing` covers the first Firebase auth round-trip, so a
@@ -55,6 +64,7 @@ const App = () => {
           <Route element={<RequireAuth />}>
             <Route path='/recipes' element={<Recipes />} />
             <Route path='/recipes/new' element={<RecipeEditor />} />
+            <Route path='/plan' element={<Planner />} />
             <Route path='/tags' element={<TagManager />} />
             <Route path='/profile' element={<Profile />} />
             <Route path='/admin' element={<Admin />} />

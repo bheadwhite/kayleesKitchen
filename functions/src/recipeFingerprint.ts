@@ -47,7 +47,23 @@ interface Fingerprintable {
 export const recipeFingerprint = (recipe: Fingerprintable): string =>
   hash(
     JSON.stringify([
-      (recipe.ingredients ?? []).map((i) => [i.name, i.amount, Boolean(i.optional)]),
+      ingredientLines(recipe),
       (recipe.directions ?? []).map((s) => [s.sectionTitle, s.steps]),
     ])
   )
+
+const ingredientLines = (recipe: Fingerprintable) =>
+  (recipe.ingredients ?? []).map((i) => [i.name, i.amount, Boolean(i.optional)])
+
+/**
+ * A stamp of **the ingredient lines alone**, keying the scaling spec.
+ *
+ * Narrower than the full fingerprint on purpose: a rule about how much flour to
+ * buy is not changed by a clearer instruction on how to fold it in, so a
+ * rewritten method must not throw the spec away and buy it again.
+ *
+ * Mirrors `src/recipeFingerprint.ts` on the client — same warning as above, and
+ * the same benign failure if they drift.
+ */
+export const ingredientsFingerprint = (recipe: Fingerprintable): string =>
+  hash(JSON.stringify(ingredientLines(recipe)))

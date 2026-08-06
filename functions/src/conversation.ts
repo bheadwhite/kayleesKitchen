@@ -31,7 +31,7 @@ export interface ConversationTurn {
 
 export interface ConversationRequest {
   /** Which callable — the console splits cost by this. */
-  feature: "assistant" | "chef"
+  feature: "assistant" | "chef" | "shopping" | "scaling"
   caller: { uid: string; email: string | null }
   turns: ConversationTurn[]
   system: string

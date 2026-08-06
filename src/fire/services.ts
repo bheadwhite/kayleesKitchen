@@ -12,7 +12,9 @@ import {
 } from "firebase/auth"
 import {
   addDoc,
+  arrayUnion,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -34,22 +36,36 @@ import {
   aiUsageRef,
   auth,
   db,
+  inviteId,
+  invitesRef,
   loginEventsRef,
+  pantryRef,
+  recipeScalingRef,
   recipeVariantsRef,
   recipeYieldRef,
   recipesRef,
+  sessionMealsRef,
+  sessionShoppingRef,
+  sessionsRef,
   storage,
   tagsRef,
   userRef,
 } from "./firebase"
+import type { ScalingSpec } from "@/scaling"
 import type {
   AiUsageEvent,
   ChefFork,
   ChefVariant,
+  MealSlot,
+  PlannedMeal,
+  PlanningSession,
   RecipeYield,
   LoginEvent,
   Recipe,
   RegisterValues,
+  SessionInvite,
+  SessionMember,
+  ShoppingItem,
   TagRecord,
   UserProfile,
 } from "@/types"
@@ -384,6 +400,374 @@ export const onRecipeYieldSnapshot = (
           }
     )
   })
+
+/**
+ * Everyone with an account, alphabetical — the list a session asks people from.
+ *
+ * Only names and addresses live in `users`, which is exactly what an invite
+ * needs: asks are addressed by email, since a uid is not something this app can
+ * look anybody up by. See `SessionInvite`.
+ */
+export const onUsersSnapshot = (
+  callback: (people: UserProfile[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    userRef,
+    (snapshot) =>
+      callback(
+        snapshot.docs
+          .map((d) => d.data() as UserProfile)
+          .filter((person) => Boolean(person.email))
+          .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+      ),
+    (error) => {
+      console.error("Could not read the people list", error)
+      onError?.(error)
+    }
+  )
+
+/* --------------------------------------------------- planning sessions */
+
+const toSession = (id: string, data: Record<string, unknown>): PlanningSession => ({
+  id,
+  name: String(data.name ?? ""),
+  ownerUid: String(data.ownerUid ?? ""),
+  covers: Number(data.covers ?? 4),
+  memberUids: (data.memberUids as string[] | undefined) ?? [],
+  members: (data.members as SessionMember[] | undefined) ?? [],
+  createdAt: (data.createdAt as { toDate?: () => Date } | null)?.toDate?.() ?? null,
+})
+
+/**
+ * Every session this person is in, newest first.
+ *
+ * `array-contains` on `memberUids` is a single-field index, so nothing has to
+ * be declared — which matters in a project that deploys neither indexes nor
+ * rules automatically.
+ */
+export const onMySessionsSnapshot = (
+  uid: string,
+  callback: (sessions: PlanningSession[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    query(sessionsRef, where("memberUids", "array-contains", uid), orderBy("createdAt", "desc")),
+    (snapshot) => callback(snapshot.docs.map((d) => toSession(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read your planning sessions", error)
+      onError?.(error)
+    }
+  )
+
+/** Starts a session with one member in it. Resolves to the new id. */
+export const createSession = async (
+  owner: SessionMember,
+  name: string,
+  covers: number
+): Promise<string> => {
+  const created = await addDoc(sessionsRef, {
+    name,
+    covers,
+    ownerUid: owner.uid,
+    memberUids: [owner.uid],
+    members: [owner],
+    createdAt: serverTimestamp(),
+  })
+  return created.id
+}
+
+/** How many the session cooks for. Moves every meal that has no number of its own. */
+export const setSessionCovers = (sessionId: string, covers: number) =>
+  updateDoc(doc(db, "sessions", sessionId), { covers })
+
+/**
+ * Steps out of a session.
+ *
+ * The session document itself is left alone even when the owner leaves. A week
+ * several people wrote into is not one person's to delete, and a session with
+ * nobody in it is unreachable by every query and rule here — which is a tidier
+ * end than a cascade that has to reach two subcollections and can half-finish.
+ */
+export const leaveSession = (session: PlanningSession, uid: string) =>
+  updateDoc(doc(db, "sessions", session.id), {
+    memberUids: session.memberUids.filter((member) => member !== uid),
+    members: session.members.filter((member) => member.uid !== uid),
+  })
+
+/* ------------------------------------------------------------- invites */
+
+const toInvite = (id: string, data: Record<string, unknown>): SessionInvite => ({
+  id,
+  sessionId: String(data.sessionId ?? ""),
+  sessionName: String(data.sessionName ?? ""),
+  covers: Number(data.covers ?? 4),
+  fromUid: String(data.fromUid ?? ""),
+  fromName: String(data.fromName ?? ""),
+  toEmail: String(data.toEmail ?? ""),
+  createdAt: (data.createdAt as { toDate?: () => Date } | null)?.toDate?.() ?? null,
+})
+
+/** Asks waiting on this person. Shown on their own tab, never on the session. */
+export const onMyInvitesSnapshot = (
+  email: string,
+  callback: (invites: SessionInvite[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    query(invitesRef, where("toEmail", "==", email)),
+    (snapshot) => callback(snapshot.docs.map((d) => toInvite(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read your invitations", error)
+      onError?.(error)
+    }
+  )
+
+/**
+ * Asks someone into a session. The id is `${toEmail}_${sessionId}`, so asking
+ * twice replaces rather than stacks — and so the join rule can find it.
+ */
+export const inviteToSession = (
+  session: PlanningSession,
+  from: SessionMember,
+  toEmail: string
+) =>
+  setDoc(doc(db, "invites", inviteId(toEmail, session.id)), {
+    sessionId: session.id,
+    sessionName: session.name,
+    covers: session.covers,
+    fromUid: from.uid,
+    fromName: from.name,
+    toEmail,
+    createdAt: serverTimestamp(),
+  })
+
+/**
+ * Takes an ask: adds you to the session, then drops the invite.
+ *
+ * **Two writes rather than a transaction**, and deliberately in this order. A
+ * transaction cannot span the pair here anyway — the rule that lets a stranger
+ * write to the session is the one that reads the invite, so consuming the
+ * invite first would revoke the permission needed for the write that follows.
+ * The failure mode of this order is a consumed-late invite for a session you
+ * are already in, which the ask list filters out on sight. The other order
+ * loses the session.
+ */
+export const acceptInvite = async (invite: SessionInvite, me: SessionMember) => {
+  await updateDoc(doc(db, "sessions", invite.sessionId), {
+    memberUids: arrayUnion(me.uid),
+    members: arrayUnion(me),
+  })
+  await deleteDoc(doc(db, "invites", invite.id))
+}
+
+export const declineInvite = (invite: SessionInvite) =>
+  deleteDoc(doc(db, "invites", invite.id))
+
+/* ------------------------------------------------------------- the week */
+
+const toPlannedMeal = (id: string, data: Record<string, unknown>): PlannedMeal => ({
+  id,
+  date: String(data.date ?? ""),
+  slot: (data.slot as MealSlot) ?? "dinner",
+  recipeId: String(data.recipeId ?? ""),
+  title: String(data.title ?? ""),
+  serves: typeof data.serves === "number" ? data.serves : undefined,
+  byUid: String(data.byUid ?? ""),
+  byName: String(data.byName ?? ""),
+  addedAt: (data.addedAt as { toDate?: () => Date } | null)?.toDate?.() ?? null,
+})
+
+/**
+ * Everything planned in a session from `from` (a `YYYY-MM-DD` day) onward.
+ *
+ * A floor and no ceiling, because that is the shape of the question: a week is
+ * read forwards. `limit` is a backstop against a session nobody ever cleared,
+ * not a page size. Comparing `date` as a string works precisely because it is
+ * stored as `YYYY-MM-DD` — see the note on `PlannedMeal.date`.
+ */
+export const onSessionMealsSnapshot = (
+  sessionId: string,
+  from: string,
+  callback: (meals: PlannedMeal[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    query(sessionMealsRef(sessionId), where("date", ">=", from), orderBy("date"), limit(400)),
+    (snapshot) => callback(snapshot.docs.map((d) => toPlannedMeal(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read the week", error)
+      onError?.(error)
+    }
+  )
+
+export const addPlannedMeal = (
+  sessionId: string,
+  meal: Omit<PlannedMeal, "id" | "addedAt">
+) => addDoc(sessionMealsRef(sessionId), { ...meal, addedAt: serverTimestamp() })
+
+export const deletePlannedMeal = (sessionId: string, mealId: string) =>
+  deleteDoc(doc(db, "sessions", sessionId, "meals", mealId))
+
+/** Same meal, different day or slot. `addedAt` is when it was planned, not moved. */
+export const movePlannedMeal = (
+  sessionId: string,
+  mealId: string,
+  to: { date: string; slot: MealSlot }
+) => updateDoc(doc(db, "sessions", sessionId, "meals", mealId), { ...to })
+
+/**
+ * How many this one meal is for. `null` gives it back to the session's number,
+ * rather than freezing it at whatever the session happened to say today.
+ */
+export const setMealServes = (sessionId: string, mealId: string, serves: number | null) =>
+  updateDoc(doc(db, "sessions", sessionId, "meals", mealId), {
+    serves: serves == null ? deleteField() : serves,
+  })
+
+/* -------------------------------------------------------- shopping list */
+
+const toShoppingItem = (id: string, data: Record<string, unknown>): ShoppingItem => ({
+  id,
+  name: String(data.name ?? ""),
+  amount: String(data.amount ?? ""),
+  section: String(data.section ?? "other"),
+  from: (data.from as string[] | undefined) ?? [],
+  checked: data.checked === true,
+  sort: Number(data.sort ?? 0),
+  manual: data.manual === true,
+  byUid: (data.byUid as string | null) ?? null,
+  tickedByUid: (data.tickedByUid as string | null) ?? null,
+  addedAt: (data.addedAt as { toDate?: () => Date } | null)?.toDate?.() ?? null,
+})
+
+/**
+ * The whole list. Deliberately unordered here: the sections are put in
+ * store-walk order by `SECTIONS` in `src/shoppingList.ts`, which is a decision
+ * about how a shop is laid out rather than about what Firestore holds. Ordering
+ * on `section` here would sort the aisles alphabetically, which is nobody's shop.
+ */
+export const onSessionShoppingSnapshot = (
+  sessionId: string,
+  callback: (items: ShoppingItem[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    sessionShoppingRef(sessionId),
+    (snapshot) => callback(snapshot.docs.map((d) => toShoppingItem(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read the shopping list", error)
+      onError?.(error)
+    }
+  )
+
+/** Ticking records *who*: in a shared shop, that is how two people stay out of each other's way. */
+export const setShoppingItemChecked = (
+  sessionId: string,
+  itemId: string,
+  checked: boolean,
+  uid: string
+) =>
+  updateDoc(doc(db, "sessions", sessionId, "shopping", itemId), {
+    checked,
+    tickedByUid: checked ? uid : null,
+  })
+
+export const addShoppingItem = (
+  sessionId: string,
+  item: Omit<ShoppingItem, "id" | "addedAt">
+) => addDoc(sessionShoppingRef(sessionId), { ...item, addedAt: serverTimestamp() })
+
+export const deleteShoppingItem = (sessionId: string, itemId: string) =>
+  deleteDoc(doc(db, "sessions", sessionId, "shopping", itemId))
+
+/**
+ * A whole build, in one `writeBatch`: the rows an existing line now covers, and
+ * the rows that are new.
+ *
+ * Batched because a half-applied build is the worst of both — some ingredients
+ * folded into lines that no longer say what they cover, the rest missing
+ * outright, and no way to tell by looking. Same 500-write cap and the same
+ * reasoning as `renameTag`; a shop is not that big.
+ */
+export const applyShoppingItems = async (
+  sessionId: string,
+  updates: Array<{ id: string; amount: string; from: string[] }>,
+  additions: Array<Omit<ShoppingItem, "id" | "addedAt">>
+) => {
+  if (updates.length === 0 && additions.length === 0) return
+
+  const batch = writeBatch(db)
+  updates.forEach(({ id, amount, from }) => {
+    batch.update(doc(db, "sessions", sessionId, "shopping", id), { amount, from })
+  })
+  additions.forEach((item) => {
+    batch.set(doc(sessionShoppingRef(sessionId)), { ...item, addedAt: serverTimestamp() })
+  })
+  await batch.commit()
+}
+
+/**
+ * Empties the ticked rows once the shopping is home.
+ *
+ * The query runs against the server rather than reading the ticks off the
+ * snapshot on screen, for the same reason `deleteTag` re-reads its carriers: the
+ * phone in a pocket may be a moment behind, and this one deletes.
+ */
+export const clearCheckedShoppingItems = async (sessionId: string) => {
+  const ticked = await getDocs(
+    query(sessionShoppingRef(sessionId), where("checked", "==", true))
+  )
+  if (ticked.empty) return
+
+  const batch = writeBatch(db)
+  ticked.docs.forEach((d) => batch.delete(d.ref))
+  await batch.commit()
+}
+
+/* ------------------------------------------- scaling specs and the pantry */
+
+/**
+ * How this recipe's ingredients scale, or null if nobody has ever asked.
+ *
+ * A one-shot read rather than a listener: unlike the yield, this is fetched for
+ * a specific recipe at build time and used immediately, so there is no open
+ * screen for a live update to improve. The caller still has to check the
+ * fingerprint — `isUsableSpec` does — because this only says what is stored,
+ * not whether it still describes the ingredient list in hand.
+ */
+export const getScalingSpec = async (
+  recipeId: string,
+  fingerprint: string
+): Promise<ScalingSpec | null> => {
+  const snapshot = await getDoc(recipeScalingRef(recipeId, fingerprint))
+  return snapshot.exists() ? (snapshot.data() as ScalingSpec) : null
+}
+
+/**
+ * Which aisle each ingredient is found in, as a name → section map.
+ *
+ * Read whole rather than per-name: it is one small document per ingredient a
+ * household has ever shopped for, and a build needs to look up dozens at once.
+ * One listener beats forty reads, and the map is useful to the free tier too.
+ */
+export const onPantrySnapshot = (
+  callback: (sections: Record<string, string>) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    pantryRef,
+    (snapshot) =>
+      callback(
+        Object.fromEntries(
+          snapshot.docs.map((d) => [String(d.data().name ?? d.id), String(d.data().section ?? "")])
+        )
+      ),
+    (error) => {
+      console.error("Could not read the pantry", error)
+      onError?.(error)
+    }
+  )
 
 /* --------------------------------------------------------------- ratings */
 

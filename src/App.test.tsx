@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import App from "./App"
 import AuthProvider from "contexts/AuthProvider"
 import ChefProvider from "contexts/ChefProvider"
+import PlannerProvider from "contexts/PlannerProvider"
 import RecipeProvider from "contexts/RecipeProvider"
 
 /** Firebase is stubbed out at the edges — these tests cover wiring, not the SDK. */
@@ -31,6 +32,12 @@ vi.mock("fire/services", () => ({
   onRecipeYieldSnapshot: vi.fn(() => () => {}),
   saveRecipeVariant: vi.fn().mockResolvedValue(undefined),
   deleteRecipeVariant: vi.fn().mockResolvedValue(undefined),
+  onUsersSnapshot: vi.fn(() => () => {}),
+  onMySessionsSnapshot: vi.fn(() => () => {}),
+  onMyInvitesSnapshot: vi.fn(() => () => {}),
+  onSessionMealsSnapshot: vi.fn(() => () => {}),
+  onSessionShoppingSnapshot: vi.fn(() => () => {}),
+  onPantrySnapshot: vi.fn(() => () => {}),
 }))
 
 let emitAuthState: (user: unknown) => void = () => {}
@@ -49,9 +56,11 @@ const Tree = ({ initialPath }: { initialPath: string }) => (
   <AuthProvider>
     <RecipeProvider>
       <ChefProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <App />
-        </MemoryRouter>
+        <PlannerProvider>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <App />
+          </MemoryRouter>
+        </PlannerProvider>
       </ChefProvider>
     </RecipeProvider>
   </AuthProvider>

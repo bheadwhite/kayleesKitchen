@@ -159,6 +159,22 @@ export const TagIcon = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 )
 
+export const CalendarIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d='M8 2v4M16 2v4' />
+    <rect x='3' y='4' width='18' height='18' rx='2' />
+    <path d='M3 10h18' />
+  </Icon>
+)
+
+export const CartIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <circle cx='8' cy='21' r='1' />
+    <circle cx='19' cy='21' r='1' />
+    <path d='M2 2h2l2.6 12.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L22 6H5.1' />
+  </Icon>
+)
+
 export const SearchIcon = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <circle cx='11' cy='11' r='7' />

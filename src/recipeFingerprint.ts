@@ -47,7 +47,32 @@ interface Fingerprintable {
 export const recipeFingerprint = (recipe: Fingerprintable): string =>
   hash(
     JSON.stringify([
-      (recipe.ingredients ?? []).map((i) => [i.name, i.amount, Boolean(i.optional)]),
+      ingredientLines(recipe),
       (recipe.directions ?? []).map((s) => [s.sectionTitle, s.steps]),
     ])
   )
+
+const ingredientLines = (recipe: Fingerprintable) =>
+  (recipe.ingredients ?? []).map((i) => [i.name, i.amount, Boolean(i.optional)])
+
+/**
+ * A stamp of **the ingredient lines alone** — deliberately narrower than
+ * {@link recipeFingerprint}, and the difference is the whole point.
+ *
+ * This is what the scaling spec is keyed by (`recipes/{id}/scaling/{...}`). A
+ * spec says how each *line* responds to cooking for more people: which ones are
+ * linear, which round to whole units, which are "to taste" and never move. None
+ * of that can be changed by rewriting step four.
+ *
+ * Under the full fingerprint it would be. Fixing a typo in the method would
+ * throw away a spec that is still perfectly correct and buy it again — which is
+ * exactly the "why did that cost a model call?" that makes a cache feel
+ * arbitrary. Two caches, two stamps, each invalidated by the edits that
+ * actually reach it.
+ *
+ * The yield cache keeps the wider stamp on purpose: how much a recipe makes
+ * *can* turn on the method ("bake in two tins", "reserve half for later"), so
+ * it has to move when the method does.
+ */
+export const ingredientsFingerprint = (recipe: Fingerprintable): string =>
+  hash(JSON.stringify(ingredientLines(recipe)))

@@ -1,9 +1,11 @@
 import clsx from "clsx"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
+import { toast } from "react-toastify"
 
-import { ArrowBackIcon, Button, EditIcon } from "components"
+import { ArrowBackIcon, Button, CalendarIcon, EditIcon } from "components"
 import { ChefBanner, ChefDrawer } from "components/Chef"
+import { PlanMealDialog } from "components/Planner"
 import Recipe from "components/Recipe"
 import RecipeTable from "components/RecipeTable"
 import { useSessionUser } from "contexts/AuthProvider"
@@ -13,10 +15,11 @@ import {
   useChefPresenter,
   useRecipeYield,
 } from "contexts/ChefProvider"
+import { usePlannerPresenter } from "contexts/PlannerProvider"
 import useTagLibrary from "hooks/useTagLibrary"
 import { onRecipesSnapshot } from "fire/services"
 import { diffRecipe, type RecipeBaseline } from "@/recipeDiff"
-import type { Recipe as RecipeType } from "@/types"
+import type { MealSlot, Recipe as RecipeType } from "@/types"
 
 /**
  * A recipe as `diffRecipe` compares them. Tags and the photo are held level on
@@ -80,14 +83,33 @@ const Recipes = () => {
   const [chefOpen, setChefOpen] = useState(false)
   const [showingOriginal, setShowingOriginal] = useState(false)
 
+  // The meal plan, so a recipe can be dropped into a day from the page you are
+  // already looking at. Opened here as well as in <Planner> because this is a
+  // way into the plan that never went through that tab.
+  const planner = usePlannerPresenter()
+  const [planning, setPlanning] = useState(false)
+
   useEffect(() => {
     if (selected != null) chef.openFor(selected)
   }, [chef, selected])
+
+  const me = useMemo(
+    () =>
+      user == null
+        ? null
+        : { uid: user.uid, name: user.displayName ?? user.email, email: user.email },
+    [user]
+  )
+
+  useEffect(() => {
+    planner.openFor(me)
+  }, [planner, me])
 
   // A different recipe is a different question — nothing carries over.
   useEffect(() => {
     setShowingOriginal(false)
     setChefOpen(false)
+    setPlanning(false)
   }, [selectedId])
 
   /**
@@ -142,21 +164,30 @@ const Recipes = () => {
               <ArrowBackIcon />
               All recipes
             </Button>
-            {/* Only your own. Every signed-in cook *can* write any recipe, but
-             *  offering to edit someone else's from their page invites doing it
-             *  by accident — the editor's own picker has always listed yours
-             *  alone. */}
-            {isMine(selected) && (
-              <Button
-                variant='ghost'
-                onClick={() =>
-                  navigate(`/recipes/new?edit=${encodeURIComponent(selected.id ?? "")}`)
-                }
-                className='mt-0 mr-0'>
-                <EditIcon />
-                Edit
+            <div className='flex items-center'>
+              {/* Offered on anyone's recipe, unlike Edit: planning writes to
+               *  your own plan and touches nothing shared, which is the same
+               *  argument that lets the chef fork somebody else's recipe. */}
+              <Button variant='ghost' onClick={() => setPlanning(true)} className='mt-0 mr-0'>
+                <CalendarIcon />
+                Plan
               </Button>
-            )}
+              {/* Only your own. Every signed-in cook *can* write any recipe, but
+               *  offering to edit someone else's from their page invites doing it
+               *  by accident — the editor's own picker has always listed yours
+               *  alone. */}
+              {isMine(selected) && (
+                <Button
+                  variant='ghost'
+                  onClick={() =>
+                    navigate(`/recipes/new?edit=${encodeURIComponent(selected.id ?? "")}`)
+                  }
+                  className='mt-0 mr-0'>
+                  <EditIcon />
+                  Edit
+                </Button>
+              )}
+            </div>
           </div>
 
           <ChefBanner
@@ -183,6 +214,25 @@ const Recipes = () => {
           />
 
           <ChefDrawer open={chefOpen} onOpenChange={setChefOpen} />
+
+          {/* The same dialog the agenda opens, asked from the other end: it has
+           *  the recipe and wants a day, rather than the other way round. */}
+          <PlanMealDialog
+            open={planning}
+            onClose={() => setPlanning(false)}
+            recipes={recipes}
+            target={null}
+            recipe={selected}
+            onPlan={(date: string, slot: MealSlot, recipe: RecipeType) => {
+              void planner.planMeal(date, slot, recipe).then(
+                () => toast.success(`${recipe.title} is on the plan.`),
+                (error: unknown) => {
+                  console.error("Could not plan that meal", error)
+                  toast.error("Could not plan that meal.")
+                }
+              )
+            }}
+          />
         </>
       )}
     </div>

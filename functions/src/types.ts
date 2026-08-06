@@ -85,6 +85,94 @@ export interface ChefResponse {
   baseServes: number | null
 }
 
+/** One planned meal, as the shopping list is built from it. */
+export interface ShoppingMeal {
+  title: string
+  ingredients: Ingredient[]
+}
+
+/** A line already on the list, as the chef is shown it. */
+export interface ShoppingKnown {
+  id: string
+  name: string
+  amount: string
+  section: string
+}
+
+/**
+ * `existing` carries **only the unticked rows**. A row the chef is never shown
+ * is a row it cannot merge into, which is how "nothing already bought gets its
+ * quantity changed" is actually made true; the client re-checks it as well.
+ */
+export interface ShoppingRequest {
+  meals: ShoppingMeal[]
+  existing: ShoppingKnown[]
+  /**
+   * The pantry: ingredient name → aisle, for every name anyone has shopped for.
+   * Sent so the chef is only asked about names nobody has seen before — the
+   * aisle an ingredient is in never changes, and re-buying it every build is
+   * paying repeatedly for the same answer.
+   */
+  known: Record<string, string>
+}
+
+/** Mirrors `ScaleRule` / `Rounding` / `ScaledLine` in `src/scaling.ts`. */
+export interface ScaledLine {
+  name: string
+  text: string
+  rule: "linear" | "sublinear" | "fixed"
+  qty?: number | null
+  unit?: string | null
+  rounding?: "exact" | "quarter" | "half" | "whole" | null
+  prefer?: "up" | "down" | null
+  exponent?: number | null
+  optional?: boolean | null
+  note?: string | null
+}
+
+export interface VesselRule {
+  upTo: number
+  text: string
+}
+
+/**
+ * How a recipe's ingredient lines respond to cooking for more people —
+ * `recipes/{id}/scaling/{ingredientsFingerprint}`. Mirrors `ScalingSpec` in
+ * `src/scaling.ts`; the two packages share no build.
+ */
+export interface ScalingSpec {
+  baseServes: number
+  lines: ScaledLine[]
+  vessels?: VesselRule[]
+  notes?: string
+  fingerprint: string
+}
+
+export interface ScalingRequest {
+  recipeId: string
+  recipe: RecipeDraft
+  fingerprint: string
+}
+
+export interface ScalingResponse {
+  spec: ScalingSpec
+}
+
+/** One line of the list as the chef proposes it. */
+export interface ShoppingProposal {
+  name: string
+  amount: string
+  section: string
+  from: string[]
+  /** An existing row this line now covers, when the two words differ. */
+  mergesWith?: string | null
+}
+
+export interface ShoppingResponse {
+  items: ShoppingProposal[]
+  note: string
+}
+
 export interface GenerateImageRequest {
   draft: RecipeDraft
 }

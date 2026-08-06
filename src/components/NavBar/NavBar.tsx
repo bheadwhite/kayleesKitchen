@@ -4,6 +4,7 @@ import { NavLink } from "react-router-dom"
 import {
   ActivityIcon,
   Avatar,
+  CalendarIcon,
   EditIcon,
   PotIcon,
   TagIcon,
@@ -54,7 +55,7 @@ const NavBar = () => {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     clsx(itemClass, isActive ? activeClass : idleClass)
 
-  // The admin gets a fifth tab. Everyone else must not even see that the
+  // The admin gets a sixth tab. Everyone else must not even see that the
   // console exists — and `isAdmin` only decides rendering, never access: the
   // Firestore rules are what stop a non-admin reading the collections.
   const showAdmin = isAdmin(user)
@@ -69,7 +70,7 @@ const NavBar = () => {
       <div
         className={clsx(
           "mx-auto grid h-[var(--navbar-h)] w-full max-w-[900px]",
-          showAdmin ? "grid-cols-5" : "grid-cols-4"
+          showAdmin ? "grid-cols-6" : "grid-cols-5"
         )}>
         {/* `end`, or /recipes/new would light up both tabs. */}
         <NavLink to='/recipes' end className={linkClass}>
@@ -79,6 +80,10 @@ const NavBar = () => {
         <NavLink to='/recipes/new' className={linkClass}>
           <EditIcon className={iconClass} />
           Editor
+        </NavLink>
+        <NavLink to='/plan' className={linkClass}>
+          <CalendarIcon className={iconClass} />
+          Plan
         </NavLink>
         <NavLink to='/tags' className={linkClass}>
           <TagIcon className={iconClass} />

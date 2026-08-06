@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import Recipes from "./Recipes"
 import ChefProvider from "contexts/ChefProvider"
+import PlannerProvider from "contexts/PlannerProvider"
 import { ChefPresenter } from "presenters/ChefPresenter"
+import { PlannerPresenter, type PlannerStore } from "presenters/PlannerPresenter"
 import type { Recipe } from "@/types"
 
 const RECIPES: Recipe[] = [
@@ -60,22 +62,36 @@ const EditorStub = () => {
   return <p>editing {params.get("edit")}</p>
 }
 
+/** A planner that reaches nothing — the "Plan" button needs one to exist. */
+const idlePlannerStore = {
+  watchSessions: () => () => {},
+  watchInvites: () => () => {},
+  watchMeals: () => () => {},
+  watchShopping: () => () => {},
+  watchPantry: () => () => {},
+  planMeal: vi.fn().mockResolvedValue(undefined),
+  getScalingSpec: vi.fn().mockResolvedValue(null),
+} as unknown as PlannerStore
+
 /**
  * <Recipes> reads `?open=` and `?cook=` off the URL, so it needs a router — and
- * an injected chef, so nothing here can reach the callable. Every test below is
- * about the list and the recipe, not about the chef; the presenter is here to
- * exist, not to answer.
+ * an injected chef and planner, so nothing here can reach a callable or
+ * Firestore. Every test below is about the list and the recipe; those presenters
+ * are here to exist, not to answer.
  */
 const renderRecipes = (path = "/recipes") => {
   const chef = new ChefPresenter(vi.fn())
+  const planner = new PlannerPresenter(vi.fn(), vi.fn(), idlePlannerStore)
   render(
     <ChefProvider presenter={chef}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path='/recipes' element={<Recipes />} />
-          <Route path='/recipes/new' element={<EditorStub />} />
-        </Routes>
-      </MemoryRouter>
+      <PlannerProvider presenter={planner}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path='/recipes' element={<Recipes />} />
+            <Route path='/recipes/new' element={<EditorStub />} />
+          </Routes>
+        </MemoryRouter>
+      </PlannerProvider>
     </ChefProvider>
   )
   return chef
@@ -192,5 +208,21 @@ describe("Recipes — editing from the recipe view", () => {
     // Any signed-in cook *can* write any recipe; offering it here would invite
     // editing a family member's by accident.
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
+  })
+
+  it("offers Plan on anybody's recipe, and asks which day", async () => {
+    const user = userEvent.setup()
+    renderRecipes()
+
+    // Somebody else's, deliberately: planning writes to your own plan and
+    // touches nothing shared, so there is nothing here to do by accident.
+    await user.click(screen.getByText("Won Ton Salad"))
+    await user.click(screen.getByRole("button", { name: "Plan" }))
+
+    expect(
+      screen.getByRole("dialog", { name: "When are you cooking Won Ton Salad?" })
+    ).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "When are you cooking Won Ton Salad?" }))
+      .toBeInTheDocument()
   })
 })

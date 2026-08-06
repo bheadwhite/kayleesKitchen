@@ -15,6 +15,8 @@ const FEATURE_LABELS: Record<AiUsageEvent["feature"], string> = {
   assistant: "Chef · editor",
   chef: "Chef · recipe",
   image: "Image",
+  shopping: "Shopping list",
+  scaling: "Scaling rules",
 }
 
 /** Compact token counts — six-digit numbers make a phone table unreadable. */
@@ -81,8 +83,21 @@ const Admin = () => {
     const assistant = usage.filter((e) => e.feature === "assistant").length
     const chef = usage.filter((e) => e.feature === "chef").length
     const images = usage.filter((e) => e.feature === "image").length
+    const shopping = usage.filter((e) => e.feature === "shopping").length
+    const scaling = usage.filter((e) => e.feature === "scaling").length
     const slowest = usage.reduce((n, e) => Math.max(n, e.ms), 0)
-    return { input, output, cacheRead, failed, assistant, chef, images, slowest }
+    return {
+      input,
+      output,
+      cacheRead,
+      failed,
+      assistant,
+      chef,
+      images,
+      shopping,
+      scaling,
+      slowest,
+    }
   }, [usage])
 
   /**
@@ -184,6 +199,12 @@ const Admin = () => {
         <Stat label='Chef · editor' value={number.format(totals.assistant)} hint='calls' />
         <Stat label='Chef · recipe' value={number.format(totals.chef)} hint='calls' />
         <Stat label='Images' value={number.format(totals.images)} hint='generated' />
+        <Stat label='Shopping list' value={number.format(totals.shopping)} hint='builds' />
+        {/* This one should trend to nothing: a recipe's scaling rules are
+         *  bought once per version and then answer every serving count. A
+         *  number that keeps climbing means the cache is missing — most likely
+         *  the two fingerprint implementations have drifted apart. */}
+        <Stat label='Scaling rules' value={number.format(totals.scaling)} hint='recipes read' />
         <Stat label='Tokens in' value={compact(totals.input)} hint={`${compact(totals.cacheRead)} cached`} />
         <Stat label='Tokens out' value={compact(totals.output)} />
       </div>
