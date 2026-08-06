@@ -10,6 +10,18 @@ const BASE =
   "inline-flex h-[17px] shrink-0 items-center border px-1 font-mono text-[9.5px] " +
   "leading-none tracking-[0.14em] uppercase"
 
+/**
+ * One width for all three states.
+ *
+ * "CHANGED" → "REVERT" → "SURE?" are different lengths, and the chip sits at
+ * the end of a flex row whose text takes the rest: every stage change reflowed
+ * the line beside it, which reads as the text having changed *again* — the one
+ * thing this control exists to talk about. Sized to the longest label
+ * ("CHANGED"/"REMOVED" at this size and tracking) and centred, so only the
+ * chip's own contents move.
+ */
+const STABLE = "min-w-[64px] justify-center"
+
 interface ChangeMarkProps {
   change?: RowChange | "removed"
   /** Makes the mark pressable: tap it, then confirm, to put the line back. */
@@ -82,6 +94,7 @@ const ChangeMark = ({ change = "same", onRevert, onPreview, className }: ChangeM
         title={`${label} — tap to see the saved version`}
         className={clsx(
           BASE,
+          STABLE,
           "cursor-pointer border-steel-300 bg-steel-100 text-steel-700 hover:bg-steel-200",
           className
         )}>
@@ -112,6 +125,7 @@ const ChangeMark = ({ change = "same", onRevert, onPreview, className }: ChangeM
       // it. Different family, so the eye lands on it as a different object.
       className={clsx(
         BASE,
+        STABLE,
         "cursor-pointer",
         confirming
           ? "border-danger bg-danger text-ground"
