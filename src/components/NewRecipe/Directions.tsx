@@ -38,7 +38,6 @@ import {
 } from "components"
 import { TextArea, TextField } from "components/finalForm"
 import { useDirections, useEditSection, useRecipePresenter } from "contexts/RecipeProvider"
-import usePeek from "hooks/usePeek"
 import type { RowChange, RowDiff, SectionChanges } from "@/recipeDiff"
 
 interface DirectionsProps {
@@ -87,7 +86,7 @@ interface StepRowProps {
 const StepRow = ({ id, number, text, change, onEdit, onDelete, onRevert }: StepRowProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
-  const { peeking, handlers } = usePeek(change?.before != null)
+  const [previewing, setPreviewing] = useState(false)
 
   return (
     <div
@@ -95,8 +94,9 @@ const StepRow = ({ id, number, text, change, onEdit, onDelete, onRevert }: StepR
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={clsx(
         "grid grid-cols-[36px_1fr_36px] items-start gap-2 border-t border-ink/10 py-2.5",
-        change != null && change.kind !== "same" && "bg-steel-100",
-        peeking && "bg-steel-200",
+        // The tint goes while previewing: the row is showing itself as an
+        // unchanged row, and it should look like one.
+        change != null && change.kind !== "same" && !previewing && "bg-steel-100",
         isDragging && "relative z-10 bg-surface"
       )}>
       {/* Number above handle, both centred in a 36px gutter — the design's step
@@ -126,14 +126,23 @@ const StepRow = ({ id, number, text, change, onEdit, onDelete, onRevert }: StepR
           onClick={onEdit}
           // `pre-wrap` keeps the line breaks the textarea editor allows; without
           // it a step written as several lines reads back as one run-on.
-          className='min-w-0 flex-1 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words whitespace-pre-wrap select-none hover:text-steel-700'
-          title={
-            change?.before != null ? "Click to edit · hold to see what it said" : "Click to edit"
-          }
-          {...handlers}>
-          {peeking ? <span className='text-muted line-through'>{change?.before}</span> : text}
+          className='min-w-0 flex-1 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words whitespace-pre-wrap hover:text-steel-700'
+          title='Click to edit'>
+          {previewing && change?.before != null ? (
+            change.before
+          ) : previewing ? (
+            // Nothing to put back: reverting this step removes it.
+            <span className='text-muted line-through'>{text}</span>
+          ) : (
+            text
+          )}
         </button>
-        <ChangeMark change={change?.kind} onRevert={onRevert} className='mt-1.5' />
+        <ChangeMark
+          change={change?.kind}
+          onRevert={onRevert}
+          onPreview={setPreviewing}
+          className='mt-1.5'
+        />
       </div>
 
       <IconButton onClick={onDelete} label={`Delete step: ${text}`} danger>
@@ -156,9 +165,9 @@ interface SectionTitleProps {
 
 /** A section's heading: click to rename, hold to see what it was called. */
 const SectionTitle = ({ title, mark, before, onEdit, onDelete, onRevert }: SectionTitleProps) => {
-  const { peeking, handlers } = usePeek(before != null)
+  const [previewing, setPreviewing] = useState(false)
   // A section renamed *from* nothing has an empty previous title, and an empty
-  // strikethrough reads as a bug rather than as an answer.
+  // heading reads as a bug rather than as an answer.
   const previous = before === "" ? "Untitled section" : before
 
   return (
@@ -166,14 +175,13 @@ const SectionTitle = ({ title, mark, before, onEdit, onDelete, onRevert }: Secti
       <button
         type='button'
         onClick={onEdit}
-        title={before != null ? "Click to edit · hold to see what it said" : "Click to edit"}
+        title='Click to edit'
         className={clsx(
           "min-w-0 flex-1 cursor-text py-1 text-left font-heading text-xl font-semibold",
-          "tracking-[0.06em] break-words text-steel-700 uppercase select-none"
-        )}
-        {...handlers}>
-        {peeking ? (
-          <span className='text-muted line-through'>{previous}</span>
+          "tracking-[0.06em] break-words text-steel-700 uppercase"
+        )}>
+        {previewing && before != null ? (
+          previous
         ) : title === "" ? (
           <span className='text-muted'>Section title</span>
         ) : (
@@ -185,6 +193,7 @@ const SectionTitle = ({ title, mark, before, onEdit, onDelete, onRevert }: Secti
       <ChangeMark
         change={mark}
         onRevert={before != null ? onRevert : undefined}
+        onPreview={setPreviewing}
         className='mt-2'
       />
       <IconButton

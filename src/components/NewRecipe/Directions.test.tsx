@@ -123,34 +123,30 @@ describe("Directions", () => {
     presenter.dispose()
   })
 
-  it("holds a renamed section to show what it was called", () => {
-    vi.useFakeTimers()
-    try {
-      const presenter = setup([
-        {
-          added: false,
-          titleChanged: true,
-          titleBefore: "Pastry",
-          steps: [{ kind: "same" }, { kind: "same" }],
-          stepsRemoved: 0,
-        },
-      ])
-      const heading = screen.getByTitle("Click to edit · hold to see what it said")
+  it("shows a renamed section as a revert would leave it", async () => {
+    const user = userEvent.setup()
+    const presenter = setup([
+      {
+        added: false,
+        titleChanged: true,
+        titleBefore: "Pastry",
+        steps: [{ kind: "same" }, { kind: "same" }],
+        stepsRemoved: 0,
+      },
+    ])
 
-      fireEvent.pointerDown(heading)
-      act(() => void vi.advanceTimersByTime(400))
-      expect(screen.getByText("Pastry")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "changed — revert this line" }))
 
-      fireEvent.pointerUp(heading)
-      expect(screen.queryByText("Pastry")).toBeNull()
-      // A hold is a look: the heading must not swap itself for an input.
-      fireEvent.click(heading)
-      expect(presenter.getEditSection()).toBeNull()
+    expect(screen.getByText("Pastry")).toBeInTheDocument()
+    expect(screen.queryByText("Shells")).toBeNull()
+    // Looking is not editing: the heading must not swap itself for an input.
+    expect(presenter.getEditSection()).toBeNull()
 
-      presenter.dispose()
-    } finally {
-      vi.useRealTimers()
-    }
+    await user.click(screen.getByRole("button", { name: "Revert this line" }))
+    await user.click(screen.getByRole("button", { name: "Confirm revert" }))
+    expect(presenter.getDirections()[0].sectionTitle).toBe("Shells")
+
+    presenter.dispose()
   })
 
   it("deletes a step from its row", async () => {

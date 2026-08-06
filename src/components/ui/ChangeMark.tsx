@@ -3,8 +3,8 @@ import { useEffect, useState, type MouseEvent } from "react"
 
 import type { RowChange } from "@/recipeDiff"
 
-/** Long enough to reach with a thumb, short enough not to sit there armed. */
-const OFFER_MS = 4000
+/** Long enough to read the line it puts back, short enough not to sit armed. */
+const OFFER_MS = 6000
 
 const BASE =
   "inline-flex h-[17px] shrink-0 items-center border px-1 font-mono text-[9.5px] " +
@@ -14,6 +14,12 @@ interface ChangeMarkProps {
   change?: RowChange | "removed"
   /** Makes the mark pressable: tap it, then confirm, to put the line back. */
   onRevert?: () => void
+  /**
+   * Fired as the offer opens and closes. The row uses it to show itself as it
+   * would be *after* reverting — that preview is the answer to "what did this
+   * used to say", so arming the button and showing it are one gesture.
+   */
+  onPreview?: (previewing: boolean) => void
   className?: string
 }
 
@@ -26,15 +32,20 @@ interface ChangeMarkProps {
  * "changed" and "new" are different news — one of them means something you
  * wrote is gone.
  *
- * **Tap it and it offers "Revert"; tap that and it asks "Sure?" in the same
- * spot.** Two taps in one place, no dialog and no travel: the confirmation
- * lands under the finger that is already there, which is what makes it quick
- * enough to use on the phone this app is read from. It disarms itself after a
- * few seconds, so a stray tap does not leave a destructive button sitting under
- * the next one.
+ * **Tap it and the row shows itself reverted while the mark offers "Revert";
+ * tap that and it asks "Sure?" in the same spot.** Two taps in one place, no
+ * dialog and no travel: the confirmation lands under the finger that is already
+ * there, and the preview under it answers "what did this say before" without a
+ * second gesture to ask. It disarms itself after a few seconds, so a stray tap
+ * leaves neither a destructive button nor a row pretending to be something it
+ * is not.
  */
-const ChangeMark = ({ change = "same", onRevert, className }: ChangeMarkProps) => {
+const ChangeMark = ({ change = "same", onRevert, onPreview, className }: ChangeMarkProps) => {
   const [stage, setStage] = useState<"mark" | "offer" | "confirm">("mark")
+
+  useEffect(() => {
+    onPreview?.(stage !== "mark")
+  }, [stage, onPreview])
 
   useEffect(() => {
     if (stage === "mark") return
@@ -68,7 +79,7 @@ const ChangeMark = ({ change = "same", onRevert, className }: ChangeMarkProps) =
         type='button'
         onClick={(event) => press(event, () => setStage("offer"))}
         aria-label={`${label} — revert this line`}
-        title={`${label} — tap to revert`}
+        title={`${label} — tap to see the saved version`}
         className={clsx(
           BASE,
           "cursor-pointer border-steel-300 bg-steel-100 text-steel-700 hover:bg-steel-200",

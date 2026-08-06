@@ -166,6 +166,75 @@ describe("RecipePresenter", () => {
     })
   })
 
+  describe("reverting one line", () => {
+    beforeEach(() => presenter.loadRecipe(recipe))
+
+    it("puts a changed ingredient back", () => {
+      presenter.setEditIngredientIndex(1)
+      presenter.updateIngredient({ name: "Shallot", amount: "1 cup" })
+      presenter.revertIngredient(1)
+
+      expect(presenter.getIngredients()[1]).toMatchObject({ name: "Onion", amount: "1/2 cup" })
+    })
+
+    it("removes an ingredient the saved recipe does not have", () => {
+      presenter.addIngredient({ name: "Garlic", amount: "3 cloves" })
+      presenter.revertIngredient(2)
+
+      // That is what reverting an addition means.
+      expect(presenter.getIngredients().map((i) => i.name)).toEqual(["Beef", "Onion"])
+    })
+
+    it("puts a changed step back", () => {
+      presenter.setEditStep(0, 1)
+      presenter.updateSectionStep(0, { "nextStep-0": "Add passata" })
+      presenter.revertStep(0, 1)
+
+      expect(presenter.getDirections()[0].steps).toEqual(["Brown the beef", "Add tomatoes"])
+    })
+
+    it("removes a step the saved recipe does not have", () => {
+      presenter.addNewStep(0, "Season")
+      presenter.revertStep(0, 2)
+
+      expect(presenter.getDirections()[0].steps).toEqual(["Brown the beef", "Add tomatoes"])
+    })
+
+    it("puts a renamed section back", () => {
+      presenter.setEditSection(0)
+      presenter.updateSectionTitle("The sauce")
+      presenter.revertSectionTitle(0)
+
+      expect(presenter.getDirections()[0].sectionTitle).toBe("Sauce")
+    })
+
+    it("leaves a brand-new section alone — there is no saved title to restore", () => {
+      presenter.addNewSection("Bake")
+      presenter.revertSectionTitle(2)
+
+      expect(presenter.getDirections()[2].sectionTitle).toBe("Bake")
+    })
+
+    it("does nothing at all on a recipe that has never been saved", () => {
+      presenter.reset()
+      presenter.addIngredient({ name: "Garlic", amount: "3 cloves" })
+      presenter.revertIngredient(0)
+
+      // No baseline means no "what it was", and removing the row would be a
+      // guess dressed up as a revert.
+      expect(presenter.getIngredients()).toHaveLength(1)
+    })
+
+    it("is itself undoable", () => {
+      presenter.setEditIngredientIndex(1)
+      presenter.updateIngredient({ name: "Shallot", amount: "1 cup" })
+      presenter.revertIngredient(1)
+      presenter.undo()
+
+      expect(presenter.getIngredients()[1]).toMatchObject({ name: "Shallot" })
+    })
+  })
+
   describe("the saved baseline", () => {
     it("starts empty, so an unsaved recipe has nothing to differ from", () => {
       expect(presenter.getBaseline()).toBeNull()

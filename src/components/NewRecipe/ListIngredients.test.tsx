@@ -63,63 +63,11 @@ const setup = (changes?: RowDiff[]) => {
   return presenter
 }
 
-describe("ListIngredients — peeking at what a row said", () => {
+describe("ListIngredients — seeing and reverting one line", () => {
   const CHANGED: RowDiff[] = [
     { kind: "same" },
-    { kind: "changed", before: "Onion — 1 whole" },
+    { kind: "changed", before: "Onion — 1/2 cup" },
   ]
-
-  it("shows the previous text while the row is held, and not before", () => {
-    vi.useFakeTimers()
-    try {
-      const presenter = setup(CHANGED)
-      const row = screen.getByTitle("Click to edit · hold to see what it said")
-
-      fireEvent.pointerDown(row)
-      expect(screen.queryByText("Onion — 1 whole")).toBeNull()
-
-      act(() => void vi.advanceTimersByTime(400))
-      expect(screen.getByText("Onion — 1 whole")).toBeInTheDocument()
-
-      // Ephemeral: letting go puts the current version straight back.
-      fireEvent.pointerUp(row)
-      expect(screen.queryByText("Onion — 1 whole")).toBeNull()
-      presenter.dispose()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it("does not open the editor when a hold ends", () => {
-    vi.useFakeTimers()
-    try {
-      const presenter = setup(CHANGED)
-      const row = screen.getByTitle("Click to edit · hold to see what it said")
-
-      fireEvent.pointerDown(row)
-      act(() => void vi.advanceTimersByTime(400))
-      fireEvent.pointerUp(row)
-      fireEvent.click(row)
-
-      // A hold is a look, not a tap — the row must not swap itself for an input.
-      expect(presenter.getEditIngredientIndex()).toBeNull()
-      presenter.dispose()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it("still opens the editor on a plain tap", () => {
-    const presenter = setup(CHANGED)
-    const row = screen.getByTitle("Click to edit · hold to see what it said")
-
-    fireEvent.pointerDown(row)
-    fireEvent.pointerUp(row)
-    fireEvent.click(row)
-
-    expect(presenter.getEditIngredientIndex()).toBe(1)
-    presenter.dispose()
-  })
 
   /**
    * Moves the second ingredient away from what was loaded, as an edit would.
@@ -133,48 +81,64 @@ describe("ListIngredients — peeking at what a row said", () => {
       presenter.updateIngredient({ name: "Shallot", amount: "2 cups" })
     })
 
-  it("reverts a line from its own mark, in two taps", async () => {
+  const arm = async (user: ReturnType<typeof userEvent.setup>) =>
+    user.click(screen.getByRole("button", { name: "changed — revert this line" }))
+
+  it("shows the row as a revert would leave it", async () => {
     const user = userEvent.setup()
     const presenter = setup(CHANGED)
     editRow(presenter)
 
-    // The mark is the affordance: it already points at the line that moved.
-    await user.click(screen.getByRole("button", { name: "changed — revert this line" }))
+    expect(screen.queryByText("Onion — 1/2 cup")).toBeNull()
+    await arm(user)
+
+    // One tap answers "what did this say" and arms the way back at once.
+    expect(screen.getByText("Onion — 1/2 cup")).toBeInTheDocument()
+    expect(screen.queryByText("Shallot")).toBeNull()
+    presenter.dispose()
+  })
+
+  it("drops the changed tint while previewing, so it reads as an ordinary row", async () => {
+    const user = userEvent.setup()
+    const presenter = setup(CHANGED)
+    editRow(presenter)
+
+    const row = () => screen.getByText(/Shallot|Onion/).closest("div")
+    expect(row()?.className).toContain("bg-steel-100")
+
+    await arm(user)
+    expect(row()?.className).not.toContain("bg-steel-100")
+    presenter.dispose()
+  })
+
+  it("reverts on the second and third taps, not the first", async () => {
+    const user = userEvent.setup()
+    const presenter = setup(CHANGED)
+    editRow(presenter)
+
+    await arm(user)
     await user.click(screen.getByRole("button", { name: "Revert this line" }))
     // The confirmation lands under the finger already there — no dialog, no
     // travel.
-    await user.click(screen.getByRole("button", { name: "Confirm revert" }))
+    expect(presenter.getIngredients()[1]).toMatchObject({ name: "Shallot" })
 
+    await user.click(screen.getByRole("button", { name: "Confirm revert" }))
     expect(presenter.getIngredients()[1]).toMatchObject({ name: "Onion", amount: "1/2 cup" })
     presenter.dispose()
   })
 
-  it("does nothing until the second tap", async () => {
-    const user = userEvent.setup()
-    const presenter = setup(CHANGED)
-    editRow(presenter)
-
-    await user.click(screen.getByRole("button", { name: "changed — revert this line" }))
-    await user.click(screen.getByRole("button", { name: "Revert this line" }))
-
-    expect(screen.getByRole("button", { name: "Confirm revert" })).toBeInTheDocument()
-    expect(presenter.getIngredients()[1]).toMatchObject({ name: "Shallot" })
-    presenter.dispose()
-  })
-
-  it("disarms itself if it is left alone", () => {
+  it("puts the row back as it was if it is left alone", () => {
     vi.useFakeTimers()
     try {
       const presenter = setup(CHANGED)
-      const mark = screen.getByRole("button", { name: "changed — revert this line" })
-
-      fireEvent.click(mark)
+      fireEvent.click(screen.getByRole("button", { name: "changed — revert this line" }))
       expect(screen.getByRole("button", { name: "Revert this line" })).toBeInTheDocument()
 
-      // A destructive button must not sit armed under wherever the next tap
-      // lands.
-      act(() => void vi.advanceTimersByTime(5000))
+      // Neither a destructive button nor a row pretending to be unchanged is
+      // something to leave sitting there.
+      act(() => void vi.advanceTimersByTime(7000))
       expect(screen.queryByRole("button", { name: "Revert this line" })).toBeNull()
+      expect(screen.queryByText("Onion — 1/2 cup")).toBeNull()
       presenter.dispose()
     } finally {
       vi.useRealTimers()
@@ -186,7 +150,7 @@ describe("ListIngredients — peeking at what a row said", () => {
     const presenter = setup(CHANGED)
     editRow(presenter)
 
-    await user.click(screen.getByRole("button", { name: "changed — revert this line" }))
+    await arm(user)
     await user.click(screen.getByRole("button", { name: "Revert this line" }))
     await user.click(screen.getByRole("button", { name: "Confirm revert" }))
     presenter.undo()
@@ -197,10 +161,9 @@ describe("ListIngredients — peeking at what a row said", () => {
     presenter.dispose()
   })
 
-  it("offers no hold on a row that has not changed", () => {
+  it("marks nothing on a row that has not changed", () => {
     const presenter = setup(CHANGED)
-    // The unchanged row keeps the plain title: there is nothing to look at.
-    expect(screen.getAllByTitle("Click to edit")).toHaveLength(1)
+    expect(screen.getAllByRole("button", { name: /revert this line/i })).toHaveLength(1)
     presenter.dispose()
   })
 })

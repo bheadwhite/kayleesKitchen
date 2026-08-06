@@ -1,5 +1,5 @@
 import clsx from "clsx"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useFormState } from "react-final-form"
 
 import { Button, ChangeMark, CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "components"
@@ -9,7 +9,6 @@ import {
   useIngredients,
   useRecipePresenter,
 } from "contexts/RecipeProvider"
-import usePeek from "hooks/usePeek"
 import type { RowDiff } from "@/recipeDiff"
 import type { Ingredient } from "@/types"
 
@@ -21,9 +20,9 @@ interface RowProps {
   onRevert?: () => void
 }
 
-/** One listed ingredient: press and hold a changed row to see what it said. */
+/** One listed ingredient. Tapping its mark shows the row as a revert would leave it. */
 const IngredientRow = ({ ingredient, change, onEdit, onDelete, onRevert }: RowProps) => {
-  const { peeking, handlers } = usePeek(change?.before != null)
+  const [previewing, setPreviewing] = useState(false)
   const changed = change != null && change.kind !== "same"
 
   return (
@@ -32,20 +31,25 @@ const IngredientRow = ({ ingredient, change, onEdit, onDelete, onRevert }: RowPr
         "flex items-center justify-between gap-2 border-b border-ink/8 py-1",
         // A tint on the row and a flag beside it: the tint is what makes a
         // changed line findable while scrolling, the flag is what says which
-        // kind of change it was.
-        changed && "bg-steel-100 px-2",
-        peeking && "bg-steel-200"
+        // kind of change it was. While previewing, the tint goes — the row is
+        // showing itself as an unchanged row, and it should look like one.
+        changed && !previewing && "bg-steel-100 px-2",
+        changed && previewing && "px-2"
       )}>
       {/* Click-to-edit, like a step in Directions — the pencil is the
        *  affordance, the text is the bigger target. */}
       <button
         type='button'
         onClick={onEdit}
-        title={change?.before != null ? "Click to edit · hold to see what it said" : "Click to edit"}
-        className='min-w-0 cursor-text py-1 text-left break-words select-none'
-        {...handlers}>
-        {peeking ? (
-          <span className='text-muted line-through'>{change?.before}</span>
+        title='Click to edit'
+        className='min-w-0 cursor-text py-1 text-left break-words'>
+        {previewing && change?.before != null ? (
+          change.before
+        ) : previewing ? (
+          // Nothing to put back: reverting this row removes it.
+          <span className='text-muted line-through'>
+            {`${ingredient.name} — ${ingredient.amount}`}
+          </span>
         ) : (
           <>
             {/* Mono palette: an unusual ingredient takes the accent rather than
@@ -60,7 +64,7 @@ const IngredientRow = ({ ingredient, change, onEdit, onDelete, onRevert }: RowPr
       </button>
 
       <div className='flex shrink-0 items-center gap-1'>
-        <ChangeMark change={change?.kind} onRevert={onRevert} />
+        <ChangeMark change={change?.kind} onRevert={onRevert} onPreview={setPreviewing} />
         <Button variant='ghost' icon onClick={onEdit} aria-label={`Edit ${ingredient.name}`}>
           <EditIcon />
         </Button>
