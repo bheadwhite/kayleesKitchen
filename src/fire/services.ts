@@ -20,6 +20,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -304,6 +305,57 @@ export const onRecipesByEmailSnapshot = (
   onSnapshot(query(recipesRef, where("email", "==", email)), (snapshot) =>
     callback(mapSnapshot(snapshot))
   )
+
+/* --------------------------------------------------------------- ratings */
+
+/** The stars this person gave this recipe, or null if they have not rated it. */
+export const getMyRating = async (recipeId: string, uid: string): Promise<number | null> => {
+  const snapshot = await getDoc(doc(db, "ratings", `${recipeId}_${uid}`))
+  return snapshot.exists() ? Number(snapshot.data().stars) : null
+}
+
+/**
+ * Leaves or changes a rating.
+ *
+ * Two writes that must agree — the rating itself and the totals on the recipe —
+ * so they go in a transaction: the read of the previous rating and of the
+ * current totals has to be the one the arithmetic is based on, or two people
+ * rating at once lose a vote between them.
+ *
+ * Totals are cached on the recipe because the ratings themselves are private.
+ * Averaging client-side would mean every reader could see every rating, and
+ * "anonymous" would only be true of the screen, not of the data.
+ *
+ * The rules re-check the star range and that this is not your own recipe. This
+ * arithmetic they cannot check — but the totals only ever move by a vote each,
+ * and the people who can write here are the household.
+ */
+export const rateRecipe = async (recipeId: string, uid: string, stars: number) => {
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
+    throw new Error("A rating is 1 to 5 stars.")
+  }
+
+  await runTransaction(db, async (transaction) => {
+    const ratingRef = doc(db, "ratings", `${recipeId}_${uid}`)
+    const recipeRef = doc(db, "recipes", recipeId)
+
+    // Every read before any write — a transaction requires it.
+    const previous = await transaction.get(ratingRef)
+    const recipe = await transaction.get(recipeRef)
+    if (!recipe.exists()) throw new Error("That recipe is gone.")
+
+    const previousStars = previous.exists() ? Number(previous.data().stars) : null
+    const count = Number(recipe.data().ratingCount ?? 0)
+    const sum = Number(recipe.data().ratingSum ?? 0)
+
+    transaction.set(ratingRef, { recipeId, uid, stars, at: serverTimestamp() })
+    transaction.update(recipeRef, {
+      // Changing a rating moves the sum but not the count.
+      ratingCount: previousStars == null ? count + 1 : count,
+      ratingSum: sum - (previousStars ?? 0) + stars,
+    })
+  })
+}
 
 /* ------------------------------------------------------------------ tags */
 

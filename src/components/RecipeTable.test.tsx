@@ -19,15 +19,21 @@ const RECIPES = [
   recipe("Waffles"),
 ]
 
+/**
+ * The rows in order, as text. Each row is one <li>, and the title leads it —
+ * `expect(rows()[0]).toContain(...)` survives things being added to a row, which
+ * a positional walk into its markup has twice failed to.
+ */
+const rows = () => screen.getAllByRole("listitem").map((row) => row.textContent ?? "")
+
 describe("RecipeTable", () => {
   it("lists recipes alphabetically", () => {
     render(<RecipeTable recipes={RECIPES} onSelect={vi.fn()} />)
 
-    // Each row is one button; its first line is the title.
-    const titles = screen
-      .getAllByRole("button")
-      .map((row) => row.firstElementChild?.nextElementSibling?.firstElementChild?.textContent)
-    expect(titles).toEqual(["Banana Bread", "Chili", "Waffles"])
+    const [first, second, third] = rows()
+    expect(first).toContain("Banana Bread")
+    expect(second).toContain("Chili")
+    expect(third).toContain("Waffles")
   })
 
   it("filters on title", async () => {
@@ -81,6 +87,8 @@ describe("RecipeTable", () => {
     render(<RecipeTable recipes={RECIPES} onSelect={onSelect} />)
 
     await user.tab() // filter input
+    await user.tab() // A–Z
+    await user.tab() // Top rated
     await user.tab() // first row
     await user.keyboard("{Enter}")
 
@@ -167,6 +175,49 @@ describe("RecipeTable", () => {
 
       expect(screen.getByText("Enchiladas")).toBeInTheDocument()
       expect(screen.queryByText("Porridge")).not.toBeInTheDocument()
+    })
+  })
+
+  describe("ratings", () => {
+    const RATED = [
+      recipe("Alright", { ratingSum: 6, ratingCount: 2 }), // 3.0
+      recipe("Excellent", { ratingSum: 15, ratingCount: 3 }), // 5.0
+      recipe("Also excellent", { ratingSum: 5, ratingCount: 1 }), // 5.0
+      recipe("Unrated"),
+    ]
+
+    it("shows an average only where somebody has rated", () => {
+      render(<RecipeTable recipes={RATED} onSelect={vi.fn()} />)
+
+      expect(screen.getByText("5.0 (3)")).toBeInTheDocument()
+      expect(screen.getByText("3.0 (2)")).toBeInTheDocument()
+      // Five empty stars on every row is noise that says nothing.
+      expect(screen.queryByText(/\(0\)/)).toBeNull()
+    })
+
+    it("sorts by rating, most-rated first among equals, unrated last", async () => {
+      const user = userEvent.setup()
+      render(<RecipeTable recipes={RATED} onSelect={vi.fn()} />)
+
+      await user.click(screen.getByRole("button", { name: "Top rated" }))
+
+      const [first, second, third, fourth] = rows()
+      // Both are 5.0; this one has three people saying so rather than one.
+      expect(first).toContain("Excellent")
+      expect(second).toContain("Also excellent")
+      expect(third).toContain("Alright")
+      // Nobody has said it is bad — only that nobody has said anything.
+      expect(fourth).toContain("Unrated")
+    })
+
+    it("goes back to alphabetical", async () => {
+      const user = userEvent.setup()
+      render(<RecipeTable recipes={RATED} onSelect={vi.fn()} />)
+
+      await user.click(screen.getByRole("button", { name: "Top rated" }))
+      await user.click(screen.getByRole("button", { name: "A–Z" }))
+
+      expect(rows()[0]).toContain("Alright")
     })
   })
 

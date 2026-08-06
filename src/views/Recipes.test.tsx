@@ -40,6 +40,8 @@ vi.mock("fire/services", () => ({
     return () => {}
   },
   onTagsSnapshot: () => () => {},
+  getMyRating: vi.fn().mockResolvedValue(null),
+  rateRecipe: vi.fn().mockResolvedValue(undefined),
 }))
 
 /** jsdom never scrolls, so drive `scrollY` by hand. */

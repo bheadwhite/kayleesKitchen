@@ -1,8 +1,11 @@
 import clsx from "clsx"
 import { useMemo, useState } from "react"
 
-import { ChevronRightIcon, PotIcon, SearchIcon, TagChip } from "components"
+import { ChevronRightIcon, PotIcon, SearchIcon, Stars, TagChip } from "components"
+import { averageOf } from "./RecipeRating"
 import type { Recipe } from "@/types"
+
+type SortKey = "title" | "rating"
 
 interface RecipeTableProps {
   recipes: Recipe[]
@@ -63,6 +66,7 @@ const RecipeTable = ({
   // One tag at a time. Stacking them narrows to nothing fast on a list this
   // size, and "tap another to switch" needs no explaining.
   const [tag, setTag] = useState<string | null>(null)
+  const [sort, setSort] = useState<SortKey>("title")
   // Thumbnails whose URL no longer resolves fall back to the placeholder box
   // instead of a broken-image icon, keeping row heights uniform.
   const [brokenImages, setBrokenImages] = useState<string[]>([])
@@ -73,13 +77,26 @@ const RecipeTable = ({
   // open is not worth a timer.
   const now = useMemo(() => Date.now(), [recipes])
 
-  const sorted = useMemo(
-    () =>
-      recipes
-        .filter((recipe) => Boolean(recipe.title))
-        .sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase())),
-    [recipes]
-  )
+  const byTitle = (a: Recipe, b: Recipe) =>
+    a.title.toLowerCase().localeCompare(b.title.toLowerCase())
+
+  const sorted = useMemo(() => {
+    const listed = recipes.filter((recipe) => Boolean(recipe.title))
+    if (sort === "title") return listed.sort(byTitle)
+
+    // Best first, then the most-rated of a tie, then alphabetical. Unrated
+    // recipes go last rather than counting as zero — nobody has said they are
+    // bad, only that nobody has said anything.
+    return listed.sort((a, b) => {
+      const [left, right] = [averageOf(a), averageOf(b)]
+      if (left == null && right == null) return byTitle(a, b)
+      if (left == null) return 1
+      if (right == null) return -1
+      if (left !== right) return right - left
+      const votes = (b.ratingCount ?? 0) - (a.ratingCount ?? 0)
+      return votes !== 0 ? votes : byTitle(a, b)
+    })
+  }, [recipes, sort])
 
   // Every tag in the list, so the row of chips is the vocabulary that actually
   // exists rather than one carried over from deleted recipes.
@@ -146,8 +163,33 @@ const RecipeTable = ({
           </div>
         )}
 
-        <div className='mt-2 flex items-baseline justify-between font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
-          <span>Recipe · Contributed by</span>
+        <div className='mt-2 flex items-baseline justify-between gap-2 font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
+          {/* The column label doubles as the sort control: it already said what
+           *  the list is ordered by, so pressing it to change that needs no new
+           *  furniture in a bar that has to stay one line tall. */}
+          <span className='flex items-baseline gap-2'>
+            <button
+              type='button'
+              onClick={() => setSort("title")}
+              aria-pressed={sort === "title"}
+              className={clsx(
+                "cursor-pointer tracking-[0.14em] uppercase",
+                sort === "title" ? "text-ink underline underline-offset-4" : "hover:text-ink"
+              )}>
+              A–Z
+            </button>
+            <span aria-hidden='true'>·</span>
+            <button
+              type='button'
+              onClick={() => setSort("rating")}
+              aria-pressed={sort === "rating"}
+              className={clsx(
+                "cursor-pointer tracking-[0.14em] uppercase",
+                sort === "rating" ? "text-ink underline underline-offset-4" : "hover:text-ink"
+              )}>
+              Top rated
+            </button>
+          </span>
           <span>
             {visible.length === sorted.length
               ? `${sorted.length} recipe${sorted.length === 1 ? "" : "s"}`
@@ -213,6 +255,17 @@ const RecipeTable = ({
                       </span>
                     )}
                   </span>
+                  {/* Only when someone has actually rated it: five empty stars
+                   *  on every row is noise that says nothing. */}
+                  {averageOf(recipe) != null && (
+                    <span className='mb-1 flex items-center gap-1.5'>
+                      <Stars value={averageOf(recipe) ?? 0} className='text-[13px]' />
+                      <span className='font-mono text-[10px] tracking-[0.12em] text-muted'>
+                        {(averageOf(recipe) ?? 0).toFixed(1)} ({recipe.ratingCount})
+                      </span>
+                    </span>
+                  )}
+
                   {recipe.contributor && (
                     <span className='flex items-center gap-2'>
                       <span

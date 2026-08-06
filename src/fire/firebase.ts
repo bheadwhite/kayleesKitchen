@@ -50,6 +50,13 @@ export const recipesRef = collection(db, "recipes")
  * colour until someone gives it one.
  */
 export const tagsRef = collection(db, "tags")
+/**
+ * One document per (recipe, rater), keyed `${recipeId}_${uid}` so a second
+ * rating from the same person replaces the first. **Readable only by the person
+ * who left it** — see `firestore.rules`. What everyone else sees is the sum and
+ * count on the recipe.
+ */
+export const ratingsRef = collection(db, "ratings")
 /** Sign-in events, for the admin console. Written by the client on each sign-in. */
 export const loginEventsRef = collection(db, "loginEvents")
 /** AI calls. Written **only** by the Cloud Functions — the client just reads. */

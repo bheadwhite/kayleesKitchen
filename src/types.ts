@@ -28,6 +28,15 @@ export interface Recipe {
    */
   tags?: string[]
   /**
+   * The rating totals, kept on the recipe itself rather than derived from the
+   * `ratings` collection — that collection is *not* readable by anyone but the
+   * author of each rating, which is what makes ratings anonymous. Sum and count
+   * rather than an average, so a changed rating is arithmetic instead of a
+   * re-read of every rating ever left.
+   */
+  ratingSum?: number
+  ratingCount?: number
+  /**
    * Set once, server-side, by `addRecipe`. Null both for recipes written before
    * the field existed and for the instant between a local write and the server
    * timestamp landing — so anything reading it has to treat null as "not new"

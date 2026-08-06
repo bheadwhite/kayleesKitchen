@@ -17,7 +17,10 @@ const Recipes = () => {
   // Colours are read once, here, and handed down: the list and the open recipe
   // draw the same tag, and neither should own a listener to do it.
   const { colors: tagColors } = useTagLibrary()
-  const [selected, setSelected] = useState<RecipeType | null>(null)
+  // The open recipe is held **by id and looked up in the live list**, not kept
+  // as a copy: a copy taken at click time goes stale the moment anything about
+  // that recipe changes — its rating, from this very page, most obviously.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   /** Where the list was scrolled to when the open recipe was picked. */
   const listScrollY = useRef(0)
   // <Profile> links here with `?open=<id>` for one of your own recipes and
@@ -39,24 +42,26 @@ const Recipes = () => {
     const match = recipes.find((recipe) => recipe.id === openId)
     if (match == null) return
     openedFromUrl.current = true
-    setSelected(match)
+    setSelectedId(match.id ?? null)
   }, [recipes, openId])
 
   /** Recipes are owned by the email that saved them. */
   const isMine = (recipe: RecipeType) =>
     Boolean(user?.email) && recipe.email === user?.email
 
+  const selected = recipes.find((recipe) => recipe.id === selectedId) ?? null
+
   const openRecipe = (recipe: RecipeType) => {
     listScrollY.current = window.scrollY
-    setSelected(recipe)
+    setSelectedId(recipe.id ?? null)
   }
 
   // A recipe opens at the top; coming back returns to the row you tapped rather
   // than the top of the list. `useLayoutEffect` so the scroll lands before paint
   // — in a plain effect the browser shows the wrong offset for a frame first.
   useLayoutEffect(() => {
-    window.scrollTo({ top: selected != null ? 0 : listScrollY.current })
-  }, [selected])
+    window.scrollTo({ top: selectedId != null ? 0 : listScrollY.current })
+  }, [selectedId])
 
   return (
     <div className='w-full'>
@@ -77,7 +82,7 @@ const Recipes = () => {
       {selected != null && (
         <>
           <div className='mb-3 flex items-center justify-between gap-2'>
-            <Button variant='ghost' onClick={() => setSelected(null)} className='mt-0 -ml-2'>
+            <Button variant='ghost' onClick={() => setSelectedId(null)} className='mt-0 -ml-2'>
               <ArrowBackIcon />
               All recipes
             </Button>

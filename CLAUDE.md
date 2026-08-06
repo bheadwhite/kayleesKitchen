@@ -350,6 +350,39 @@ and Update disables itself. Clearing the form threw away what you were working o
 to prove it had been saved. Saving a *new* recipe still clears — "Save recipe" means this
 one is filed, and the next thing typed is a different recipe.
 
+### Ratings, and what "anonymous" means here
+
+Anyone can rate anyone else's recipe out of five stars, and the list sorts by it.
+
+The data is split in two, and the split *is* the anonymity:
+
+- **`ratings/{recipeId}_{uid}`** — one document per rater per recipe, holding the stars.
+  **Readable only by the person who left it**, enforced in `firestore.rules`. Not by the
+  cook whose recipe it is, not by the admin console. The composite id is what makes a second
+  rating replace the first instead of stacking.
+- **`ratingSum` / `ratingCount` on the recipe** — the shared numbers. Sum and count rather
+  than an average, so *changing* a rating is arithmetic instead of a re-read of every rating
+  ever left, and so sorting needs no extra reads.
+
+`rateRecipe` writes both **in a transaction**: the read of the previous rating and of the
+current totals has to be the one the arithmetic is based on, or two people rating at once
+lose a vote between them. The rules cannot check that arithmetic — they check the star range,
+that `uid` is yours, and that the recipe is not yours — so the totals are trusted the same
+way the shared recipe collection already is.
+
+**You cannot rate your own recipe**, and that is in the rules as well as the UI: hiding the
+stars is a decision about rendering. It costs one `get()` per rating write, which is the
+price of the rule meaning anything. There is no delete — an un-rating would have to move the
+totals back down and nothing can check that it did.
+
+Sorting is average descending, then the most-rated of a tie, then alphabetical. **Unrated
+recipes sort last rather than as zero**: nobody has said they are bad, only that nobody has
+said anything.
+
+`Recipes` holds the open recipe **by id and looks it up in the live snapshot** rather than
+keeping a copy — a copy taken at click time goes stale the moment anything about that recipe
+changes, which rating it from that very page does immediately.
+
 ### Tags
 
 Recipes carry free-form labels — "salad", "mexican" — and the recipe list filters on them.

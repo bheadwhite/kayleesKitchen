@@ -2,6 +2,7 @@ import { useState } from "react"
 
 import { SectionHeading, TagChip } from "components"
 import Ingredients from "./Ingredients"
+import RecipeRating from "./RecipeRating"
 import type { Recipe as RecipeType } from "@/types"
 
 interface RecipeProps {
@@ -47,6 +48,8 @@ const Recipe = ({ recipe, tagColors = {} }: RecipeProps) => {
           <TagChip key={tag} name={tag} color={tagColors[tag]} className='h-8 px-2.5' />
         ))}
       </div>
+
+      <RecipeRating recipe={recipe} />
 
       <Ingredients ingredients={ingredients} />
 
