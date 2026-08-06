@@ -365,10 +365,17 @@ by scanning source text and a class assembled from a runtime value would simply 
 **`/tags` (`views/TagManager.tsx`) is the fifth nav tab**, and it manages tags rather than
 creating them: a tag with no recipe on it is an empty filter, and the moment you know you
 want one is the recipe you are writing. What it owns is the part the editor cannot — the
-colour, and the rename or delete that has to reach **every recipe already wearing the word**.
-`renameTag` / `deleteTag` in `services.ts` do that fan-out in a single `writeBatch`, so a
-half-finished rename cannot leave two names in circulation. That caps them at 500 writes,
-which a household recipe box will not reach.
+colour, and the rename that has to reach **every recipe already wearing the word**.
+`renameTag` does that fan-out in a single `writeBatch`, so a half-finished rename cannot
+leave two names in circulation. That caps it at 500 writes, which a household recipe box
+will not reach.
+
+**Deleting is only allowed once nothing is filed under the tag**, and `deleteTag` enforces
+it with its own server-side read rather than trusting the count on the screen. Rename edits
+recipes because the label is still wanted, only spelled differently; delete would quietly
+edit recipes — possibly other people's — to make a tidy-up in this screen possible, and the
+person pressing it cannot see what they are about to change. The button stays visible and
+says what to do instead, because a control that disappears gets hunted for.
 
 `RecipeTable` and `Recipe` take the colour map as a **prop** rather than calling the hook:
 `Recipes` owns the listener and hands it down, which keeps both presentational and keeps a

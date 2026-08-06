@@ -365,18 +365,31 @@ export const renameTag = async (from: string, to: string, color: string) => {
   await batch.commit()
 }
 
-/** Deleting a tag strips it from its recipes too — see `renameTag`. */
+/**
+ * Deleting a tag is only allowed once nothing is filed under it.
+ *
+ * Rename reaches into every recipe because the label is still wanted, only
+ * spelled differently. Delete is the opposite: it would quietly edit recipes —
+ * possibly other people's — to make a tidy-up in this screen possible, and the
+ * person pressing it cannot see what they are about to change. Untag the
+ * recipes first (the list filters by tag, which is how you find them), and this
+ * becomes a one-document delete with nothing to undo.
+ *
+ * Checked here rather than only in the UI: the count on the screen comes from a
+ * snapshot that may be a moment stale, and this read happens against the server.
+ */
 export const deleteTag = async (name: string) => {
   const carriers = await getDocs(query(recipesRef, where("tags", "array-contains", name)))
-  const batch = writeBatch(db)
 
-  carriers.docs.forEach((d) => {
-    const current = (d.data().tags as string[] | undefined) ?? []
-    batch.update(d.ref, { tags: current.filter((t) => t !== name) })
-  })
+  if (!carriers.empty) {
+    const count = carriers.size
+    throw new Error(
+      `"${name}" is still on ${count} recipe${count === 1 ? "" : "s"}. ` +
+        "Take it off those first."
+    )
+  }
 
-  batch.delete(doc(db, "tags", name))
-  await batch.commit()
+  await deleteDoc(doc(db, "tags", name))
 }
 
 /* --------------------------------------------------------------- storage */

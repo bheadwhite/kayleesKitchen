@@ -46,6 +46,10 @@ interface TagRowProps {
 }
 
 const TagRow = ({ tag, count, onDelete }: TagRowProps) => {
+  // A tag in use cannot be deleted from here — see `deleteTag`. The button
+  // stays visible and says why, rather than vanishing and leaving someone
+  // hunting for it.
+  const inUse = count > 0
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState(tag.name)
   const [busy, setBusy] = useState(false)
@@ -125,8 +129,14 @@ const TagRow = ({ tag, count, onDelete }: TagRowProps) => {
               variant='ghost'
               icon
               danger
+              disabled={inUse}
               onClick={onDelete}
-              aria-label={`Delete tag: ${tag.name}`}>
+              aria-label={`Delete tag: ${tag.name}`}
+              title={
+                inUse
+                  ? `Take "${tag.name}" off its ${count} recipe${count === 1 ? "" : "s"} first`
+                  : `Delete tag: ${tag.name}`
+              }>
               <DeleteIcon />
             </Button>
           </>
@@ -170,8 +180,6 @@ const TagManager = () => {
     }
   }
 
-  const doomedCount = pendingDelete == null ? 0 : (counts[pendingDelete.name] ?? 0)
-
   return (
     <div className='w-full max-w-[720px]'>
       <SectionHeading meta={`${tags.length} tag${tags.length === 1 ? "" : "s"}`}>
@@ -214,11 +222,8 @@ const TagManager = () => {
             </Button>
           </>
         }>
-        {doomedCount === 0
-          ? `"${pendingDelete?.name}" is not on any recipe.`
-          : `This also removes "${pendingDelete?.name}" from ${doomedCount} recipe${
-              doomedCount === 1 ? "" : "s"
-            }. The recipes themselves are untouched.`}
+        {`"${pendingDelete?.name}" is not on any recipe, so nothing else changes. ` +
+          "It can be typed again in the editor whenever you want it back."}
       </Dialog>
     </div>
   )

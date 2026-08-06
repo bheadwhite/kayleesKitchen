@@ -93,17 +93,27 @@ describe("TagManager", () => {
     expect(renameTag).not.toHaveBeenCalled()
   })
 
-  it("says how many recipes a deletion reaches before doing it", async () => {
+  it("refuses to delete a tag that is still on a recipe", async () => {
     const user = userEvent.setup()
     render(<TagManager />)
 
-    await user.click(screen.getByRole("button", { name: "Delete tag: mexican" }))
+    const button = screen.getByRole("button", { name: "Delete tag: mexican" })
+    expect(button).toBeDisabled()
+    // Visible and explained, rather than missing and hunted for.
+    expect(button).toHaveAttribute("title", 'Take "mexican" off its 2 recipes first')
 
-    expect(
-      screen.getByText(/removes "mexican" from 2 recipes/i)
-    ).toBeInTheDocument()
+    await user.click(button)
+    expect(deleteTag).not.toHaveBeenCalled()
+  })
+
+  it("deletes a tag nothing is filed under", async () => {
+    const user = userEvent.setup()
+    render(<TagManager />)
+
+    await user.click(screen.getByRole("button", { name: "Delete tag: dessert" }))
+    expect(screen.getByText(/is not on any recipe/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "Delete tag" }))
-    expect(deleteTag).toHaveBeenCalledWith("mexican")
+    expect(deleteTag).toHaveBeenCalledWith("dessert")
   })
 })
