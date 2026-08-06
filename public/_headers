@@ -1,0 +1,18 @@
+# Cloudflare Pages reads this file from the build output. It is the Pages
+# equivalent of the `headers` block in firebase.json — which Pages ignores
+# entirely, so without this file these three would be served from Cloudflare's
+# cache with default TTLs.
+#
+# All three carry no content hash, so a cached copy of any of them pins visitors
+# to an old build until it expires. version.json matters most: it is what the
+# app fetches to decide whether a newer build exists, and a cached answer to
+# that question is worse than no answer — it reports "you are current" forever.
+
+/version.json
+  Cache-Control: no-cache, max-age=0
+
+/sw.js
+  Cache-Control: no-cache, max-age=0
+
+/manifest.webmanifest
+  Cache-Control: no-cache, max-age=0

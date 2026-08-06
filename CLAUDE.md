@@ -439,6 +439,25 @@ the CRA-era `favicon.ico` / `logo192.png` / `logo512.png` are gone, and `index.h
 its `icon` and `apple-touch-icon` at `icon-192.png`. `icon-maskable-512.png` is drawn
 inside an 80% safe zone, which is what makes it safe to declare `purpose: "maskable"`.
 
+## Deployment — two hosts, only one of which users see
+
+The app is served by **Cloudflare Pages** (see README). Firebase Hosting is also configured
+and `firebase deploy --only hosting` works, but **nothing reaches users that way** — it
+updates `whatsfordinner-e69a4.web.app`, which is not the URL the app is used from. Deploying
+the client means pushing to the branch Cloudflare builds. Firebase deploys are still how the
+**Cloud Functions** and **Firestore rules** ship.
+
+Cloudflare Pages gives every deployment its own `<hash>.<project>.pages.dev`; only a
+*production* deployment also updates the stable `<project>.pages.dev`. A production branch
+that does not match the branch being built makes every build a preview, and the URL changes
+each time.
+
+Header config lives in **two places that do not talk to each other**: `firebase.json`
+`headers` (Firebase only) and `public/_headers` (Pages only). Cloudflare ignores the first
+outright. Anything that must not be cached — `version.json`, `sw.js`,
+`manifest.webmanifest` — needs an entry in *both*, or the update check silently reports
+"you are current" forever from a CDN cache.
+
 ## Tests
 
 Vitest + jsdom + Testing Library, setup in `src/test/setup.ts`. Tests sit next to what
