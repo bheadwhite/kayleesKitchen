@@ -43,7 +43,11 @@ const AiAssistant = () => {
     const files = Array.from(event.target.files ?? [])
     const rejected = assistant.attachImages(files)
     if (rejected.length > 0) {
-      toast.info(`Only ${MAX_IMAGES} photos at a time — skipped ${rejected.join(", ")}.`)
+      // "per conversation", not "at a time": earlier photos are re-sent with
+      // every later turn, so they are still using up the budget.
+      toast.info(
+        `Only ${MAX_IMAGES} photos per conversation — skipped ${rejected.join(", ")}.`
+      )
     }
     // Reset so picking the same file twice still fires a change event.
     event.target.value = ""

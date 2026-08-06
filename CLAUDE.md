@@ -186,6 +186,12 @@ The flow, and why each piece is where it is:
    its argument, so the apply path re-supplies the editor's own id — dropping it would
    turn the next save into a brand-new recipe.
 
+`MAX_IMAGES` is a budget for the **whole conversation**, not per message — photos stay
+attached to their turn and are re-sent with every later one, and the callable counts them
+across all turns. `AiDraftPresenter.attachImages` must therefore count sent photos as well
+as pending ones; counting only the pending batch let someone attach eight, send, attach
+eight more, and get rejected server-side *after* the upload.
+
 **Photos are resized in the browser, never rejected for size.** `toAssistantImage`
 (`src/ai/recipeAssistant.ts`) decodes the file, downscales the long edge to **2576px**, and
 re-encodes as JPEG. That number is Claude's high-resolution ceiling for the model in

@@ -65,14 +65,27 @@ export class AiDraftPresenter {
 
   /* ------------------------------------------------------------ attachments */
 
+  /** Photos already sent. They ride along on every later turn, so they count. */
+  private countSentImages() {
+    return this._turns
+      .get()
+      .reduce((total, turn) => total + (turn.role === "user" ? turn.images.length : 0), 0)
+  }
+
   /**
    * Stages photos for the next message. Returns the names of any files that
    * were rejected so the view can say which — silently dropping them looks
    * like the picker failed.
+   *
+   * The budget is `MAX_IMAGES` for the whole conversation, not per message,
+   * because photos stay attached to their turn and are re-sent with every
+   * later one. Counting only the pending batch let someone attach eight, send,
+   * and attach eight more — and the callable, which counts across all turns,
+   * then rejected the request *after* the upload.
    */
   attachImages(files: File[]): string[] {
     const rejected: string[] = []
-    const room = MAX_IMAGES - this._pendingImages.get().length
+    const room = MAX_IMAGES - this.countSentImages() - this._pendingImages.get().length
 
     const accepted = files.slice(0, Math.max(room, 0)).map((file) => ({
       id: `img-${this.nextImageId++}`,

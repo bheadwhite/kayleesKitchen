@@ -104,6 +104,43 @@ describe("AiDraftPresenter", () => {
     presenter.dispose()
   })
 
+  it("counts photos already sent against the budget", async () => {
+    const ask = vi.fn().mockResolvedValue({ text: "ok", draft: null })
+    const presenter = build(ask)
+
+    presenter.attachImages(Array.from({ length: 6 }, (_, i) => file(`first-${i}.png`)))
+    await presenter.send("type these up", EMPTY_DRAFT)
+    expect(presenter.getPendingImages()).toEqual([])
+
+    // Those six ride along on every later turn, so only two slots are left.
+    // Counting just the pending batch here let the callable — which counts
+    // across all turns — reject the send after the whole upload.
+    const rejected = presenter.attachImages([
+      file("more-0.png"),
+      file("more-1.png"),
+      file("more-2.png"),
+    ])
+
+    expect(presenter.getPendingImages()).toHaveLength(2)
+    expect(rejected).toEqual(["more-2.png"])
+    presenter.dispose()
+  })
+
+  it("sends every staged photo in one turn", async () => {
+    const ask = vi.fn().mockResolvedValue({ text: "ok", draft: null })
+    const presenter = build(ask)
+
+    presenter.attachImages([file("a.png"), file("b.png"), file("c.png")])
+    await presenter.send("three cards", EMPTY_DRAFT)
+
+    expect(ask.mock.calls[0][0].turns[0].images).toEqual([
+      { mediaType: "image/png", data: "a.png" },
+      { mediaType: "image/png", data: "b.png" },
+      { mediaType: "image/png", data: "c.png" },
+    ])
+    presenter.dispose()
+  })
+
   it("rolls the user's turn back when the call fails", async () => {
     const ask = vi.fn().mockRejectedValue(new Error("network"))
     const presenter = build(ask)
