@@ -95,12 +95,16 @@ const ChangeMark = ({ change = "same", onRevert, className }: ChangeMarkProps) =
         })
       }
       aria-label={confirming ? "Confirm revert" : "Revert this line"}
+      // Brick, not the page's ground: the row it sits on is already tinted
+      // steel to say "changed", and a chip filled with something close to that
+      // reads as part of the row rather than as a control that has appeared on
+      // it. Different family, so the eye lands on it as a different object.
       className={clsx(
         BASE,
         "cursor-pointer",
         confirming
           ? "border-danger bg-danger text-ground"
-          : "border-danger/50 bg-ground text-danger hover:bg-danger-100",
+          : "border-danger bg-danger-100 text-danger hover:bg-danger/15",
         className
       )}>
       {confirming ? "Sure?" : "Revert"}
