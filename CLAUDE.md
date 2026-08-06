@@ -279,6 +279,36 @@ Prompt caching: the system prompt and the transcript prefix carry `cache_control
 that breakpoint as a mid-conversation `role: "system"` message — putting volatile state
 in `system` would invalidate the whole prefix on every keystroke.
 
+### Unsaved changes, and showing what they are
+
+`src/recipeDiff.ts` compares what is on the screen with what was last saved, and everything
+the editor says about unsaved work comes from that one pure function: the count on the save
+bar, the disabled Update button, the tint and `<ChangeMark>` on a changed row, the "N
+removed" lines, and the discard prompt on Cancel.
+
+The baseline lives on `RecipePresenter` (`_baseline`, set by `markSaved`) and is **not a
+Signal** — it moves only on load and on save, both of which already move something the
+editor subscribes to.
+
+Three decisions hold this together:
+
+- **`loadRecipe(recipe, { asSaved })`.** Opening a stored recipe re-bases; applying an
+  assistant draft must not, because re-basing there would report the assistant's rewrite as
+  no change at all — which is exactly the thing worth looking over before pressing Update.
+  A stray keystroke and an applied draft are marked the same way, deliberately: to someone
+  about to save, they are the same kind of event.
+- **The image is a boolean in the baseline, not a URL.** The editor holds a fresh download
+  URL for the same file the recipe already points at, so comparing the strings reports a
+  change on every load. What counts is a new file staged or the picture removed.
+- **Rows are compared by position.** A dragged step is reported as two changed steps; the
+  editor cannot tell a drag from a retype, and claiming to would be worse than saying "these
+  two lines are not what you saved".
+
+**Updating leaves you in the editor** and re-bases the baseline, so the count drops to zero
+and Update disables itself. Clearing the form threw away what you were working on in order
+to prove it had been saved. Saving a *new* recipe still clears — "Save recipe" means this
+one is filed, and the next thing typed is a different recipe.
+
 ### Tags
 
 Recipes carry free-form labels — "salad", "mexican" — and the recipe list filters on them.
@@ -513,8 +543,9 @@ the heights are `:root` variables in `src/index.css` (`--header-h`, `--navbar-h`
 than literals: the two bars themselves, `App`'s content padding, and `RecipeTable`'s
 sticky filter bar (`top-[calc(var(--header-h)+var(--sai-top))]`).
 
-`RecipeEditor` adds a **third fixed bar** — Save/Update and Cancel, stacked directly on top
-of the nav bar at `bottom-[calc(var(--navbar-h)+var(--sai-bottom))]`. The editor is a long
+`RecipeEditor` adds a **third fixed bar** — the unsaved-change count, Save/Update and
+Cancel, stacked directly on top of the nav bar at
+`bottom-[calc(var(--navbar-h)+var(--sai-bottom))]`. The editor is a long
 form, and the one commitment it exists for was several scrolls below wherever you were
 typing. It follows the same rule: `--editor-actions-h` is a `:root` variable because the bar
 and the form's own `pb-` have to agree, and only that form pays the padding. **Delete recipe

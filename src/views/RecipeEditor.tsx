@@ -10,6 +10,7 @@ import { TextField } from "components/finalForm"
 import { ImageUpload } from "components/ImageUpload"
 import { AddIngredient, Directions, ListIngredients, Tags } from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
+import { diffRecipe } from "@/recipeDiff"
 import { useAiDraftPresenter } from "contexts/AiDraftProvider"
 import { useSessionUser } from "contexts/AuthProvider"
 import {
@@ -63,6 +64,7 @@ const RecipeEditor = () => {
   const [editMode, setEditMode] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   // Leave the editor clean for the next visit. Both presenters are owned by
   // their providers, so this resets rather than disposes them.
@@ -129,8 +131,19 @@ const RecipeEditor = () => {
   }, [usersRecipes, editId, openForEditing])
 
   const handleCancelEditMode = () => {
+    setDiscardOpen(false)
     presenter.reset()
     setEditMode(false)
+  }
+
+  /**
+   * Cancel throws away everything since the last save, so with changes on the
+   * screen it asks first. Without them there is nothing to lose and a dialog
+   * would just be in the way.
+   */
+  const requestCancel = (pending: number) => {
+    if (pending > 0) setDiscardOpen(true)
+    else handleCancelEditMode()
   }
 
   const handleDelete = async () => {
@@ -171,16 +184,27 @@ const RecipeEditor = () => {
         // keep the URL already attached to this recipe.
         const image = file ? await uploadImageToRecipeId(file, user.email, id) : currentImageUrl
         await updateRecipeById(id, { ...base, image: image ?? null })
+
+        // Updating leaves you where you were. Clearing the editor after an
+        // update threw away the thing you were working on to prove it had been
+        // saved, and the recipe on the screen is exactly the one that was just
+        // written — so it stays, and becomes the new "unchanged".
+        presenter.setImageFile(null) // Committed now; a re-save must not re-upload it.
+        presenter.setImageUrl(image ?? null)
+        presenter.markSaved(title, Boolean(image))
         toast.success("Your recipe has been updated.")
-      } else {
-        // Create first so the image can be stored under the real recipe id.
-        const created = await addRecipe({ ...base, image: null })
-        if (file) {
-          const image = await uploadImageToRecipeId(file, user.email, created.id)
-          await updateRecipeById(created.id, { ...base, image })
-        }
-        toast.success("Your recipe has been added.")
+        return
       }
+
+      // A brand-new recipe is filed away and the editor goes back to blank —
+      // "Save recipe" means this one is done, and the next thing you type is a
+      // different recipe rather than an edit of that one.
+      const created = await addRecipe({ ...base, image: null })
+      if (file) {
+        const image = await uploadImageToRecipeId(file, user.email, created.id)
+        await updateRecipeById(created.id, { ...base, image })
+      }
+      toast.success("Your recipe has been added.")
 
       presenter.reset()
       setEditMode(false)
@@ -236,7 +260,19 @@ const RecipeEditor = () => {
       validate={validate}
       initialValues={initialValues}
       destroyOnUnregister>
-      {({ handleSubmit, values, errors, form: { change } }) => (
+      {({ handleSubmit, values, errors, form: { change } }) => {
+        // What is on the screen versus what was last saved. Computed here
+        // rather than in the presenter because the title belongs to the form —
+        // and it costs nothing: every input is already in hand.
+        const changes = diffRecipe(presenter.getBaseline(), {
+          title: values.title ?? "",
+          ingredients,
+          directions,
+          tags,
+          hasImage: currentImageUrl != null || presenter.getImageFile() != null,
+        })
+
+        return (
         <form
           onSubmit={(event) => {
             event.preventDefault()
@@ -286,7 +322,9 @@ const RecipeEditor = () => {
           <TextField
             name='title'
             fullWidth
-            label='Recipe title'
+            // The label is already the mono/uppercase meta line for this field,
+            // so it is where the flag goes rather than another element.
+            label={changes.title ? "Recipe title · changed" : "Recipe title"}
             className='font-heading text-2xl font-bold'
             onChange={(event) => {
               change("title", event.target.value)
@@ -296,16 +334,18 @@ const RecipeEditor = () => {
 
           <ImageUpload />
 
-          <Tags known={tagLibrary} />
+          <Tags known={tagLibrary} added={changes.tagsAdded} removed={changes.tagsRemoved} />
 
           <SectionHeading
-            meta={`${ingredients.length} item${ingredients.length === 1 ? "" : "s"}`}>
+            meta={`${ingredients.length} item${ingredients.length === 1 ? "" : "s"}${
+              changes.ingredientsRemoved > 0 ? ` · ${changes.ingredientsRemoved} removed` : ""
+            }`}>
             Ingredients
           </SectionHeading>
-          <ListIngredients />
+          <ListIngredients changes={changes.ingredients} />
           <AddIngredient />
 
-          <Directions />
+          <Directions changes={changes.sections} />
 
           <AiAssistant />
 
@@ -317,19 +357,37 @@ const RecipeEditor = () => {
            *  capped at the content width keeps the fill edge-to-edge while the
            *  buttons stay in the column. */}
           <div className='fixed right-0 bottom-[calc(var(--navbar-h)+var(--sai-bottom))] left-0 z-40 border-t border-divider bg-ground'>
-            <div className='mx-auto flex h-[var(--editor-actions-h)] w-full max-w-[900px] items-center justify-end gap-2 px-3 sm:px-2.5'>
+            <div className='mx-auto flex h-[var(--editor-actions-h)] w-full max-w-[900px] items-center gap-2 px-3 sm:px-2.5'>
+              {/* The running count of what is unsaved, in the same mono voice as
+               *  every other counter here. It is also the answer to "did that
+               *  apply do anything?" — an assistant draft lands as a number. */}
+              <span className='flex-1 truncate font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
+                {changes.count === 0
+                  ? editMode
+                    ? "No changes"
+                    : ""
+                  : `${changes.count} unsaved change${changes.count === 1 ? "" : "s"}`}
+              </span>
+
               {saving ? (
                 <Spinner size={28} />
               ) : (
                 <>
                   {editMode && (
-                    <Button onClick={handleCancelEditMode} className='mt-0 mr-0'>
+                    <Button onClick={() => requestCancel(changes.count)} className='mt-0 mr-0'>
                       Cancel
                     </Button>
                   )}
                   {/* The one solid accent object on the page — the page's single
-                   *  real commitment, which is what `primary` is reserved for. */}
-                  <Button type='submit' variant='primary' className='mt-0 mr-0'>
+                   *  real commitment, which is what `primary` is reserved for.
+                   *  Disabled with nothing to save: an Update that writes the
+                   *  same bytes back still says "updated", which teaches you to
+                   *  distrust the message. */}
+                  <Button
+                    type='submit'
+                    variant='primary'
+                    disabled={changes.count === 0}
+                    className='mt-0 mr-0'>
                     {editMode ? "Update recipe" : "Save recipe"}
                   </Button>
                 </>
@@ -366,8 +424,25 @@ const RecipeEditor = () => {
             }>
             This removes the recipe for everyone. It cannot be undone.
           </Dialog>
+
+          <Dialog
+            open={discardOpen}
+            onClose={() => setDiscardOpen(false)}
+            title='Discard changes?'
+            actions={
+              <>
+                <Button onClick={() => setDiscardOpen(false)}>Keep editing</Button>
+                <Button onClick={handleCancelEditMode} variant='primary' danger>
+                  Discard
+                </Button>
+              </>
+            }>
+            {`${changes.count} change${changes.count === 1 ? "" : "s"} to this recipe ` +
+              "have not been saved. Closing the editor drops them."}
+          </Dialog>
         </form>
-      )}
+        )
+      }}
     </Form>
   )
 }

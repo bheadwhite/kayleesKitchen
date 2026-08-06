@@ -29,6 +29,7 @@ import { useFormState } from "react-final-form"
 import {
   AddIcon,
   Button,
+  ChangeMark,
   CheckIcon,
   CloseIcon,
   Dialog,
@@ -37,6 +38,12 @@ import {
 } from "components"
 import { TextArea, TextField } from "components/finalForm"
 import { useDirections, useEditSection, useRecipePresenter } from "contexts/RecipeProvider"
+import type { RowChange, SectionChanges } from "@/recipeDiff"
+
+interface DirectionsProps {
+  /** Per-section difference from the saved recipe, from `diffRecipe`. */
+  changes?: SectionChanges[]
+}
 
 /** Small square icon button — the row chrome, not a primary action. */
 const IconButton = ({
@@ -68,12 +75,14 @@ interface StepRowProps {
   /** 1-based position within the whole recipe, shown as the step's number. */
   number: number
   text: string
+  /** How this step differs from the saved recipe. */
+  change?: RowChange
   onEdit: () => void
   onDelete: () => void
 }
 
 /** One draggable step: number over grip, click-to-edit text, delete. */
-const StepRow = ({ id, number, text, onEdit, onDelete }: StepRowProps) => {
+const StepRow = ({ id, number, text, change, onEdit, onDelete }: StepRowProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
 
@@ -83,6 +92,7 @@ const StepRow = ({ id, number, text, onEdit, onDelete }: StepRowProps) => {
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={clsx(
         "grid grid-cols-[36px_1fr_36px] items-start gap-2 border-t border-ink/10 py-2.5",
+        change != null && change !== "same" && "bg-steel-100",
         isDragging && "relative z-10 bg-surface"
       )}>
       {/* Number above handle, both centred in a 36px gutter — the design's step
@@ -111,6 +121,7 @@ const StepRow = ({ id, number, text, onEdit, onDelete }: StepRowProps) => {
         className='min-w-0 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words whitespace-pre-wrap hover:text-steel-700'
         title='Click to edit'>
         {text}
+        <ChangeMark change={change} className='ml-2 align-[3px]' />
       </button>
 
       <IconButton onClick={onDelete} label={`Delete step: ${text}`} danger>
@@ -120,7 +131,7 @@ const StepRow = ({ id, number, text, onEdit, onDelete }: StepRowProps) => {
   )
 }
 
-const Directions = () => {
+const Directions = ({ changes = [] }: DirectionsProps) => {
   const presenter = useRecipePresenter()
   const directions = useDirections()
   const editSection = useEditSection()
@@ -223,6 +234,7 @@ const Directions = () => {
               // numbering starts in the running count.
               const sectionFirstStep = stepNumber
               stepNumber += steps.length
+              const sectionChange = changes[index]
 
               return (
                 <div key={`${sectionTitle}-${index}`} className='pt-5'>
@@ -262,6 +274,16 @@ const Directions = () => {
                         ) : (
                           sectionTitle
                         )}
+                        <ChangeMark
+                          change={
+                            sectionChange?.added
+                              ? "added"
+                              : sectionChange?.titleChanged
+                                ? "changed"
+                                : "same"
+                          }
+                          className='ml-2 align-[3px]'
+                        />
                       </button>
                       <IconButton
                         onClick={() => handleDeleteSection(index)}
@@ -317,6 +339,7 @@ const Directions = () => {
                             id={String(i)}
                             number={sectionFirstStep + i + 1}
                             text={step}
+                            change={sectionChange?.steps[i]}
                             onEdit={() => presenter.setEditStep(index, i)}
                             onDelete={() => presenter.deleteStep(index, i)}
                           />
@@ -325,6 +348,16 @@ const Directions = () => {
                     </div>
                   </SortableContext>
                 </DndContext>
+
+                {/* A deleted step leaves no row to flag, so the section says so
+                 *  itself — otherwise the one kind of change you most want to
+                 *  catch before saving is the only one that is invisible. */}
+                {sectionChange != null && sectionChange.stepsRemoved > 0 && (
+                  <p className='mt-1 pl-[44px] font-mono text-[10px] tracking-[0.14em] text-muted uppercase'>
+                    {sectionChange.stepsRemoved} step
+                    {sectionChange.stepsRemoved === 1 ? "" : "s"} removed
+                  </p>
+                )}
 
                 {/* ----------------------------------------------- add step */}
                 {editStep == null && (

@@ -1,5 +1,6 @@
 import { Signal } from "@tcn/state/core"
 
+import type { RecipeBaseline } from "@/recipeDiff"
 import type { DirectionSection, Ingredient, Recipe } from "@/types"
 
 const EMPTY_INGREDIENT: Ingredient = {
@@ -23,6 +24,14 @@ export const normaliseTag = (raw: string) => raw.trim().replace(/\s+/g, " ").toL
 export class RecipePresenter {
   private _id: string | null = null
   private _title = ""
+  /**
+   * What the recipe looked like when it was last loaded or saved. Null for an
+   * unsaved recipe — there is nothing to be different from yet.
+   *
+   * Not a Signal: it changes only on load and on save, both of which already
+   * move something the editor is subscribed to.
+   */
+  private _baseline: RecipeBaseline | null = null
 
   private readonly _directions = new Signal<DirectionSection[]>([])
   private readonly _ingredients = new Signal<Ingredient[]>([])
@@ -68,6 +77,30 @@ export class RecipePresenter {
 
   getId() {
     return this._id
+  }
+
+  getBaseline() {
+    return this._baseline
+  }
+
+  /**
+   * Called after a successful save: what is on the screen becomes the new
+   * "unchanged". Takes the title because the form owns that field — the
+   * presenter's copy is written on every keystroke but is not what was
+   * submitted.
+   */
+  markSaved(title: string, hasImage: boolean) {
+    this._title = title
+    this._baseline = {
+      title,
+      ingredients: this._ingredients.get().map((ingredient) => ({ ...ingredient })),
+      directions: this._directions.get().map((section) => ({
+        ...section,
+        steps: section.steps.slice(),
+      })),
+      tags: this._tags.get().slice(),
+      hasImage,
+    }
   }
 
   getTitle() {
@@ -315,8 +348,16 @@ export class RecipePresenter {
 
   /* ------------------------------------------------------------ lifecycle */
 
-  /** Loads an existing recipe into the editor. */
-  loadRecipe(recipe: Recipe) {
+  /**
+   * Loads a recipe into the editor.
+   *
+   * `asSaved` is what separates the two callers. Opening a stored recipe means
+   * what arrives *is* the saved version, so it becomes the baseline and nothing
+   * reads as changed. Applying an assistant draft is the opposite: the draft is
+   * a pile of unsaved edits, and re-basing on it would hide precisely the
+   * changes someone would want to look over before pressing Update.
+   */
+  loadRecipe(recipe: Recipe, { asSaved = true }: { asSaved?: boolean } = {}) {
     this._id = recipe.id ?? null
     this._title = recipe.title
     this._directions.set(
@@ -334,6 +375,10 @@ export class RecipePresenter {
     // A row left open would now be pointing into a different recipe's list.
     this._editIngredientIndex.set(null)
     this._editSection.set(null)
+    // `image` is a stored URL on the recipe; the editor's own preview URL is a
+    // different string for the same file, so only its presence is remembered —
+    // see `RecipeBaseline`.
+    if (asSaved) this.markSaved(recipe.title, Boolean(recipe.image))
   }
 
   /** Clears the editor back to a blank recipe. */
@@ -342,6 +387,7 @@ export class RecipePresenter {
     // the next submit down the "update existing recipe" path with an empty id.
     this._id = null
     this._title = ""
+    this._baseline = null
     this._imageUrl.set(null)
     this._imageFile.set(null)
     this._directions.set([])

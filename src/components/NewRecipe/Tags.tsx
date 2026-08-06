@@ -1,3 +1,4 @@
+import clsx from "clsx"
 import { useRef } from "react"
 import { useForm, useFormState } from "react-final-form"
 
@@ -9,6 +10,9 @@ import type { TagRecord } from "@/types"
 interface TagsProps {
   /** Every tag in circulation, from `useTagLibrary` — the pick-list. */
   known?: TagRecord[]
+  /** Tags not on the saved recipe, and ones taken off it, from `diffRecipe`. */
+  added?: string[]
+  removed?: string[]
 }
 
 /**
@@ -24,7 +28,7 @@ interface TagsProps {
  * removing and re-adding it beats opening an editor for it — and renaming a tag
  * everywhere it is used is what the Tags tab is for.
  */
-const Tags = ({ known = [] }: TagsProps) => {
+const Tags = ({ known = [], added = [], removed = [] }: TagsProps) => {
   const presenter = useRecipePresenter()
   const tags = useTags()
   const { change } = useForm()
@@ -61,12 +65,20 @@ const Tags = ({ known = [] }: TagsProps) => {
                 name={tag}
                 color={colorOf(tag)}
                 onClick={() => presenter.removeTag(tag)}
-                label={`Remove tag: ${tag}`}>
+                label={`Remove tag: ${tag}`}
+                // Not yet on the saved recipe.
+                className={clsx(added.includes(tag) && "ring-1 ring-steel ring-offset-1")}>
                 <CloseIcon className='h-3.5 w-3.5' />
               </TagChip>
             </li>
           ))}
         </ul>
+      )}
+
+      {removed.length > 0 && (
+        <p className='pb-3 font-mono text-[10px] tracking-[0.14em] text-muted uppercase'>
+          Removed: {removed.join(", ")}
+        </p>
       )}
 
       {available.length > 0 && (

@@ -80,6 +80,69 @@ describe("RecipePresenter", () => {
     })
   })
 
+  describe("the saved baseline", () => {
+    it("starts empty, so an unsaved recipe has nothing to differ from", () => {
+      expect(presenter.getBaseline()).toBeNull()
+    })
+
+    it("is whatever was just loaded", () => {
+      presenter.loadRecipe(recipe)
+
+      expect(presenter.getBaseline()).toMatchObject({
+        title: "Lasagna",
+        ingredients: recipe.ingredients,
+        hasImage: false,
+      })
+    })
+
+    it("does not move when the editor is edited", () => {
+      presenter.loadRecipe(recipe)
+      presenter.addIngredient({ name: "Garlic", amount: "3 cloves" })
+
+      // The whole point: the baseline is what was saved, not what is on screen.
+      expect(presenter.getBaseline()?.ingredients).toHaveLength(2)
+    })
+
+    it("catches up on save", () => {
+      presenter.loadRecipe(recipe)
+      presenter.addIngredient({ name: "Garlic", amount: "3 cloves" })
+      presenter.markSaved("Lasagna", true)
+
+      expect(presenter.getBaseline()).toMatchObject({ hasImage: true })
+      expect(presenter.getBaseline()?.ingredients).toHaveLength(3)
+    })
+
+    it("keeps a copy, not a reference to the live list", () => {
+      presenter.loadRecipe(recipe)
+      presenter.markSaved("Lasagna", false)
+      presenter.deleteIngredient(0)
+
+      // A shared array would make every edit invisible to the diff.
+      expect(presenter.getBaseline()?.ingredients).toHaveLength(2)
+      expect(presenter.getIngredients()).toHaveLength(1)
+    })
+
+    it("stays put when an assistant draft is applied", () => {
+      presenter.loadRecipe(recipe)
+      presenter.loadRecipe(
+        { ...recipe, ingredients: [{ name: "Beef", amount: "3 lb" }] },
+        { asSaved: false }
+      )
+
+      // Re-basing here would report the assistant's rewrite as no change at
+      // all — see the comment on `loadRecipe`.
+      expect(presenter.getBaseline()?.ingredients[0].amount).toBe("1 lb")
+      expect(presenter.getIngredients()[0].amount).toBe("3 lb")
+    })
+
+    it("is dropped by reset", () => {
+      presenter.loadRecipe(recipe)
+      presenter.reset()
+
+      expect(presenter.getBaseline()).toBeNull()
+    })
+  })
+
   describe("tags", () => {
     it("normalises on the way in", () => {
       presenter.addTag("  Mexican  ")

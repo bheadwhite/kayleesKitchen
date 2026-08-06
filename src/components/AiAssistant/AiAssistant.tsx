@@ -70,15 +70,21 @@ const AiAssistant = () => {
 
   const onApply = () => {
     if (proposedDraft == null) return
-    recipe.loadRecipe({
-      ...proposedDraft,
-      // `loadRecipe` reads `id` off the argument; keep the editor's own.
-      id: recipe.getId() ?? undefined,
-      // The assistant does not propose tags, and `loadRecipe` replaces
-      // everything it is handed — without this, applying a draft would quietly
-      // strip the tags already on the recipe.
-      tags: recipe.getTags(),
-    })
+    recipe.loadRecipe(
+      {
+        ...proposedDraft,
+        // `loadRecipe` reads `id` off the argument; keep the editor's own.
+        id: recipe.getId() ?? undefined,
+        // The assistant does not propose tags, and `loadRecipe` replaces
+        // everything it is handed — without this, applying a draft would quietly
+        // strip the tags already on the recipe.
+        tags: recipe.getTags(),
+      },
+      // A draft is a pile of unsaved edits, not the saved recipe: leaving the
+      // baseline where it is makes every line the assistant touched show up as
+      // changed, which is the point of looking at it before pressing Update.
+      { asSaved: false }
+    )
     assistant.clearProposedDraft()
     toast.success("Draft applied to the editor.")
   }

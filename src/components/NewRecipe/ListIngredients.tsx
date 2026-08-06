@@ -2,16 +2,22 @@ import clsx from "clsx"
 import { useEffect, useRef } from "react"
 import { useFormState } from "react-final-form"
 
-import { Button, CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "components"
+import { Button, ChangeMark, CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "components"
 import { Checkbox, TextField } from "components/finalForm"
 import {
   useEditIngredientIndex,
   useIngredients,
   useRecipePresenter,
 } from "contexts/RecipeProvider"
+import type { RowChange } from "@/recipeDiff"
 import type { Ingredient } from "@/types"
 
-const ListIngredients = () => {
+interface ListIngredientsProps {
+  /** Per-row difference from the saved recipe, from `diffRecipe`. */
+  changes?: RowChange[]
+}
+
+const ListIngredients = ({ changes = [] }: ListIngredientsProps) => {
   const presenter = useRecipePresenter()
   const ingredients = useIngredients()
   const editIndex = useEditIngredientIndex()
@@ -74,7 +80,13 @@ const ListIngredients = () => {
         ) : (
           <div
             key={`${ingredient.name}-${index}-${ingredient.amount}`}
-            className='flex items-center justify-between gap-2 border-b border-ink/8 py-1'>
+            className={clsx(
+              "flex items-center justify-between gap-2 border-b border-ink/8 py-1",
+              // A tint on the row and a flag beside it: the tint is what makes a
+              // changed line findable while scrolling, the flag is what says
+              // which kind of change it was.
+              changes[index] != null && changes[index] !== "same" && "bg-steel-100 px-2"
+            )}>
             {/* Click-to-edit, like a step in Directions — the pencil is the
              *  affordance, the text is the bigger target. */}
             <button
@@ -91,7 +103,8 @@ const ListIngredients = () => {
               {ingredient.optional && <span className='ml-1 text-sm text-muted'>(optional)</span>}
             </button>
 
-            <div className='flex shrink-0 items-center'>
+            <div className='flex shrink-0 items-center gap-1'>
+              <ChangeMark change={changes[index]} />
               <Button
                 variant='ghost'
                 icon
