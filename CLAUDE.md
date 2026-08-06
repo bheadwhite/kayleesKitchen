@@ -781,6 +781,20 @@ doubling; caching the *rule* means a session cooking for eleven pays nothing a
 session cooking for four has not already paid. It is also what makes per-meal
 serving overrides free, and why the agenda offers them on every card.
 
+**A nullable enum in a `strict` tool schema is `anyOf`, never a type array.** The
+validator checks each `enum` value against the declared type and cannot read the array
+form, so `type: ["string", "null"]` beside `enum: [..., null]` is rejected — and rejected
+at the *tool* level, which fails the whole call before the model sees anything. Write
+`anyOf: [{ type: "string", enum: [...] }, { type: "null" }]` instead.
+
+`analyseRecipeScaling` shipped with two such fields and therefore **never once succeeded**.
+Nothing surfaced it, because every layer degrades rather than failing: no spec means
+amounts as written, so the shopping list kept building and the only symptom was quantities
+that quietly ignored the covers. The admin console said `internal`; the actual message was
+in `gcloud functions logs read`. That is why failures now record the provider's own message
+(see the admin console section) — a code that cannot tell "retry later" from "this can
+never work" is not a diagnosis.
+
 **It is data, not code.** A model can write a scaling function in JavaScript, and
 running one in the browser is executing text a model produced — a code-execution
 hole with a Firestore document for a delivery mechanism, which the PWA's CSP would

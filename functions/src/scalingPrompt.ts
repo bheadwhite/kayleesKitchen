@@ -64,9 +64,21 @@ export const SCALING_SCHEMA = {
               "The unit — 'cup', 'tbsp', 'g', 'lb', 'medium', 'clove'. Empty string for " +
               "a bare count ('3 eggs'). Null on a fixed line.",
           },
+          /*
+           * A nullable enum is written as `anyOf`, not as a type array carrying
+           * a null in its `enum` list. The strict validator checks each enum
+           * value against the declared type and cannot read the array form, so
+           * `type: ["string", "null"]` beside `enum: [..., null]` is rejected
+           * outright — "Enum value 'exact' does not match declared type
+           * '['string', 'null']'" — and rejected at the *tool* level, which
+           * fails the whole call before the model sees anything. Every other
+           * enum here is a plain non-nullable string and needs none of this.
+           */
           rounding: {
-            type: ["string", "null"],
-            enum: ["exact", "quarter", "half", "whole", null],
+            anyOf: [
+              { type: "string", enum: ["exact", "quarter", "half", "whole"] },
+              { type: "null" },
+            ],
             description:
               "What the scaled quantity is settled onto, so the cook is given something " +
               "measurable. 'whole' for anything you buy or crack one at a time — eggs, " +
@@ -74,8 +86,7 @@ export const SCALING_SCHEMA = {
               "small spoon measures, where a decimal is fine.",
           },
           prefer: {
-            type: ["string", "null"],
-            enum: ["up", "down", null],
+            anyOf: [{ type: "string", enum: ["up", "down"] }, { type: "null" }],
             description:
               "Which way a rounded quantity should break when it lands between. 'up' for " +
               "eggs, aromatics, and anything where more is harmless; 'down' for chilli, " +
