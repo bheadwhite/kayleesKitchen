@@ -132,19 +132,24 @@ describe("Admin console", () => {
     expect(screen.getByText("12k")).toBeInTheDocument()
     expect(screen.getByText("3k")).toBeInTheDocument()
     // The failed image call is surfaced rather than quietly dropped from totals.
-    expect(screen.getByText(/1 failed/)).toBeInTheDocument()
+    expect(screen.getAllByText(/1 failed/).length).toBeGreaterThan(0)
 
     presenter.dispose()
   })
 
-  it("breaks usage down by person", async () => {
+  it("breaks tokens down per person, input and output apart", async () => {
     const presenter = renderAdmin()
     signInAs(ADMIN_EMAIL)
 
-    // 12k in + 3k out for the admin's one assistant call.
-    expect(await screen.findByText(/15k tok/)).toBeInTheDocument()
-    // The address shows in both the per-person roll-up and the call list.
+    expect(
+      await screen.findByRole("heading", { name: "Tokens by person" })
+    ).toBeInTheDocument()
+    // The admin's one assistant call: 12k in, 3k out — reported separately,
+    // because output is priced several times higher than input.
+    expect(screen.getByText(/12k in · 3k out/)).toBeInTheDocument()
+    // The other cook only ran a failed image call: no tokens, but still listed.
     expect(screen.getAllByText("cook@example.test").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/1 failed/).length).toBeGreaterThan(0)
 
     presenter.dispose()
   })

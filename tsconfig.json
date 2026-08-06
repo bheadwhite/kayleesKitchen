@@ -13,7 +13,13 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "types": [
+      "node",
+      "vite/client",
+      "vite-plugin-pwa/client",
+      "vitest/globals",
+      "@testing-library/jest-dom"
+    ],
 
     // Incremental migration: .js/.jsx files still compile but are not type-checked.
     // Delete `allowJs`/`checkJs` once everything is converted to .ts/.tsx.

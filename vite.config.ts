@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { fileURLToPath, URL } from "node:url"
-import { defineConfig } from "vitest/config"
+import { defineConfig, type Plugin } from "vitest/config"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import { VitePWA } from "vite-plugin-pwa"
@@ -34,23 +34,56 @@ const packageVersion = () => {
   }
 }
 
+const BUILD = {
+  version: packageVersion(),
+  commit: gitCommit(),
+  builtAt: new Date().toISOString(),
+}
+
+/**
+ * Emits `version.json` alongside the bundle.
+ *
+ * This is what makes "is there a newer build?" answerable *over the network*,
+ * independent of the service worker. Asking the worker is not good enough: when
+ * it is the thing that is stuck — an installed PWA holding assets from three
+ * deploys ago — it has no idea anything is wrong. A tiny file fetched with
+ * `cache: "no-store"` and compared against the commit baked into the running
+ * bundle always tells the truth.
+ *
+ * It is deliberately `.json`: workbox's `globPatterns` covers js/css/html/images
+ * and not json, so this file is never precached.
+ */
+const versionFile = (): Plugin => ({
+  name: "kitchen-help:version-file",
+  generateBundle() {
+    this.emitFile({
+      type: "asset",
+      fileName: "version.json",
+      source: JSON.stringify(BUILD, null, 2),
+    })
+  },
+})
+
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(packageVersion()),
-    __APP_COMMIT__: JSON.stringify(gitCommit()),
-    __APP_BUILT_AT__: JSON.stringify(new Date().toISOString()),
+    __APP_VERSION__: JSON.stringify(BUILD.version),
+    __APP_COMMIT__: JSON.stringify(BUILD.commit),
+    __APP_BUILT_AT__: JSON.stringify(BUILD.builtAt),
   },
   plugins: [
     react(),
     tailwindcss(),
+    versionFile(),
     VitePWA({
       // The app shell is precached and swapped out silently on the next visit.
       // No update prompt: there is no long-lived session worth interrupting,
       // and a stale shell talking to a redeployed Cloud Function is worse.
       registerType: "autoUpdate",
-      // Injects both the <link rel="manifest"> and the registration script, so
-      // index.html and src/ stay free of PWA plumbing.
-      injectRegister: "auto",
+      // The manifest link is still injected; the registration is ours. The
+      // plugin's own script is a bare `register()` that never reloads the page
+      // when a new worker takes over, which is how an installed PWA ends up
+      // running a build from three deploys ago. See src/pwa.ts.
+      injectRegister: null,
       includeAssets: ["icons/*.png", "robots.txt"],
       manifest: {
         name: "Kitchen Help",

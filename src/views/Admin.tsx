@@ -68,17 +68,45 @@ const Admin = () => {
     return { input, output, cacheRead, failed, assistant, images: usage.length - assistant, slowest }
   }, [usage])
 
+  /**
+   * Per-person totals, heaviest first. Input and output are kept apart because
+   * they are priced apart — output costs several times input, so one number
+   * hides which person is actually expensive.
+   */
   const byPerson = useMemo(() => {
-    const counts = new Map<string, { calls: number; tokens: number }>()
+    type Tally = {
+      calls: number
+      input: number
+      output: number
+      cacheRead: number
+      images: number
+      failed: number
+    }
+    const counts = new Map<string, Tally>()
+
     usage.forEach((event) => {
       const key = event.email ?? "unknown"
-      const seen = counts.get(key) ?? { calls: 0, tokens: 0 }
+      const seen: Tally = counts.get(key) ?? {
+        calls: 0,
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        images: 0,
+        failed: 0,
+      }
       counts.set(key, {
         calls: seen.calls + 1,
-        tokens: seen.tokens + event.inputTokens + event.outputTokens,
+        input: seen.input + event.inputTokens,
+        output: seen.output + event.outputTokens,
+        cacheRead: seen.cacheRead + event.cacheReadTokens,
+        images: seen.images + (event.feature === "image" ? 1 : 0),
+        failed: seen.failed + (event.ok ? 0 : 1),
       })
     })
-    return [...counts.entries()].sort(([, a], [, b]) => b.tokens - a.tokens)
+
+    return [...counts.entries()].sort(
+      ([, a], [, b]) => b.input + b.output - (a.input + a.output)
+    )
   }, [usage])
 
   // A non-admin who guesses the URL goes back to their own profile rather than
@@ -111,17 +139,29 @@ const Admin = () => {
       {byPerson.length > 0 && (
         <>
           <SectionHeading as='h3' meta={`${byPerson.length} cooks`}>
-            By person
+            Tokens by person
           </SectionHeading>
           <ul>
             {byPerson.map(([email, stat]) => (
-              <li
-                key={email}
-                className='flex items-baseline justify-between gap-3 border-b border-ink/8 py-2'>
-                <span className='min-w-0 truncate'>{email}</span>
-                <span className='shrink-0 font-mono text-[13px] text-muted'>
-                  {number.format(stat.calls)} calls · {compact(stat.tokens)} tok
-                </span>
+              <li key={email} className='border-b border-ink/8 py-2.5'>
+                <div className='flex items-baseline justify-between gap-3'>
+                  <span className='min-w-0 truncate font-medium'>{email}</span>
+                  {/* In and out kept apart because they are priced apart —
+                   *  output runs several times input, so a single combined
+                   *  number hides who is actually expensive. */}
+                  <span className='shrink-0 font-mono text-[13px]'>
+                    {compact(stat.input)} in · {compact(stat.output)} out
+                  </span>
+                </div>
+                <div className='font-mono text-[11px] text-muted'>
+                  {number.format(stat.calls)} call{stat.calls === 1 ? "" : "s"}
+                  {stat.images > 0 && ` · ${number.format(stat.images)} image`}
+                  {stat.images > 1 && "s"}
+                  {stat.cacheRead > 0 && ` · ${compact(stat.cacheRead)} cached`}
+                  {stat.failed > 0 && (
+                    <span className='text-danger'> · {number.format(stat.failed)} failed</span>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

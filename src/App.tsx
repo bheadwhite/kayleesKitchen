@@ -5,6 +5,7 @@ import { ToastContainer } from "react-toastify"
 import { Spinner } from "components"
 import NavBar from "components/NavBar"
 import Toolbar from "components/Toolbar"
+import UpdateBanner from "components/UpdateBanner"
 import { useAuthStatus } from "contexts/AuthProvider"
 import { Admin, Login, Profile, RecipeEditor, Recipes, Register } from "views"
 
@@ -37,6 +38,7 @@ const App = () => {
     // `dvh`, not `vh`: mobile browsers report `100vh` as the height *without* the
     // address bar, so `min-h-screen` overflows the visible viewport on a phone.
     <div className='flex min-h-dvh flex-col items-center'>
+      <UpdateBanner />
       <Toolbar />
       {/* Both bars are fixed, so they are out of flow — the scrolling column
        *  pads itself past each one plus the safe-area inset it sits under. */}

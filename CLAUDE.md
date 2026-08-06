@@ -417,6 +417,23 @@ Firestore and Auth are never cached; Storage recipe images are (`CacheFirst`, 30
 `devOptions.enabled` is `false` — a worker in `npm run dev` serves stale modules and
 makes HMR look broken.
 
+**Getting a new build onto a device is its own problem, and the service worker cannot be
+the one to solve it.** `registerType: "autoUpdate"` activates a new worker but never tells
+the open page to reload, and an installed PWA is resumed rather than cold-started — so it
+can run a build from several deploys ago while believing it is current. Asking the worker is
+no help: when it is the stale thing, it does not know.
+
+So the check goes to the server, the way `~/projects/honeydo` does it. `vite.config.ts`
+emits **`version.json`** next to the bundle (a `.json`, so workbox's `globPatterns` never
+precaches it) and Hosting serves it `no-cache`. `isUpdateAvailable` in `src/pwa.ts` fetches
+it with `cache: "no-store"` and compares `commit` against the `__APP_COMMIT__` baked into
+the running bundle. `<UpdateBanner>` polls on mount, on focus, and every 15 minutes.
+
+It **offers** the update rather than taking it: the recipe editor holds unsaved work, and a
+page that swaps itself out mid-recipe has destroyed the thing the user cared about. That is
+also why `src/pwa.ts` registers the worker plainly instead of using `virtual:pwa-register`,
+whose autoUpdate mode reloads on its own.
+
 The app icons in `public/icons/` come from the design assets and are the only icon files:
 the CRA-era `favicon.ico` / `logo192.png` / `logo512.png` are gone, and `index.html` points
 its `icon` and `apple-touch-icon` at `icon-192.png`. `icon-maskable-512.png` is drawn

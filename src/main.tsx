@@ -8,6 +8,7 @@ import AuthProvider from "contexts/AuthProvider"
 import RecipeProvider from "contexts/RecipeProvider"
 import "react-toastify/dist/ReactToastify.css"
 import "./index.css"
+import { registerServiceWorker } from "./pwa"
 
 const container = document.getElementById("root")
 if (!container) throw new Error("Missing #root element")
@@ -25,3 +26,5 @@ createRoot(container).render(
     </AuthProvider>
   </StrictMode>
 )
+
+registerServiceWorker()
