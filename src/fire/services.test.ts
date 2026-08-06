@@ -119,6 +119,47 @@ describe("query shapes that would need a composite index", () => {
 })
 
 describe("deleteSession", () => {
+  it("still deletes the session when the asks cannot be swept", async () => {
+    const firestore = await import("firebase/firestore")
+    let getCall = 0
+
+    // Meals and shopping read fine; the invites query is rejected — which is
+    // what "rules are not filters" looks like from here. A leftover ask is a
+    // nuisance; a session you cannot delete is not.
+    vi.mocked(firestore.getDocs).mockImplementation(async () => {
+      getCall += 1
+      if (getCall > 2) throw Object.assign(new Error("Missing permissions"), {
+        code: "permission-denied",
+      })
+      return { docs: [], empty: true } as never
+    })
+    vi.mocked(firestore.writeBatch).mockReturnValue({
+      delete: vi.fn(),
+      commit: vi.fn(async () => {}),
+    } as never)
+    const deleted = vi.fn(async () => {})
+    vi.mocked(firestore.deleteDoc).mockImplementation(deleted)
+
+    await expect(services.deleteSession("s1")).resolves.toBeUndefined()
+    expect(deleted).toHaveBeenCalled()
+  })
+
+  it("names the step that failed rather than failing anonymously", async () => {
+    const firestore = await import("firebase/firestore")
+    vi.mocked(firestore.getDocs).mockResolvedValue({ docs: [], empty: true } as never)
+    vi.mocked(firestore.writeBatch).mockReturnValue({
+      delete: vi.fn(),
+      commit: vi.fn(async () => {}),
+    } as never)
+    vi.mocked(firestore.deleteDoc).mockRejectedValue(
+      Object.assign(new Error("Missing permissions"), { code: "permission-denied" })
+    )
+
+    await expect(services.deleteSession("s1")).rejects.toThrow(
+      "deleting the session (permission-denied)"
+    )
+  })
+
   it("sweeps the children before the parent, or they can never be removed", async () => {
     const firestore = await import("firebase/firestore")
     const order: string[] = []

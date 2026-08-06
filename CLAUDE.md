@@ -871,8 +871,23 @@ at build time; `src/version.ts` wraps them with dev fallbacks. The version line 
 bottom of `<Profile>` for everyone and in full on the admin console. The commit is the part
 that matters — it makes "did my fix actually deploy?" answerable from a phone.
 
+**The version is the build date (`2026.8.6`), derived rather than declared, and
+`package.json` has no `version` field at all.** It used to, and it read `0.2.0` for 122
+commits and six years — through the framework rewrite, the chef, and the planner — because
+nothing bumped it and nothing depended on it. A version that has to be remembered goes
+stale, and a stale one is worse than none, because it reads as information.
+
+Semver would earn its keep if anything consumed this package, but it is `private` and never
+published, `functions/` carries no version either, and `<UpdateBanner>` compares the
+**commit**. So the only real job left for a version is telling a person how old the build in
+their hand is, which a date does with no discipline required. The two are shown together
+because they answer different questions: the date says *when*, the commit says *which*.
+
+Nothing needs doing to release. Push to the branch Cloudflare builds and the stamp follows.
+
 Vitest reads the same `vite.config.ts`, so `define` applies in tests too: assertions see the
-real stamp, not the fallbacks.
+real stamp, not the fallbacks — which is why `Admin.test.tsx` can assert the version names
+today, and would catch it freezing again.
 
 ### Forms
 

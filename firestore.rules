@@ -158,7 +158,18 @@ service cloud.firestore {
     // being offered; deleted by the person asked, which is both "yes" (once the
     // join has landed) and "no thanks".
     match /invites/{docId} {
-      allow read: if signedIn() && resource.data.toEmail == request.auth.token.email;
+      // Readable by the person asked, and by anyone already in the session it
+      // is for — who can see the pending names in the session sheet anyway,
+      // and who has to be able to sweep them when the session is deleted.
+      //
+      // That second clause is not a nicety. **Rules are not filters**: a query
+      // is rejected outright if it *could* return a document the reader is not
+      // allowed, so `where('sessionId', '==', x)` fails against a rule keyed
+      // only on `toEmail`, however few documents actually match. Deleting a
+      // session needs that query, so the rule has to make it provably safe.
+      allow read: if signedIn()
+        && (resource.data.toEmail == request.auth.token.email
+            || inSession(resource.data.sessionId));
       allow create, update: if signedIn()
         && docId == request.resource.data.toEmail + '_' + request.resource.data.sessionId
         && request.resource.data.fromUid == request.auth.uid

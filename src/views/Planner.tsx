@@ -123,10 +123,19 @@ const Planner = () => {
 
   const left = items.filter((item) => !item.checked).length
 
+  /**
+   * Runs a write, and says so when it fails.
+   *
+   * The message carries the error's own text when there is one, because
+   * "Could not delete that session" on its own is unactionable — the thing
+   * worth knowing is *which step* and *why*, and Firestore's codes
+   * (`permission-denied`) say exactly that.
+   */
   const guard = (work: Promise<unknown>, whenItFails: string) => {
-    void work.catch((error) => {
+    void work.catch((error: unknown) => {
       console.error(whenItFails, error)
-      toast.error(whenItFails)
+      const detail = error instanceof Error ? error.message : ""
+      toast.error(detail === "" ? whenItFails : `${whenItFails} — ${detail}`)
     })
   }
 

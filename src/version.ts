@@ -6,6 +6,11 @@
  * page loaded. `declare const` gives them types without importing anything —
  * they are literals in the output, not variables.
  *
+ * `APP_VERSION` is the **build date** (`2026.8.6`), not a semver from
+ * `package.json` — that field is gone, because nothing bumped it for six years
+ * and nothing depended on it. The date says how old the build in your hand is;
+ * `APP_COMMIT` beside it says exactly which one. See `calendarVersion`.
+ *
  * Vitest does not run the `define` step, so each falls back rather than
  * throwing a ReferenceError in tests.
  */
@@ -25,7 +30,7 @@ export const APP_VERSION = read(() => __APP_VERSION__, "dev")
 export const APP_COMMIT = read(() => __APP_COMMIT__, "local")
 export const APP_BUILT_AT = read(() => __APP_BUILT_AT__, "")
 
-/** e.g. `v0.2.0 · 465a4f3` — short enough for a footer line. */
+/** e.g. `v2026.8.6 · 465a4f3` — short enough for a footer line. */
 export const buildLabel = () => `v${APP_VERSION} · ${APP_COMMIT}`
 
 /** Build date in the viewer's locale, or "" when there is no stamp (dev). */

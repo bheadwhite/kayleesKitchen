@@ -1,5 +1,4 @@
 import { execSync } from "node:child_process"
-import { readFileSync } from "node:fs"
 import { fileURLToPath, URL } from "node:url"
 import { defineConfig, type Plugin } from "vitest/config"
 import react from "@vitejs/plugin-react"
@@ -10,8 +9,8 @@ const src = (path: string) => fileURLToPath(new URL(`./src/${path}`, import.meta
 
 /**
  * Build stamp, inlined at build time so the running app can say which build it
- * is. The commit is what actually identifies a deploy — `version` moves rarely —
- * and it is what makes "is the fix live yet?" answerable from a phone.
+ * is. The commit is what actually *identifies* a deploy, and it is what makes
+ * "is the fix live yet?" answerable from a phone.
  *
  * Every lookup is guarded: a build from a tarball with no git checkout still has
  * to succeed, just with an unknown commit.
@@ -26,18 +25,34 @@ const gitCommit = () => {
   }
 }
 
-const packageVersion = () => {
-  try {
-    return JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version
-  } catch {
-    return "0.0.0"
-  }
-}
+/**
+ * The version, as the date it was built: `2026.8.6`.
+ *
+ * **Derived rather than declared, and deliberately not `package.json`'s.** That
+ * number sat at `0.2.0` for 122 commits and six years — through a framework
+ * rewrite, the chef, and the planner — because nothing bumped it and nothing
+ * depended on it. A version that has to be remembered is a version that goes
+ * stale, and a stale one is worse than none: it reads as information.
+ *
+ * Semver would earn its keep if anything consumed this package, but it is
+ * `private` and never published, and the update check compares the *commit*.
+ * So the honest job left for a version is telling a person how old the build in
+ * their hand is — which a date does perfectly, needs no discipline, and cannot
+ * rot. The commit sits beside it for exactness: the date says when, the commit
+ * says which.
+ *
+ * No zero padding, so it reads as a version rather than as an ISO date that has
+ * lost its dashes.
+ */
+const calendarVersion = (builtAt: Date) =>
+  `${builtAt.getFullYear()}.${builtAt.getMonth() + 1}.${builtAt.getDate()}`
+
+const builtAt = new Date()
 
 const BUILD = {
-  version: packageVersion(),
+  version: calendarVersion(builtAt),
   commit: gitCommit(),
-  builtAt: new Date().toISOString(),
+  builtAt: builtAt.toISOString(),
 }
 
 /**

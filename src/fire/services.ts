@@ -538,18 +538,40 @@ const deleteAll = async (refs: Array<ReturnType<typeof doc>>) => {
  * Everyone else leaves.
  */
 export const deleteSession = async (sessionId: string) => {
-  const [meals, shopping] = await Promise.all([
-    getDocs(sessionMealsRef(sessionId)),
-    getDocs(sessionShoppingRef(sessionId)),
-  ])
+  /** Names the step that failed, so the toast is not "something went wrong". */
+  const step = async <T,>(what: string, work: Promise<T>) => {
+    try {
+      return await work
+    } catch (error) {
+      const code = (error as { code?: string })?.code
+      throw new Error(`${what}${code ? ` (${code})` : ""}`, { cause: error })
+    }
+  }
 
-  await deleteAll([...meals.docs, ...shopping.docs].map((d) => d.ref))
+  const [meals, shopping] = await step(
+    "reading the week",
+    Promise.all([getDocs(sessionMealsRef(sessionId)), getDocs(sessionShoppingRef(sessionId))])
+  )
+
+  await step(
+    "clearing the week and the list",
+    deleteAll([...meals.docs, ...shopping.docs].map((d) => d.ref))
+  )
 
   // Asks nobody ever answered would otherwise point at a session that is gone.
-  const asks = await getDocs(query(invitesRef, where("sessionId", "==", sessionId)))
-  await deleteAll(asks.docs.map((d) => d.ref))
+  //
+  // **Best-effort**, unlike the sweep above. A leftover ask is a nuisance — it
+  // offers a session that no longer exists, and turning it down clears it. A
+  // session that cannot be deleted because of one is a session you are stuck
+  // with, which is worse, and it was the first thing this ever got wrong.
+  try {
+    const asks = await getDocs(query(invitesRef, where("sessionId", "==", sessionId)))
+    await deleteAll(asks.docs.map((d) => d.ref))
+  } catch (error) {
+    console.warn("Could not clear the asks for that session", error)
+  }
 
-  await deleteDoc(doc(db, "sessions", sessionId))
+  await step("deleting the session", deleteDoc(doc(db, "sessions", sessionId)))
 }
 
 /* ------------------------------------------------------------- invites */

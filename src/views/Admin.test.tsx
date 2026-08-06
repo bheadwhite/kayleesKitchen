@@ -199,7 +199,14 @@ describe("Admin console", () => {
     // values are the real build stamp, not version.ts's dev fallbacks.
     expect(screen.getByText(APP_VERSION)).toBeInTheDocument()
     expect(screen.getByText(APP_COMMIT)).toBeInTheDocument()
-    expect(APP_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
+
+    // The version is the *build date*, derived rather than declared — which is
+    // what keeps it from going stale the way `package.json`'s 0.2.0 did for six
+    // years. Asserting it names today is what would catch it freezing again.
+    const today = new Date()
+    expect(APP_VERSION).toBe(
+      `${today.getFullYear()}.${today.getMonth() + 1}.${today.getDate()}`
+    )
 
     presenter.dispose()
   })
