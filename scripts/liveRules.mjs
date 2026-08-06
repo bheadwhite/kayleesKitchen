@@ -3,13 +3,19 @@
  * Reads the Firestore ruleset that is actually live, and optionally diffs it
  * against the local `firestore.rules`.
  *
- *   npm run rules:live    # print what the console is serving
+ *   npm run rules:live    # print what the project is serving
  *   npm run rules:diff    # compare it with the local file; exit 1 if they differ
  *
- * `firestore.rules` is not deployed by `firebase deploy` — firebase.json has no
- * `firestore` section, on purpose — so the local file is a *reviewed copy* of
- * what belongs in the console, kept in step by hand. "By hand" is only safe if
- * the drift is visible, which is what this is for.
+ * `firebase.json` has a `firestore` section, so `firestore.rules` **is** what
+ * gets deployed — the repo is the source of truth and there is no clipboard
+ * step. `npm run deploy` and `npm run ship` publish it with
+ * `firebase deploy --only firestore:rules`.
+ *
+ * What this is for is the gap between the file and the server, which a deploy
+ * closes but nothing else reports: a client shipped against rules that deny it
+ * fails only in production, and only for the feature that needed them. Rules
+ * are the one deploy target here that can be *observed* rather than inferred,
+ * so `deploy:check` observes them.
  *
  * Auth comes from `gcloud auth print-access-token`, so whoever runs it needs to
  * be logged in with an account that can read the project's rules.
@@ -69,7 +75,7 @@ const fetchLiveRules = async () => {
   const { releases = [] } = await api(`${base}/projects/${project}/releases`, project, token)
   const release = releases.find((r) => r.name.endsWith(`/${RELEASE}`))
   if (release == null) {
-    die(`No ${RELEASE} release on ${project}. Publish rules in the console once first.`)
+    die(`No ${RELEASE} release on ${project}. Run \`npm run deploy\` to publish rules once first.`)
   }
 
   const ruleset = await api(`${base}/${release.rulesetName}`, project, token)
@@ -104,6 +110,6 @@ if (diff.status === 0) {
 console.log(diff.stdout)
 console.error(
   `${LOCAL_FILE} differs from the live ruleset (published ${createTime}).\n` +
-    "`-` is live, `+` is local. Paste the local file into Firebase console → Firestore → Rules."
+    "`-` is live, `+` is local. Publish with `npm run deploy` (or `npm run ship` to push first)."
 )
 process.exit(1)

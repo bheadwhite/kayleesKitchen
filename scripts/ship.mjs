@@ -62,12 +62,27 @@ const rulesState = () => {
   return { state: "unknown", detail: (result.stderr || result.stdout).trim().split("\n")[0] }
 }
 
+/**
+ * Whether `functions/` has moved since the last recorded deploy.
+ *
+ * **Compared against the working tree, not `HEAD`** — and that is the whole
+ * correctness of this check. `deployFunctions` runs `npm --prefix functions run
+ * deploy`, which compiles and ships the files **on disk**; a check that read
+ * `HEAD` instead would be answering a question about a different artifact than
+ * the one that ships. An uncommitted fix in `functions/src` would deploy
+ * perfectly well while this reported "in step", so `npm run deploy` would say
+ * "Nothing to deploy" and the fix would sit there unshipped — which is exactly
+ * the not-knowing this script exists to prevent.
+ *
+ * The cost is that local scratch edits under `functions/` read as drift. That
+ * is the right way round: they *are* what a deploy would push.
+ */
 const functionsState = () => {
   const tagged = run("git", ["rev-parse", "-q", "--verify", `refs/tags/${TAG}`])
   if (tagged.status !== 0) return { state: "unrecorded" }
 
   const since = git("rev-parse", "--short", `refs/tags/${TAG}`)
-  const changed = run("git", ["diff", "--quiet", `refs/tags/${TAG}`, "HEAD", "--", "functions/"])
+  const changed = run("git", ["diff", "--quiet", `refs/tags/${TAG}`, "--", "functions/"])
   return changed.status === 0 ? { state: "current", since } : { state: "drifted", since }
 }
 

@@ -474,7 +474,7 @@ rather than a fresh one that might differ in a detail.
 - **A subcollection**, because a variant has no meaning away from its recipe. Note that
   **rules do not cascade into subcollections**: `firestore.rules` matches `variants` in its
   own block, and `match /recipes/{docId}` reaches the recipe document and nothing beneath
-  it. As ever, the rules file is not deployed — `npm run rules:diff`, then paste.
+  it. `npm run deploy:check` says whether the live ruleset has that block yet.
 - **Shared, like the recipe box.** A doubled version is as useful to whoever cooks next as
   to whoever asked for it. `allow update: if false` — a variant is a snapshot of what the
   chef handed back at a moment, and an editable one is a recipe wearing the wrong label;
