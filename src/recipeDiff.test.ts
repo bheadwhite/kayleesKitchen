@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { diffRecipe, summariseChanges, type RecipeBaseline } from "./recipeDiff"
+import { describeChanges, diffRecipe, summariseChanges, type RecipeBaseline } from "./recipeDiff"
+
+/** Rows carry the replaced text too; most assertions only care about the kind. */
+const kinds = (rows: Array<{ kind: string }>) => rows.map((row) => row.kind)
 
 const SAVED: RecipeBaseline = {
   title: "Lasagna",
@@ -24,8 +27,8 @@ describe("diffRecipe", () => {
     const changes = diffRecipe(SAVED, edited({}))
 
     expect(changes.count).toBe(0)
-    expect(changes.ingredients).toEqual(["same", "same"])
-    expect(changes.sections.map((s) => s.steps)).toEqual([["same", "same"], ["same"]])
+    expect(kinds(changes.ingredients)).toEqual(["same", "same"])
+    expect(changes.sections.map((s) => kinds(s.steps))).toEqual([["same", "same"], ["same"]])
   })
 
   it("treats an absent flag and a false one as the same ingredient", () => {
@@ -56,14 +59,16 @@ describe("diffRecipe", () => {
       })
     )
 
-    expect(changes.ingredients).toEqual(["changed", "same", "added"])
+    expect(kinds(changes.ingredients)).toEqual(["changed", "same", "added"])
+    // The row it replaces rides along, for the press-and-hold peek.
+    expect(changes.ingredients[0].before).toBe("Beef — 1 lb")
     expect(changes.count).toBe(2)
   })
 
   it("counts a deleted ingredient, which has no row left to mark", () => {
     const changes = diffRecipe(SAVED, edited({ ingredients: [SAVED.ingredients[0]] }))
 
-    expect(changes.ingredients).toEqual(["same"])
+    expect(kinds(changes.ingredients)).toEqual(["same"])
     expect(changes.ingredientsRemoved).toBe(1)
     expect(changes.count).toBe(1)
   })
@@ -77,7 +82,8 @@ describe("diffRecipe", () => {
     )
 
     expect(changes.sections[0].titleChanged).toBe(true)
-    expect(changes.sections[0].steps).toEqual(["same", "same"])
+    expect(kinds(changes.sections[0].steps)).toEqual(["same", "same"])
+    expect(changes.sections[0].titleBefore).toBe("Sauce")
     expect(changes.count).toBe(1)
   })
 
@@ -89,7 +95,7 @@ describe("diffRecipe", () => {
       })
     )
 
-    expect(changes.sections[2]).toMatchObject({ added: true, steps: ["added"] })
+    expect(changes.sections[2]).toMatchObject({ added: true, steps: [{ kind: "added" }] })
     // The section itself, plus its step.
     expect(changes.count).toBe(2)
   })
@@ -108,7 +114,7 @@ describe("diffRecipe", () => {
     // Rows are compared by position: the editor cannot tell a drag from a
     // retype, and claiming to would be worse than saying "these two lines are
     // not what you saved".
-    expect(changes.sections[0].steps).toEqual(["changed", "changed"])
+    expect(kinds(changes.sections[0].steps)).toEqual(["changed", "changed"])
   })
 
   it("separates tags added from tags taken off", () => {
@@ -130,7 +136,7 @@ describe("diffRecipe", () => {
 
     // 1 title + 1 image + 2 ingredients + 1 tag + 2 sections + 3 steps.
     expect(changes.count).toBe(10)
-    expect(changes.ingredients).toEqual(["added", "added"])
+    expect(kinds(changes.ingredients)).toEqual(["added", "added"])
     expect(changes.tagsRemoved).toEqual([])
   })
 
@@ -197,5 +203,52 @@ describe("summariseChanges", () => {
   it("leaves out the counts that are zero", () => {
     // "Tags: 1 added, 0 removed" reads as though something was removed.
     expect(summary({ tags: ["italian", "pasta"] })).toEqual(["Tags: 1 added"])
+  })
+})
+
+describe("describeChanges", () => {
+  const lines = (change: Partial<RecipeBaseline>) => describeChanges(SAVED, edited(change))
+
+  it("carries both texts, so a panel can show one replacing the other", () => {
+    expect(
+      lines({ ingredients: [{ name: "Beef", amount: "2 lb" }, SAVED.ingredients[1]] })
+    ).toEqual([
+      { kind: "changed", where: "ingredient", before: "Beef — 1 lb", after: "Beef — 2 lb" },
+    ])
+  })
+
+  it("keeps the optional flag in the text it shows", () => {
+    expect(lines({ ingredients: [SAVED.ingredients[0]] })).toEqual([
+      { kind: "removed", where: "ingredient", before: "Onion — 1/2 cup (optional)" },
+    ])
+  })
+
+  it("names a new section and lists its steps", () => {
+    expect(
+      lines({ directions: [...SAVED.directions, { sectionTitle: "Bake", steps: ["40 min"] }] })
+    ).toEqual([
+      { kind: "added", where: "section", after: "Bake" },
+      { kind: "added", where: "step", after: "40 min" },
+    ])
+  })
+
+  it("does not list the steps of a section that is gone with it", () => {
+    // The section line says it; twenty step lines under it say nothing more.
+    expect(lines({ directions: [SAVED.directions[0]] })).toEqual([
+      { kind: "removed", where: "section", before: "Assembly" },
+    ])
+  })
+
+  it("gives an untitled section a name rather than an empty line", () => {
+    expect(lines({ directions: [{ sectionTitle: "", steps: SAVED.directions[0].steps }] })).toEqual(
+      [
+        { kind: "changed", where: "section", before: "Sauce", after: "Untitled section" },
+        { kind: "removed", where: "section", before: "Assembly" },
+      ]
+    )
+  })
+
+  it("finds nothing in an untouched recipe", () => {
+    expect(lines({})).toEqual([])
   })
 })

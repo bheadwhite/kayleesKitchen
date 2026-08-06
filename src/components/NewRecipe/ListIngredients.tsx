@@ -9,12 +9,76 @@ import {
   useIngredients,
   useRecipePresenter,
 } from "contexts/RecipeProvider"
-import type { RowChange } from "@/recipeDiff"
+import usePeek from "hooks/usePeek"
+import type { RowDiff } from "@/recipeDiff"
 import type { Ingredient } from "@/types"
+
+interface RowProps {
+  ingredient: Ingredient
+  change?: RowDiff
+  onEdit: () => void
+  onDelete: () => void
+}
+
+/** One listed ingredient: press and hold a changed row to see what it said. */
+const IngredientRow = ({ ingredient, change, onEdit, onDelete }: RowProps) => {
+  const { peeking, handlers } = usePeek(change?.before != null)
+  const changed = change != null && change.kind !== "same"
+
+  return (
+    <div
+      className={clsx(
+        "flex items-center justify-between gap-2 border-b border-ink/8 py-1",
+        // A tint on the row and a flag beside it: the tint is what makes a
+        // changed line findable while scrolling, the flag is what says which
+        // kind of change it was.
+        changed && "bg-steel-100 px-2",
+        peeking && "bg-steel-200"
+      )}>
+      {/* Click-to-edit, like a step in Directions — the pencil is the
+       *  affordance, the text is the bigger target. */}
+      <button
+        type='button'
+        onClick={onEdit}
+        title={change?.before != null ? "Click to edit · hold to see what it said" : "Click to edit"}
+        className='min-w-0 cursor-text py-1 text-left break-words select-none'
+        {...handlers}>
+        {peeking ? (
+          <span className='text-muted line-through'>{change?.before}</span>
+        ) : (
+          <>
+            {/* Mono palette: an unusual ingredient takes the accent rather than
+             *  a color of its own. */}
+            <span className={clsx("mr-1 font-medium", ingredient.unique && "text-steel-700")}>
+              {ingredient.name}
+            </span>
+            <span className='text-ink/70'>{`— ${ingredient.amount}`}</span>
+            {ingredient.optional && <span className='ml-1 text-sm text-muted'>(optional)</span>}
+          </>
+        )}
+      </button>
+
+      <div className='flex shrink-0 items-center gap-1'>
+        <ChangeMark change={change?.kind} />
+        <Button variant='ghost' icon onClick={onEdit} aria-label={`Edit ${ingredient.name}`}>
+          <EditIcon />
+        </Button>
+        <Button
+          variant='ghost'
+          icon
+          danger
+          onClick={onDelete}
+          aria-label={`Delete ${ingredient.name}`}>
+          <DeleteIcon />
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 interface ListIngredientsProps {
   /** Per-row difference from the saved recipe, from `diffRecipe`. */
-  changes?: RowChange[]
+  changes?: RowDiff[]
 }
 
 const ListIngredients = ({ changes = [] }: ListIngredientsProps) => {
@@ -78,50 +142,13 @@ const ListIngredients = ({ changes = [] }: ListIngredientsProps) => {
             </div>
           </div>
         ) : (
-          <div
+          <IngredientRow
             key={`${ingredient.name}-${index}-${ingredient.amount}`}
-            className={clsx(
-              "flex items-center justify-between gap-2 border-b border-ink/8 py-1",
-              // A tint on the row and a flag beside it: the tint is what makes a
-              // changed line findable while scrolling, the flag is what says
-              // which kind of change it was.
-              changes[index] != null && changes[index] !== "same" && "bg-steel-100 px-2"
-            )}>
-            {/* Click-to-edit, like a step in Directions — the pencil is the
-             *  affordance, the text is the bigger target. */}
-            <button
-              type='button'
-              onClick={() => presenter.setEditIngredientIndex(index)}
-              title='Click to edit'
-              className='min-w-0 cursor-text py-1 text-left break-words'>
-              {/* Mono palette: an unusual ingredient takes the accent rather than
-               *  a color of its own. */}
-              <span className={clsx("mr-1 font-medium", ingredient.unique && "text-steel-700")}>
-                {ingredient.name}
-              </span>
-              <span className='text-ink/70'>{`— ${ingredient.amount}`}</span>
-              {ingredient.optional && <span className='ml-1 text-sm text-muted'>(optional)</span>}
-            </button>
-
-            <div className='flex shrink-0 items-center gap-1'>
-              <ChangeMark change={changes[index]} />
-              <Button
-                variant='ghost'
-                icon
-                onClick={() => presenter.setEditIngredientIndex(index)}
-                aria-label={`Edit ${ingredient.name}`}>
-                <EditIcon />
-              </Button>
-              <Button
-                variant='ghost'
-                icon
-                danger
-                onClick={() => presenter.deleteIngredient(index)}
-                aria-label={`Delete ${ingredient.name}`}>
-                <DeleteIcon />
-              </Button>
-            </div>
-          </div>
+            ingredient={ingredient}
+            change={changes[index]}
+            onEdit={() => presenter.setEditIngredientIndex(index)}
+            onDelete={() => presenter.deleteIngredient(index)}
+          />
         )
       )}
     </div>

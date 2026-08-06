@@ -2,7 +2,7 @@ import clsx from "clsx"
 import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { toast } from "react-toastify"
 
-import { Button, CloseIcon, ImageIcon, SendIcon, Spinner } from "components"
+import { Button, ChangeMark, CloseIcon, ImageIcon, SendIcon, Spinner } from "components"
 import {
   useAiDraftPresenter,
   useAssistantStatus,
@@ -12,7 +12,16 @@ import {
 } from "contexts/AiDraftProvider"
 import { useRecipePresenter } from "contexts/RecipeProvider"
 import { MAX_IMAGES } from "@/ai/recipeAssistant"
-import { diffRecipe, summariseChanges } from "@/recipeDiff"
+import { describeChanges, diffRecipe, summariseChanges } from "@/recipeDiff"
+
+/** Grouped in the order the recipe itself is written. */
+const GROUPS = [
+  { where: "title", label: "Title" },
+  { where: "ingredient", label: "Ingredients" },
+  { where: "section", label: "Sections" },
+  { where: "step", label: "Steps" },
+  { where: "tag", label: "Tags" },
+] as const
 
 interface AiAssistantProps {
   /** Fired after a draft is applied — the drawer closes on it. */
@@ -38,6 +47,7 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
   const { isAsking } = useAssistantStatus()
 
   const [text, setText] = useState("")
+  const [showDetails, setShowDetails] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const transcriptRef = useRef<HTMLDivElement>(null)
 
@@ -105,27 +115,28 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
    * level on both sides because the assistant proposes neither, and a summary
    * that announced them would be describing the apply rather than the draft.
    */
-  const summary =
+  const sides =
     proposedDraft == null
-      ? []
-      : summariseChanges(
-          diffRecipe(
-            {
-              title: recipe.getTitle(),
-              ingredients: recipe.getIngredients(),
-              directions: recipe.getDirections(),
-              tags: recipe.getTags(),
-              hasImage: false,
-            },
-            {
-              title: proposedDraft.title,
-              ingredients: proposedDraft.ingredients,
-              directions: proposedDraft.directions,
-              tags: recipe.getTags(),
-              hasImage: false,
-            }
-          )
-        )
+      ? null
+      : ([
+          {
+            title: recipe.getTitle(),
+            ingredients: recipe.getIngredients(),
+            directions: recipe.getDirections(),
+            tags: recipe.getTags(),
+            hasImage: false,
+          },
+          {
+            title: proposedDraft.title,
+            ingredients: proposedDraft.ingredients,
+            directions: proposedDraft.directions,
+            tags: recipe.getTags(),
+            hasImage: false,
+          },
+        ] as const)
+
+  const summary = sides == null ? [] : summariseChanges(diffRecipe(sides[0], sides[1]))
+  const details = sides == null ? [] : describeChanges(sides[0], sides[1])
 
   const canSend = !isAsking && (text.trim() !== "" || pendingImages.length > 0)
 
@@ -200,19 +211,66 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
               Nothing in the editor would change.
             </p>
           ) : (
-            <ul className='my-2 text-sm'>
-              {summary.map((line) => (
-                <li key={line} className='flex gap-2'>
-                  <span aria-hidden='true' className='text-steel'>
-                    ·
-                  </span>
-                  {line}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className='my-2 text-sm'>
+                {summary.map((line) => (
+                  <li key={line} className='flex gap-2'>
+                    <span aria-hidden='true' className='text-steel'>
+                      ·
+                    </span>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                type='button'
+                onClick={() => setShowDetails((shown) => !shown)}
+                aria-expanded={showDetails}
+                className='cursor-pointer font-mono text-[11px] tracking-[0.14em] text-steel-700 uppercase underline underline-offset-4'>
+                {showDetails ? "Hide the lines" : "See what changed"}
+              </button>
+
+              {/* The lines themselves. Capped and scrollable: a draft that
+               *  rewrites the whole recipe would otherwise push the message box
+               *  off the bottom of the drawer. */}
+              {showDetails && (
+                <div className='mt-2 max-h-[38dvh] overflow-y-auto border-t border-steel-300 pt-2'>
+                  {GROUPS.map(({ where, label }) => {
+                    const lines = details.filter((line) => line.where === where)
+                    if (lines.length === 0) return null
+
+                    return (
+                      <div key={where} className='mb-2'>
+                        <div className='font-mono text-[10px] tracking-[0.14em] text-muted uppercase'>
+                          {label}
+                        </div>
+                        <ul>
+                          {lines.map((line, index) => (
+                            <li key={index} className='mt-1 flex items-start gap-2'>
+                              <ChangeMark change={line.kind} className='mt-0.5' />
+                              <div className='min-w-0 flex-1 text-sm break-words'>
+                                {/* The line being replaced above the one
+                                 *  replacing it: an amount that went from 1 cup
+                                 *  to 2 is the whole question, and a count
+                                 *  cannot answer it. */}
+                                {line.before != null && (
+                                  <p className='text-muted line-through'>{line.before}</p>
+                                )}
+                                {line.after != null && <p>{line.after}</p>}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
           )}
 
-          <p className='mb-2 text-xs text-muted'>
+          <p className='mt-2 mb-2 text-xs text-muted'>
             Applying replaces the title, ingredients, and directions in the editor, and marks
             every line it touched. Nothing is saved until you press Update.
           </p>

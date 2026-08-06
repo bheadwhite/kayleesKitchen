@@ -201,7 +201,8 @@ A draft's changes are shown **twice, in two forms**. Before applying, the panel 
 `diffRecipe` between the editor as it stands and the draft, and `summariseChanges` turns
 that into "Ingredients: 1 changed" — *what would change*, not what the draft contains, since
 "12 ingredients" is equally true of a draft that touched one of them and one that replaced
-the lot. Tags and the photo are held level on both sides of that comparison because the
+the lot. "See what changed" expands `describeChanges` underneath it: the lines themselves,
+grouped, each with the text being replaced struck through above the text replacing it. Tags and the photo are held level on both sides of that comparison because the
 assistant proposes neither. After applying, the marks in the editor take over (see the
 unsaved-changes section) — and applying **closes the drawer**, because the reason to apply is
 to look at what it did and the marked-up editor is behind the panel.
@@ -339,6 +340,16 @@ removed" lines, and the discard prompt on Cancel.
 The baseline lives on `RecipePresenter` (`_baseline`, set by `markSaved`) and is **not a
 Signal** — it moves only on load and on save, both of which already move something the
 editor subscribes to.
+
+**Each row diff carries the text it replaced** (`RowDiff.before`), and `usePeek`
+(`src/hooks/usePeek.ts`) turns that into a press-and-hold: hold a changed ingredient or step
+and the saved version appears in its place until you let go. A flag saying "changed" says
+where to look but not whether the change was the one you wanted, and the answer is one line
+of text with nowhere to live — showing both at once doubles the height of every edited row,
+and a dialog to read six words is worse than not knowing. The rows are click-to-edit buttons,
+so `usePeek` swallows the click that ends a hold (`onClickCapture`), and callers add
+`select-none` or a long press raises the phone's selection magnifier over the text being
+looked at.
 
 Three decisions hold this together:
 

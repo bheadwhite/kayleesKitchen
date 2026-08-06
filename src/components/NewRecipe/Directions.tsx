@@ -38,7 +38,8 @@ import {
 } from "components"
 import { TextArea, TextField } from "components/finalForm"
 import { useDirections, useEditSection, useRecipePresenter } from "contexts/RecipeProvider"
-import type { RowChange, SectionChanges } from "@/recipeDiff"
+import usePeek from "hooks/usePeek"
+import type { RowDiff, SectionChanges } from "@/recipeDiff"
 
 interface DirectionsProps {
   /** Per-section difference from the saved recipe, from `diffRecipe`. */
@@ -76,7 +77,7 @@ interface StepRowProps {
   number: number
   text: string
   /** How this step differs from the saved recipe. */
-  change?: RowChange
+  change?: RowDiff
   onEdit: () => void
   onDelete: () => void
 }
@@ -85,6 +86,7 @@ interface StepRowProps {
 const StepRow = ({ id, number, text, change, onEdit, onDelete }: StepRowProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
+  const { peeking, handlers } = usePeek(change?.before != null)
 
   return (
     <div
@@ -92,7 +94,8 @@ const StepRow = ({ id, number, text, change, onEdit, onDelete }: StepRowProps) =
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={clsx(
         "grid grid-cols-[36px_1fr_36px] items-start gap-2 border-t border-ink/10 py-2.5",
-        change != null && change !== "same" && "bg-steel-100",
+        change != null && change.kind !== "same" && "bg-steel-100",
+        peeking && "bg-steel-200",
         isDragging && "relative z-10 bg-surface"
       )}>
       {/* Number above handle, both centred in a 36px gutter — the design's step
@@ -118,10 +121,13 @@ const StepRow = ({ id, number, text, change, onEdit, onDelete }: StepRowProps) =
         onClick={onEdit}
         // `pre-wrap` keeps the line breaks the textarea editor allows; without
         // it a step written as several lines reads back as one run-on.
-        className='min-w-0 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words whitespace-pre-wrap hover:text-steel-700'
-        title='Click to edit'>
-        {text}
-        <ChangeMark change={change} className='ml-2 align-[3px]' />
+        className='min-w-0 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words whitespace-pre-wrap select-none hover:text-steel-700'
+        title={
+          change?.before != null ? "Click to edit · hold to see what it said" : "Click to edit"
+        }
+        {...handlers}>
+        {peeking ? <span className='text-muted line-through'>{change?.before}</span> : text}
+        <ChangeMark change={change?.kind} className='ml-2 align-[3px]' />
       </button>
 
       <IconButton onClick={onDelete} label={`Delete step: ${text}`} danger>

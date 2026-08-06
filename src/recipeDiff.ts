@@ -20,19 +20,35 @@ export interface RecipeBaseline {
 
 export type RowChange = "same" | "changed" | "added"
 
+/**
+ * One row's difference, with the text it is replacing.
+ *
+ * The text rides along so the editor can *show* it — press and hold a changed
+ * line and the version you saved comes back under your finger. A flag saying
+ * "changed" tells you where to look; it cannot tell you whether the change was
+ * the one you wanted.
+ */
+export interface RowDiff {
+  kind: RowChange
+  /** What the row said before. Absent on an unchanged or brand-new row. */
+  before?: string
+}
+
 export interface SectionChanges {
   added: boolean
   titleChanged: boolean
   /** One entry per step *currently* in the section. */
-  steps: RowChange[]
+  steps: RowDiff[]
   stepsRemoved: number
+  /** The section's previous title, for the same press-and-hold peek. */
+  titleBefore?: string
 }
 
 export interface RecipeChanges {
   title: boolean
   image: boolean
   /** One entry per ingredient currently in the list. */
-  ingredients: RowChange[]
+  ingredients: RowDiff[]
   ingredientsRemoved: number
   tagsAdded: string[]
   tagsRemoved: string[]
@@ -42,9 +58,124 @@ export interface RecipeChanges {
   count: number
 }
 
-const tally = (rows: RowChange[]) => ({
-  changed: rows.filter((row) => row === "changed").length,
-  added: rows.filter((row) => row === "added").length,
+const EMPTY: RecipeBaseline = {
+  title: "",
+  ingredients: [],
+  directions: [],
+  tags: [],
+  hasImage: false,
+}
+
+/** `optional`/`unique` are optional on the wire; absent and false are the same. */
+const sameIngredient = (a: Ingredient, b: Ingredient) =>
+  a.name === b.name &&
+  a.amount === b.amount &&
+  Boolean(a.optional) === Boolean(b.optional) &&
+  Boolean(a.unique) === Boolean(b.unique)
+
+export interface ChangeLine {
+  kind: RowChange | "removed"
+  /** Which part of the recipe this line belongs to, for grouping. */
+  where: "title" | "ingredient" | "step" | "section" | "tag"
+  /** The text as it stands now. Absent on an addition. */
+  before?: string
+  /** The text as it would be. Absent on a removal. */
+  after?: string
+}
+
+const ingredientText = ({ name, amount, optional }: Ingredient) =>
+  `${name}${amount ? ` — ${amount}` : ""}${optional ? " (optional)" : ""}`
+
+/**
+ * The differences themselves, line by line, rather than counted.
+ *
+ * This is what the assistant's proposal shows: "Ingredients: 2 changed" says
+ * how much of the recipe moved, but not whether you would still recognise it.
+ * Both texts ride along so the panel can show the one being replaced next to
+ * the one replacing it.
+ *
+ * Positional, like everything else here: replacing the second ingredient reads
+ * as a change to it, not as a removal and an addition.
+ */
+export const describeChanges = (
+  baseline: RecipeBaseline | null,
+  current: RecipeBaseline
+): ChangeLine[] => {
+  const before = baseline ?? EMPTY
+  const lines: ChangeLine[] = []
+
+  if (before.title !== current.title) {
+    lines.push({ kind: "changed", where: "title", before: before.title, after: current.title })
+  }
+
+  current.ingredients.forEach((ingredient, i) => {
+    const was = before.ingredients[i]
+    if (was == null) {
+      lines.push({ kind: "added", where: "ingredient", after: ingredientText(ingredient) })
+    } else if (!sameIngredient(was, ingredient)) {
+      lines.push({
+        kind: "changed",
+        where: "ingredient",
+        before: ingredientText(was),
+        after: ingredientText(ingredient),
+      })
+    }
+  })
+  before.ingredients.slice(current.ingredients.length).forEach((ingredient) => {
+    lines.push({ kind: "removed", where: "ingredient", before: ingredientText(ingredient) })
+  })
+
+  const sectionName = (title: string) => (title === "" ? "Untitled section" : title)
+
+  current.directions.forEach((section, i) => {
+    const was = before.directions[i]
+
+    if (was == null) {
+      lines.push({ kind: "added", where: "section", after: sectionName(section.sectionTitle) })
+      section.steps.forEach((step) => lines.push({ kind: "added", where: "step", after: step }))
+      return
+    }
+
+    if (was.sectionTitle !== section.sectionTitle) {
+      lines.push({
+        kind: "changed",
+        where: "section",
+        before: sectionName(was.sectionTitle),
+        after: sectionName(section.sectionTitle),
+      })
+    }
+
+    section.steps.forEach((step, s) => {
+      const wasStep = was.steps[s]
+      if (wasStep == null) lines.push({ kind: "added", where: "step", after: step })
+      else if (wasStep !== step) {
+        lines.push({ kind: "changed", where: "step", before: wasStep, after: step })
+      }
+    })
+    was.steps.slice(section.steps.length).forEach((step) => {
+      lines.push({ kind: "removed", where: "step", before: step })
+    })
+  })
+
+  before.directions.slice(current.directions.length).forEach((section) => {
+    // The steps inside it go without being listed one by one — a section that
+    // is gone takes its steps with it, and saying so twenty times is noise.
+    lines.push({ kind: "removed", where: "section", before: sectionName(section.sectionTitle) })
+  })
+
+  current.tags
+    .filter((tag) => !before.tags.includes(tag))
+    .forEach((tag) => lines.push({ kind: "added", where: "tag", after: tag }))
+  before.tags
+    .filter((tag) => !current.tags.includes(tag))
+    .forEach((tag) => lines.push({ kind: "removed", where: "tag", before: tag }))
+
+  return lines
+}
+
+const tally = (rows: RowDiff[]) => ({
+  changed: rows.filter((row) => row.kind === "changed").length,
+  added: rows.filter((row) => row.kind === "added").length,
 })
 
 /** "2 changed, 1 new" — zero counts are left out rather than written as "0". */
@@ -111,21 +242,6 @@ export const summariseChanges = (changes: RecipeChanges): string[] => {
   return lines
 }
 
-const EMPTY: RecipeBaseline = {
-  title: "",
-  ingredients: [],
-  directions: [],
-  tags: [],
-  hasImage: false,
-}
-
-/** `optional`/`unique` are optional on the wire; absent and false are the same. */
-const sameIngredient = (a: Ingredient, b: Ingredient) =>
-  a.name === b.name &&
-  a.amount === b.amount &&
-  Boolean(a.optional) === Boolean(b.optional) &&
-  Boolean(a.unique) === Boolean(b.unique)
-
 /**
  * Rows are compared **by position**, not matched up cleverly.
  *
@@ -134,13 +250,19 @@ const sameIngredient = (a: Ingredient, b: Ingredient) =>
  * dragged or retyped, and claiming to know would be worse than saying "these
  * two lines are not what you saved".
  */
-const diffRows = <T,>(before: T[], after: T[], same: (a: T, b: T) => boolean): RowChange[] =>
+const diffRows = <T,>(
+  before: T[],
+  after: T[],
+  same: (a: T, b: T) => boolean,
+  text: (row: T) => string
+): RowDiff[] =>
   after.map((row, i) => {
-    if (i >= before.length) return "added"
-    return same(before[i], row) ? "same" : "changed"
+    if (i >= before.length) return { kind: "added" }
+    if (same(before[i], row)) return { kind: "same" }
+    return { kind: "changed", before: text(before[i]) }
   })
 
-const countRows = (rows: RowChange[]) => rows.filter((row) => row !== "same").length
+const countRows = (rows: RowDiff[]) => rows.filter((row) => row.kind !== "same").length
 
 /**
  * What is different between the saved recipe and what is on the screen —
@@ -159,7 +281,12 @@ export const diffRecipe = (
   const title = before.title !== current.title
   const image = before.hasImage !== current.hasImage
 
-  const ingredients = diffRows(before.ingredients, current.ingredients, sameIngredient)
+  const ingredients = diffRows(
+    before.ingredients,
+    current.ingredients,
+    sameIngredient,
+    ingredientText
+  )
   const ingredientsRemoved = Math.max(0, before.ingredients.length - current.ingredients.length)
 
   const tagsAdded = current.tags.filter((tag) => !before.tags.includes(tag))
@@ -168,10 +295,12 @@ export const diffRecipe = (
   const sections: SectionChanges[] = current.directions.map((section, i) => {
     const added = i >= before.directions.length
     const previous = added ? { sectionTitle: "", steps: [] } : before.directions[i]
+    const titleChanged = !added && previous.sectionTitle !== section.sectionTitle
     return {
       added,
-      titleChanged: !added && previous.sectionTitle !== section.sectionTitle,
-      steps: diffRows(previous.steps, section.steps, (a, b) => a === b),
+      titleChanged,
+      titleBefore: titleChanged ? previous.sectionTitle : undefined,
+      steps: diffRows(previous.steps, section.steps, (a, b) => a === b, (step) => step),
       stepsRemoved: Math.max(0, previous.steps.length - section.steps.length),
     }
   })
