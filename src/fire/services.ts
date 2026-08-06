@@ -21,14 +21,32 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
+  writeBatch,
   type QuerySnapshot,
 } from "firebase/firestore"
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 
-import { aiUsageRef, auth, db, loginEventsRef, recipesRef, storage, userRef } from "./firebase"
-import type { AiUsageEvent, LoginEvent, Recipe, RegisterValues, UserProfile } from "@/types"
+import {
+  aiUsageRef,
+  auth,
+  db,
+  loginEventsRef,
+  recipesRef,
+  storage,
+  tagsRef,
+  userRef,
+} from "./firebase"
+import type {
+  AiUsageEvent,
+  LoginEvent,
+  Recipe,
+  RegisterValues,
+  TagRecord,
+  UserProfile,
+} from "@/types"
 
 /* ------------------------------------------------------------------ auth */
 
@@ -231,7 +249,13 @@ export const onAiUsageSnapshot = (
 /* --------------------------------------------------------------- recipes */
 
 const toRecipe = (id: string, data: Record<string, unknown>): Recipe =>
-  ({ ...data, id }) as Recipe
+  ({
+    ...data,
+    id,
+    // Firestore hands this back as a Timestamp, and as null while a local write
+    // waits for the server's clock — see the note on `Recipe.createdAt`.
+    createdAt: (data.createdAt as { toDate?: () => Date } | null)?.toDate?.() ?? null,
+  }) as Recipe
 
 export const getRecipes = async (): Promise<Recipe[]> => {
   const snapshot = await getDocs(recipesRef)
@@ -248,10 +272,20 @@ export const getRecipeById = async (id: string): Promise<Recipe | null> => {
   return snapshot.exists() ? toRecipe(snapshot.id, snapshot.data()) : null
 }
 
-export const addRecipe = (recipe: Omit<Recipe, "id">) => addDoc(recipesRef, recipe)
+/**
+ * `createdAt` is stamped here and nowhere else: the server's clock, not the
+ * device's, since a phone with a wrong date would otherwise decide for itself
+ * how new its recipes are. Any `createdAt` on the way in is dropped — it is
+ * written once and never by a caller.
+ */
+export const addRecipe = ({ createdAt: _createdAt, ...recipe }: Omit<Recipe, "id">) =>
+  addDoc(recipesRef, { ...recipe, createdAt: serverTimestamp() })
 
-export const updateRecipeById = (id: string, recipe: Omit<Recipe, "id">) =>
-  updateDoc(doc(db, "recipes", id), { ...recipe })
+/** Editing a recipe must not re-date it, so `createdAt` is dropped here too. */
+export const updateRecipeById = (
+  id: string,
+  { createdAt: _createdAt, ...recipe }: Omit<Recipe, "id">
+) => updateDoc(doc(db, "recipes", id), { ...recipe })
 
 export const deleteRecipeById = (id: string) => deleteDoc(doc(db, "recipes", id))
 
@@ -271,15 +305,109 @@ export const onRecipesByEmailSnapshot = (
     callback(mapSnapshot(snapshot))
   )
 
+/* ------------------------------------------------------------------ tags */
+
+/**
+ * The registry is *only* colours. A tag exists because a recipe wears it, not
+ * because a document was written here — which is what lets tags typed into the
+ * editor before this collection existed still show up, and why every read
+ * merges the two (see `useTagLibrary`).
+ *
+ * The document id is the tag's own normalised name, so there is no way to end
+ * up with two entries for "salad".
+ */
+export const onTagsSnapshot = (
+  callback: (tags: TagRecord[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    tagsRef,
+    (snapshot) =>
+      callback(
+        snapshot.docs.map((d) => ({
+          name: String(d.data().name ?? d.id),
+          color: String(d.data().color ?? ""),
+        }))
+      ),
+    (error) => {
+      console.error("Could not read tags", error)
+      onError?.(error)
+    }
+  )
+
+export const setTagColor = (name: string, color: string) =>
+  setDoc(doc(db, "tags", name), { name, color }, { merge: true })
+
+/**
+ * Renaming has to reach every recipe wearing the old name — the alternative is
+ * a registry entry nothing points at and recipes filed under a word that is no
+ * longer offered anywhere.
+ *
+ * One batch, so a half-finished rename cannot leave two names in circulation.
+ * That caps it at 500 writes; this is a household recipe box, and a tag on 499
+ * recipes is not the problem that list has.
+ */
+export const renameTag = async (from: string, to: string, color: string) => {
+  if (from === to) return
+
+  const carriers = await getDocs(query(recipesRef, where("tags", "array-contains", from)))
+  const batch = writeBatch(db)
+
+  carriers.docs.forEach((d) => {
+    const current = (d.data().tags as string[] | undefined) ?? []
+    // Through a Set: a recipe already carrying both names would otherwise end
+    // up with the survivor twice.
+    batch.update(d.ref, { tags: Array.from(new Set(current.map((t) => (t === from ? to : t)))) })
+  })
+
+  batch.delete(doc(db, "tags", from))
+  batch.set(doc(db, "tags", to), { name: to, color })
+  await batch.commit()
+}
+
+/** Deleting a tag strips it from its recipes too — see `renameTag`. */
+export const deleteTag = async (name: string) => {
+  const carriers = await getDocs(query(recipesRef, where("tags", "array-contains", name)))
+  const batch = writeBatch(db)
+
+  carriers.docs.forEach((d) => {
+    const current = (d.data().tags as string[] | undefined) ?? []
+    batch.update(d.ref, { tags: current.filter((t) => t !== name) })
+  })
+
+  batch.delete(doc(db, "tags", name))
+  await batch.commit()
+}
+
 /* --------------------------------------------------------------- storage */
 
 /**
  * Scratch upload used by the editor before a recipe id exists.
  * Resolves to the download URL.
  */
+/**
+ * Stages the editor's image at one fixed path per user, so a cook who tries
+ * five photos leaves one file behind rather than five.
+ *
+ * That reuse is exactly why the URL gets a cache-buster. The path never changes,
+ * so a second upload can hand back a byte-identical download URL — and three
+ * separate layers then conspire to show the *old* picture:
+ *
+ * - the `<img>` in `ImageUpload` clears its spinner only from `onLoad`, which
+ *   never fires again when `src` is unchanged, so the spinner runs forever;
+ * - the service worker caches `firebasestorage.googleapis.com` `CacheFirst` for
+ *   30 days (see `vite.config.ts`), so the new bytes are never fetched;
+ * - the browser's own image cache does the same thing.
+ *
+ * That is what made "Generate" appear to work exactly once per session. Storage
+ * ignores the extra parameter, and it cannot reach Firestore: staging always
+ * sets `imageFile` too, and `RecipeEditor` re-uploads that file through
+ * `uploadImageToRecipeId` — the persisted URL is built there, and stays clean.
+ */
 export const uploadRecipeEditorImage = async (file: File, email: string) => {
   const result = await uploadBytes(ref(storage, `${email}/recipeEditor.png`), file)
-  return getDownloadURL(result.ref)
+  const url = await getDownloadURL(result.ref)
+  return `${url}${url.includes("?") ? "&" : "?"}staged=${Date.now()}`
 }
 
 /** Final upload, keyed by recipe id. Resolves to the download URL. */

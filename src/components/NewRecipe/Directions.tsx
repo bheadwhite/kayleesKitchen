@@ -17,7 +17,13 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import clsx from "clsx"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react"
 import { useFormState } from "react-final-form"
 
 import {
@@ -29,7 +35,7 @@ import {
   DragIndicatorIcon,
   SectionHeading,
 } from "components"
-import { TextField } from "components/finalForm"
+import { TextArea, TextField } from "components/finalForm"
 import { useDirections, useEditSection, useRecipePresenter } from "contexts/RecipeProvider"
 
 /** Small square icon button — the row chrome, not a primary action. */
@@ -100,7 +106,9 @@ const StepRow = ({ id, number, text, onEdit, onDelete }: StepRowProps) => {
       <button
         type='button'
         onClick={onEdit}
-        className='min-w-0 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words hover:text-steel-700'
+        // `pre-wrap` keeps the line breaks the textarea editor allows; without
+        // it a step written as several lines reads back as one run-on.
+        className='min-w-0 cursor-text pt-0.5 text-left text-[16.5px] leading-relaxed break-words whitespace-pre-wrap hover:text-steel-700'
         title='Click to edit'>
         {text}
       </button>
@@ -148,12 +156,29 @@ const Directions = () => {
 
   const newStep = (index: number) => {
     presenter.addNewStep(index, values[`nextStep-${index}`])
-    stepRef.current?.querySelector("input")?.focus()
+    stepRef.current?.querySelector("textarea")?.focus()
   }
 
   const updateStep = (index: number) => {
     presenter.updateSectionStep(index, values)
   }
+
+  /**
+   * Steps are textareas, so Enter belongs to the text — it starts a new line
+   * inside the step rather than committing it. Cmd/Ctrl+Enter is the commit,
+   * which keeps a run of steps typeable without reaching for the mouse.
+   */
+  const stepKeys =
+    (commit: () => void, cancel?: () => void) =>
+    (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault()
+        commit()
+      } else if (event.key === "Escape" && cancel != null) {
+        event.preventDefault()
+        cancel()
+      }
+    }
 
   const toggleConfirm = () => setConfirmOpen((open) => !open)
 
@@ -260,15 +285,21 @@ const Directions = () => {
                     <div className='mt-1'>
                       {steps.map((step, i) =>
                         editStep === i ? (
-                          // Same field name and id as the add-step input below —
-                          // only one of the two is ever mounted, which keeps the
-                          // `nextStep-{i}` contract in NewRecipe/utils.ts intact.
+                          // Same field name and id as the add-step box below,
+                          // which is safe only because the two are never
+                          // mounted together — one `nextStep-{i}` field per
+                          // section, so react-final-form has one value for it.
                           <div key={i} className='flex flex-wrap items-end gap-1 py-1'>
                             <div className='min-w-0 flex-1 basis-full sm:basis-0'>
-                              <TextField
+                              <TextArea
                                 id={`nextStep-${index}`}
                                 name={`nextStep-${index}`}
                                 fullWidth
+                                autoFocus
+                                onKeyDown={stepKeys(
+                                  () => updateStep(index),
+                                  () => presenter.clearEditStep(index)
+                                )}
                               />
                             </div>
                             <IconButton onClick={() => updateStep(index)} label='Save step'>
@@ -299,18 +330,17 @@ const Directions = () => {
                 {editStep == null && (
                   <div className='mt-2 flex items-end gap-2 pl-[44px]'>
                     <div className='min-w-0 flex-1'>
-                      <TextField
+                      <TextArea
                         id={`nextStep-${index}`}
                         name={`nextStep-${index}`}
                         fullWidth
                         placeholder='Type the next step'
                         ref={stepRef}
+                        onKeyDown={stepKeys(() => newStep(index))}
                       />
                     </div>
                     <IconButton onClick={() => newStep(index)} label='Add step'>
-                      <span id='add-step' className='flex items-center justify-center'>
-                        <AddIcon />
-                      </span>
+                      <AddIcon />
                     </IconButton>
                   </div>
                 )}

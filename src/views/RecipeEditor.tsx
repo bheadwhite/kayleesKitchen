@@ -8,17 +8,20 @@ import { Button, DeleteIcon, Dialog, SectionHeading, Spinner } from "components"
 import { AiAssistant } from "components/AiAssistant"
 import { TextField } from "components/finalForm"
 import { ImageUpload } from "components/ImageUpload"
-import { AddIngredient, Directions, ListIngredients } from "components/NewRecipe"
+import { AddIngredient, Directions, ListIngredients, Tags } from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 import { useAiDraftPresenter } from "contexts/AiDraftProvider"
 import { useSessionUser } from "contexts/AuthProvider"
 import {
   useDirections,
+  useEditIngredientIndex,
   useEditSection,
   useIngredients,
   useRecipeImageUrl,
   useRecipePresenter,
+  useTags,
 } from "contexts/RecipeProvider"
+import useTagLibrary from "hooks/useTagLibrary"
 import useUsersRecipes from "hooks/useUsersRecipes"
 import {
   addRecipe,
@@ -46,9 +49,16 @@ const RecipeEditor = () => {
   const user = useSessionUser()
   const directions = useDirections()
   const ingredients = useIngredients()
+  const tags = useTags()
   const editSection = useEditSection()
+  // Subscribed here, not just in the list: `initialValues` below is what fills
+  // the editor's fields, and it is only rebuilt when this component renders.
+  const editIngredientIndex = useEditIngredientIndex()
   const currentImageUrl = useRecipeImageUrl()
   const usersRecipes = useUsersRecipes()
+  // Every tag anyone has used, so a second recipe gets "mexican" off a chip
+  // rather than "Mexican food" out of someone's memory.
+  const { tags: tagLibrary } = useTagLibrary()
 
   const [editMode, setEditMode] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -151,6 +161,7 @@ const RecipeEditor = () => {
         title,
         ingredients,
         directions: cleanDirections,
+        tags,
         email: user.email,
         contributor: user.displayName,
       }
@@ -205,15 +216,16 @@ const RecipeEditor = () => {
     return steps
   }, [directions])
 
-  const editIngredient = presenter.getEditIngredient()
+  const editIngredient = editIngredientIndex == null ? null : ingredients[editIngredientIndex]
   const initialValues: EditorValues = {
     title: presenter.getTitle(),
     image: presenter.getImageFile() ?? "",
-    name: editIngredient.name ?? "",
-    amount: editIngredient.amount ?? "",
+    name: editIngredient?.name ?? "",
+    amount: editIngredient?.amount ?? "",
     directions,
-    optional: editIngredient.optional ?? false,
-    unique: editIngredient.unique ?? false,
+    tag: "",
+    optional: editIngredient?.optional ?? false,
+    unique: editIngredient?.unique ?? false,
     section: (editSection != null ? directions[editSection]?.sectionTitle : "") ?? "",
     ...editSteps,
   }
@@ -280,6 +292,8 @@ const RecipeEditor = () => {
           />
 
           <ImageUpload />
+
+          <Tags known={tagLibrary} />
 
           <SectionHeading
             meta={`${ingredients.length} item${ingredients.length === 1 ? "" : "s"}`}>

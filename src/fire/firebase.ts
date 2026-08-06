@@ -43,6 +43,13 @@ export const functions = getFunctions(app)
 
 export const userRef = collection(db, "users")
 export const recipesRef = collection(db, "recipes")
+/**
+ * The tag registry: one document per tag, keyed by the tag's own normalised
+ * name, holding the colour it is drawn in. Recipes store tag *names*, so a tag
+ * can exist on recipes with no document here — it simply wears the default
+ * colour until someone gives it one.
+ */
+export const tagsRef = collection(db, "tags")
 /** Sign-in events, for the admin console. Written by the client on each sign-in. */
 export const loginEventsRef = collection(db, "loginEvents")
 /** AI calls. Written **only** by the Cloud Functions — the client just reads. */

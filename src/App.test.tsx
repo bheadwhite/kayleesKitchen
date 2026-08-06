@@ -25,6 +25,7 @@ vi.mock("fire/services", () => ({
   ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL: "auth/account-exists-with-different-credential",
   onRecipesSnapshot: vi.fn(() => () => {}),
   onRecipesByEmailSnapshot: vi.fn(() => () => {}),
+  onTagsSnapshot: vi.fn(() => () => {}),
 }))
 
 let emitAuthState: (user: unknown) => void = () => {}

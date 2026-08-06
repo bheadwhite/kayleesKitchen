@@ -1,21 +1,23 @@
 import { useState } from "react"
 
-import { SectionHeading } from "components"
+import { SectionHeading, TagChip } from "components"
 import Ingredients from "./Ingredients"
 import type { Recipe as RecipeType } from "@/types"
 
 interface RecipeProps {
   recipe?: RecipeType | null
+  /** Colour id per tag name — see the same prop on `RecipeTable`. */
+  tagColors?: Record<string, string>
 }
 
-const Recipe = ({ recipe }: RecipeProps) => {
+const Recipe = ({ recipe, tagColors = {} }: RecipeProps) => {
   // A stored image URL can stop resolving (deleted file, Storage billing off).
   // Drop the <img> rather than leaving a broken-image icon in the recipe.
   const [imageFailed, setImageFailed] = useState(false)
 
   if (recipe == null) return null
 
-  const { ingredients, directions, image, contributor, title } = recipe
+  const { ingredients, directions, image, contributor, title, tags } = recipe
   const stepCount = directions?.reduce((total, section) => total + section.steps.length, 0) ?? 0
 
   return (
@@ -33,11 +35,18 @@ const Recipe = ({ recipe }: RecipeProps) => {
 
       <h1 className='font-heading text-[34px] leading-[1.08] font-bold break-words'>{title}</h1>
 
-      {contributor != null && contributor !== "" && (
-        <p className='mt-2 mb-1 inline-flex h-8 items-center border border-divider bg-steel-100 px-2.5 text-[13px] tracking-[0.02em] text-steel-700'>
-          From {contributor}
-        </p>
-      )}
+      {/* The credit and the tags read as one row of the same object: both are
+       *  what this recipe *is*, before anything about cooking it. */}
+      <div className='mt-2 mb-1 flex flex-wrap items-center gap-2'>
+        {contributor != null && contributor !== "" && (
+          <p className='inline-flex h-8 items-center border border-divider bg-steel-100 px-2.5 text-[13px] tracking-[0.02em] text-steel-700'>
+            From {contributor}
+          </p>
+        )}
+        {(tags ?? []).map((tag) => (
+          <TagChip key={tag} name={tag} color={tagColors[tag]} className='h-8 px-2.5' />
+        ))}
+      </div>
 
       <Ingredients ingredients={ingredients} />
 
@@ -63,7 +72,11 @@ const Recipe = ({ recipe }: RecipeProps) => {
                     type='checkbox'
                     className='mt-1 h-[18px] w-[18px] shrink-0 cursor-pointer accent-steel'
                   />
-                  <span className='text-[16.5px] leading-relaxed'>{step}</span>
+                  {/* `pre-wrap`: a step is edited in a textarea, so any line
+                   *  breaks in it were put there deliberately. */}
+                  <span className='text-[16.5px] leading-relaxed whitespace-pre-wrap'>
+                    {step}
+                  </span>
                 </label>
               ))}
             </div>

@@ -43,6 +43,7 @@ const renderNavBar = (initialPath = "/recipes") => {
         <Routes>
           <Route path='/recipes' element={<p>recipe list</p>} />
           <Route path='/recipes/new' element={<p>recipe editor</p>} />
+          <Route path='/tags' element={<p>tag manager</p>} />
           <Route path='/profile' element={<p>profile</p>} />
           <Route path='/admin' element={<p>admin console</p>} />
           <Route path='/login' element={<p>login</p>} />
@@ -83,6 +84,17 @@ describe("NavBar", () => {
 
     await user.click(screen.getByRole("link", { name: "Recipes" }))
     expect(screen.getByText("recipe list")).toBeInTheDocument()
+
+    presenter.dispose()
+  })
+
+  it("opens the tag manager", async () => {
+    const user = userEvent.setup()
+    const presenter = renderNavBar()
+    signIn()
+
+    await user.click(await screen.findByRole("link", { name: "Tags" }))
+    expect(screen.getByText("tag manager")).toBeInTheDocument()
 
     presenter.dispose()
   })

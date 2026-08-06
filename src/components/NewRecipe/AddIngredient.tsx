@@ -1,19 +1,17 @@
 import { useRef } from "react"
 import { useForm, useFormState } from "react-final-form"
 
-import { AddIcon, Button, CheckIcon, CloseIcon } from "components"
+import { AddIcon, Button } from "components"
 import { Checkbox, TextField } from "components/finalForm"
-import { useEditIngredient, useRecipePresenter } from "contexts/RecipeProvider"
+import { useEditIngredientIndex, useRecipePresenter } from "contexts/RecipeProvider"
 import type { Ingredient } from "@/types"
 
 const AddIngredient = () => {
   const presenter = useRecipePresenter()
-  const editIngredient = useEditIngredient()
+  const editIndex = useEditIngredientIndex()
   const nameFieldRef = useRef<HTMLDivElement>(null)
   const { change } = useForm()
   const { values } = useFormState<Ingredient>()
-
-  const isEditing = Boolean(editIngredient?.name)
 
   const addIngredient = () => {
     presenter.addIngredient(values)
@@ -24,8 +22,10 @@ const AddIngredient = () => {
     change("optional", false)
   }
 
-  const updateIngredient = () => presenter.updateIngredient(values)
-  const resetEditIngredient = () => presenter.resetEditIngredient()
+  // Editing happens in the list row itself, and both use the same `name` /
+  // `amount` fields — so only one of the two is ever mounted, which is what
+  // keeps the `add-ingredient` marker in utils.ts meaning "add, not edit".
+  if (editIndex != null) return null
 
   return (
     <div className='mt-2 border border-divider bg-surface p-3'>
@@ -48,22 +48,11 @@ const AddIngredient = () => {
         <div className='min-w-0 flex-1'>
           <TextField id='ingred-amt' name='amount' placeholder='Amount' fullWidth />
         </div>
-        {isEditing ? (
-          <>
-            <Button variant='primary' icon onClick={updateIngredient} aria-label='Save ingredient'>
-              <CheckIcon />
-            </Button>
-            <Button icon onClick={resetEditIngredient} aria-label='Cancel editing ingredient'>
-              <CloseIcon />
-            </Button>
-          </>
-        ) : (
-          <Button variant='primary' icon onClick={addIngredient} aria-label='Add ingredient'>
-            <span id='add-ingredient' className='flex items-center justify-center'>
-              <AddIcon />
-            </span>
-          </Button>
-        )}
+        <Button variant='primary' icon onClick={addIngredient} aria-label='Add ingredient'>
+          <span id='add-ingredient' className='flex items-center justify-center'>
+            <AddIcon />
+          </span>
+        </Button>
       </div>
     </div>
   )

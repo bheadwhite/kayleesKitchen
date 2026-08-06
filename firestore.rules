@@ -27,6 +27,14 @@ service cloud.firestore {
       allow read, write: if signedIn();
     }
 
+    // The tag registry — one document per tag, holding only the colour it is
+    // drawn in. Same reasoning as recipes: a shared household vocabulary, so
+    // anyone signed in can colour, rename, or retire a tag. Nothing private
+    // lives here, and a tag nobody may edit is a tag nobody can fix a typo in.
+    match /tags/{docId} {
+      allow read, write: if signedIn();
+    }
+
     // Profile documents. Written at registration *after* the account is
     // created, so the write is authenticated (see `addUser` in services.ts).
     match /users/{docId} {

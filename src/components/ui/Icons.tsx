@@ -116,6 +116,13 @@ export const ActivityIcon = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 )
 
+export const TagIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d='M3 12V4a1 1 0 011-1h8l9 9-9 9-9-9z' />
+    <path d='M7.5 7.5h.01' />
+  </Icon>
+)
+
 export const SearchIcon = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <circle cx='11' cy='11' r='7' />

@@ -21,6 +21,19 @@ export interface Recipe {
   email?: string
   contributor?: string | null
   image?: string | null
+  /**
+   * Free-form labels — "salad", "mexican". Stored lowercase so the same idea
+   * cannot arrive twice in different cases; the uppercase they are shown in is
+   * styling, not storage.
+   */
+  tags?: string[]
+  /**
+   * Set once, server-side, by `addRecipe`. Null both for recipes written before
+   * the field existed and for the instant between a local write and the server
+   * timestamp landing — so anything reading it has to treat null as "not new"
+   * rather than "brand new".
+   */
+  createdAt?: Date | null
 }
 
 /**
@@ -32,6 +45,16 @@ export interface RecipeDraft {
   title: string
   ingredients: Ingredient[]
   directions: DirectionSection[]
+}
+
+/**
+ * One entry in the tag registry (`tags/{name}`). The name is both the document
+ * id and the value stored on recipes; `color` is an id from `src/tagColors.ts`,
+ * never a hex.
+ */
+export interface TagRecord {
+  name: string
+  color: string
 }
 
 /** Firestore `users` document. */

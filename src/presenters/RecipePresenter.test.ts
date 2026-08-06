@@ -80,24 +80,102 @@ describe("RecipePresenter", () => {
     })
   })
 
-  describe("updateIngredient", () => {
-    it("replaces the ingredient currently being edited", () => {
+  describe("tags", () => {
+    it("normalises on the way in", () => {
+      presenter.addTag("  Mexican  ")
+      presenter.addTag("SLOW cooker")
+
+      expect(presenter.getTags()).toEqual(["mexican", "slow cooker"])
+    })
+
+    it("ignores blanks and repeats, whatever their case", () => {
+      presenter.addTag("salad")
+      presenter.addTag("Salad")
+      presenter.addTag("   ")
+
+      expect(presenter.getTags()).toEqual(["salad"])
+    })
+
+    it("stops at the cap", () => {
+      for (let i = 0; i < 20; i += 1) presenter.addTag(`tag-${i}`)
+      expect(presenter.getTags()).toHaveLength(12)
+    })
+
+    it("removes one by name", () => {
+      presenter.addTag("salad")
+      presenter.addTag("mexican")
+      presenter.removeTag("salad")
+
+      expect(presenter.getTags()).toEqual(["mexican"])
+    })
+
+    it("normalises what a loaded recipe brings with it", () => {
+      presenter.loadRecipe({ ...recipe, tags: ["Mexican", "mexican", " Salad "] })
+      expect(presenter.getTags()).toEqual(["mexican", "salad"])
+    })
+
+    it("takes whatever a loaded recipe hands it, including nothing", () => {
+      presenter.addTag("salad")
       presenter.loadRecipe(recipe)
-      presenter.setEditIngredient(recipe.ingredients[1])
+
+      // `loadRecipe` replaces the editor wholesale — which is why the AI apply
+      // path re-supplies the tags it is not proposing (see AiAssistant.onApply).
+      expect(presenter.getTags()).toEqual([])
+    })
+
+    it("clears on reset", () => {
+      presenter.addTag("salad")
+      presenter.reset()
+      expect(presenter.getTags()).toEqual([])
+    })
+  })
+
+  describe("editing an ingredient", () => {
+    beforeEach(() => presenter.loadRecipe(recipe))
+
+    it("replaces the ingredient currently being edited", () => {
+      presenter.setEditIngredientIndex(1)
+      expect(presenter.getEditIngredient()).toMatchObject({ name: "Onion" })
+
       presenter.updateIngredient({ name: "Shallot", amount: "1 cup" })
 
       expect(presenter.getIngredients()[1]).toMatchObject({ name: "Shallot", amount: "1 cup" })
-      expect(presenter.getEditIngredient().name).toBe("")
+      expect(presenter.getEditIngredientIndex()).toBeNull()
+    })
+
+    it("edits the row that was opened, not the first one sharing its name", () => {
+      presenter.addIngredient({ name: "Beef", amount: "1 lb, for the sauce" })
+      presenter.setEditIngredientIndex(2)
+      presenter.updateIngredient({ name: "Beef", amount: "2 lb" })
+
+      // Regression: the target used to be looked up by name, which sent every
+      // edit of a duplicate to whichever copy came first.
+      expect(presenter.getIngredients().map((i) => i.amount)).toEqual([
+        "1 lb",
+        "1/2 cup",
+        "2 lb",
+      ])
+    })
+
+    it("ignores an index with no ingredient behind it", () => {
+      presenter.setEditIngredientIndex(7)
+      expect(presenter.getEditIngredientIndex()).toBeNull()
     })
 
     it("leaves the list alone when the edit target is gone", () => {
-      presenter.loadRecipe(recipe)
-      presenter.setEditIngredient({ name: "Nonexistent", amount: "" })
+      presenter.setEditIngredientIndex(1)
+      presenter.deleteIngredient(1)
       presenter.updateIngredient({ name: "Shallot", amount: "1 cup" })
 
       // Regression: findIndex returned -1 and splice(-1, 1, ...) overwrote the
       // last ingredient instead.
-      expect(presenter.getIngredients().map((i) => i.name)).toEqual(["Beef", "Onion"])
+      expect(presenter.getIngredients().map((i) => i.name)).toEqual(["Beef"])
+    })
+
+    it("closes an open row when the list shifts under it", () => {
+      presenter.setEditIngredientIndex(1)
+      presenter.deleteIngredient(0)
+      expect(presenter.getEditIngredientIndex()).toBeNull()
     })
   })
 

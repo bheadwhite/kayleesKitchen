@@ -74,8 +74,38 @@ describe("Directions", () => {
     await user.click(screen.getByRole("button", { name: "Mix the dough." }))
 
     expect(presenter.getDirections()[0].editStep).toBe(0)
-    // The inline editor replaces the row, so the add-step marker is gone.
-    expect(document.getElementById("add-step")).toBeNull()
+    // The inline editor replaces the row, so the add-step box is gone.
+    expect(screen.queryByPlaceholderText("Type the next step")).toBeNull()
+    presenter.dispose()
+  })
+
+  it("edits a step in a textarea, so a long one is fully visible", async () => {
+    const user = userEvent.setup()
+    const presenter = setup()
+
+    expect(screen.getByPlaceholderText("Type the next step").tagName).toBe("TEXTAREA")
+
+    await user.click(screen.getByRole("button", { name: "Mix the dough." }))
+
+    const editor = await screen.findByDisplayValue("Mix the dough.")
+    expect(editor.tagName).toBe("TEXTAREA")
+    presenter.dispose()
+  })
+
+  it("keeps Enter inside the step and commits on Cmd+Enter", async () => {
+    const user = userEvent.setup()
+    const presenter = setup()
+
+    const adder = screen.getByPlaceholderText("Type the next step")
+    await user.click(adder)
+    await user.type(adder, "Rest the dough.{Enter}Cover it.")
+
+    // Enter is a newline here, not a commit — nothing has been added yet.
+    expect(presenter.getDirections()[0].steps).toHaveLength(2)
+
+    await user.keyboard("{Meta>}{Enter}{/Meta}")
+
+    expect(presenter.getDirections()[0].steps[2]).toBe("Rest the dough.\nCover it.")
     presenter.dispose()
   })
 
@@ -83,8 +113,6 @@ describe("Directions", () => {
     const user = userEvent.setup()
     const presenter = setup()
 
-    // Add mode: the marker `NewRecipe/utils.ts` probes for is present.
-    expect(document.getElementById("add-step")).not.toBeNull()
     expect(document.querySelectorAll('[name="nextStep-0"]')).toHaveLength(1)
 
     await user.click(screen.getByRole("button", { name: "Knead 3-4 minutes." }))

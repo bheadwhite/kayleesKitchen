@@ -230,15 +230,94 @@ The generated file goes through `acceptImageFile()` — the same staging, upload
 form-wiring the file picker uses — so preview, "Delete image", and saving behave
 identically whether the image was picked or generated.
 
+Four things keep this from being flaky, and each one was a real failure:
+
+- **`generationConfig.responseModalities: ["TEXT", "IMAGE"]` is required.** Left off, the
+  modality is the endpoint's default and the model is free to answer "draw me dinner" with
+  a paragraph *about* dinner — the "did not return an image" the feature was known for.
+  This model rejects image-only output, so `TEXT` rides along and is discarded.
+  `imageConfig.aspectRatio` is `16:9` to match the editor's 16/10 frame; the default is
+  square, and `object-cover` was cropping a third off every generated image.
+- **The call is retried, because gaxios will not do it.** Its retry config excludes POST,
+  so every call was one-shot against an endpoint that returns 429 on momentary quota and
+  503 when overloaded. `ATTEMPTS`/`BACKOFF_MS` in `generateImage.ts` cover those plus a
+  turn that came back as prose. **Safety refusals are not retried** — `BLOCKED_REASONS`
+  and `promptFeedback.blockReason` end the loop, because an identical prompt gets an
+  identical no, and they earn a different message than a transient blip.
+- **`httpsCallable` defaults to a 70-second timeout** while the callable is deployed at
+  300. Generation plus a cold start clears 70s often enough that the browser was
+  abandoning calls the server went on to finish and bill. `CALL_TIMEOUT_MS` in
+  `src/ai/recipeImage.ts` has to stay in step with `timeoutSeconds`.
+- **Both image paths carry a `requestRef` ticket.** The file picker is never disabled
+  during a generation, so a slow generation could land after a photo picked later and
+  replace it. The guard runs on entry to `acceptImageFile` as well as after the upload,
+  because `setImageFile` is what "Save recipe" uploads — a stale write there saves a
+  picture the editor is not showing.
+
+**Regenerating is a first-class action** — the model gives a different picture every run,
+so the button reads "Regenerate" once an image exists. Making it *work* took a
+cache-buster in `uploadRecipeEditorImage`: staging reuses one fixed path per user
+(`${email}/recipeEditor.png`), so a second upload can return a byte-identical download
+URL, and then three layers hide the new image at once — the `<img>` clears its spinner
+only from `onLoad`, which never fires when `src` is unchanged; the service worker caches
+Storage URLs `CacheFirst` for 30 days; and the browser's image cache does the same. The
+symptom was a spinner that never stopped, over the first picture. The parameter cannot
+reach Firestore — staging always sets `imageFile`, and save re-uploads that through
+`uploadImageToRecipeId`, which stays clean.
+
+A generated image is **kept when only the preview upload fails**: `RecipeEditor` re-uploads
+`presenter.getImageFile()` on save, so the recipe still gets its photo. Clearing it meant
+paying for a second generation to recover from a blip in Storage.
+
+Every rejection is recorded, including the argument checks — `record` is declared before
+the first throw on purpose, since a run of bad requests otherwise looks like no traffic at
+all. `attempts` rides along on the usage event: a feature that quietly needs three swings
+every time is indistinguishable from a healthy one without it.
+
 Prompt caching: the system prompt and the transcript prefix carry `cache_control`
 (photos are large and get resent every turn), and the editor's live contents go *after*
 that breakpoint as a mid-conversation `role: "system"` message — putting volatile state
 in `system` would invalidate the whole prefix on every keystroke.
 
+### Tags
+
+Recipes carry free-form labels — "salad", "mexican" — and the recipe list filters on them.
+They live in **two places, on purpose**:
+
+- **The names are on the recipe** (`Recipe.tags: string[]`, normalised lowercase by
+  `normaliseTag` in `RecipePresenter`). A tag exists because a recipe wears it.
+- **The colour is in a registry** (`tags/{name}`, one document per tag, keyed by the tag's
+  own name so there can never be two entries for "salad"). It holds *only* the colour.
+
+`useTagLibrary` (`src/hooks/useTagLibrary.ts`) merges the two, and the merge is the whole
+design: a tag typed into the editor writes nothing to the registry, so a view reading the
+registry alone would show an empty list on a recipe box full of tags — and a registry entry
+with no recipes left is still offered, because someone picked a colour meaning to use it.
+
+**Colour is a closed palette, not a picker.** `src/tagColors.ts` holds eight tints at
+`steel-100`'s value, each with a border and an ink dark enough to read on it; tags store the
+**id**, never the hex, so re-tuning a tint is an edit to that file rather than a migration.
+This is the one place the mono system admits colour (see the styling section) — an arbitrary
+hex would let a tag be drawn as pure red on white, and would need contrast-checking on every
+render. `<TagChip>` applies it as an **inline style**, because Tailwind builds its stylesheet
+by scanning source text and a class assembled from a runtime value would simply not exist.
+
+**`/tags` (`views/TagManager.tsx`) is the fifth nav tab**, and it manages tags rather than
+creating them: a tag with no recipe on it is an empty filter, and the moment you know you
+want one is the recipe you are writing. What it owns is the part the editor cannot — the
+colour, and the rename or delete that has to reach **every recipe already wearing the word**.
+`renameTag` / `deleteTag` in `services.ts` do that fan-out in a single `writeBatch`, so a
+half-finished rename cannot leave two names in circulation. That caps them at 500 writes,
+which a household recipe box will not reach.
+
+`RecipeTable` and `Recipe` take the colour map as a **prop** rather than calling the hook:
+`Recipes` owns the listener and hands it down, which keeps both presentational and keeps a
+second Firestore listener out of a component rendered once per row.
+
 ### The admin console
 
-`src/views/Admin.tsx` at `/admin` shows AI spend and sign-ins. It is a **fourth nav tab that
-only the admin sees** — `NavBar` switches to `grid-cols-4` for them — and `src/admin.ts`
+`src/views/Admin.tsx` at `/admin` shows AI spend and sign-ins. It is a **fifth nav tab that
+only the admin sees** — `NavBar` switches to `grid-cols-5` for them — and `src/admin.ts`
 holds the one address.
 
 > ⚠️ **`isAdmin()` is a UI affordance, not access control.** It decides what to render; it
@@ -299,23 +378,43 @@ that the up/down buttons are gone. Two things are load-bearing: the drag handle 
 `touch-none` (otherwise the browser claims the gesture for scrolling and no drag ever
 starts on a phone), and the `TouchSensor` uses a press-delay so a tap still scrolls.
 
-Editing is click-to-edit: the section title and each step are buttons that swap
-themselves for an input. The step editor reuses the **same `nextStep-{i}` name and id**
-as the add-step input below it, which is safe because only one of the two is mounted at
-a time — see the `utils.ts` contract below.
+Editing is click-to-edit: the section title, each step, and each ingredient are buttons
+that swap themselves for a field, in place. Each editor reuses the **same field names
+and ids as the "add" row it replaces** — `nextStep-{i}` for a step, `name` / `amount` /
+`nameInput` for an ingredient — which is safe only because the add row is hidden while an
+editor is open (`<AddIngredient>` returns `null`, the add-step box is behind
+`editStep == null`). One of the two, never both — see the `utils.ts` contract below.
+
+**A step is a `<TextArea>`, an ingredient and a section title are `<TextField>`s**, and
+that split decides what Enter does. A step is prose that can run to several lines, so it
+gets a box that grows with its content and keeps Enter for itself as a newline — which
+also means a step field never reaches the form's submit handler at all. `Directions.tsx`
+gives it **Cmd/Ctrl+Enter to commit and Escape to cancel** so a run of steps is still
+typeable without the mouse. Both places that *display* a step (`Recipe.tsx` and the
+editor's own rows) therefore need `whitespace-pre-wrap`, or deliberate line breaks read
+back as one run-on line.
+
+Which ingredient is being edited is held **as an index** (`_editIngredientIndex`), not as
+a copy of the ingredient looked up again by name on save: a recipe may list the same name
+twice, and every edit of a duplicate went to whichever copy came first.
 
 `src/views/RecipeEditor.tsx` is the complex one — a single `<Form>` whose `initialValues`
 are rebuilt from the presenter on every render, so presenter mutations reset form fields.
+**That rebuild only happens when `RecipeEditor` itself re-renders**, so it has to subscribe
+to every signal `initialValues` reads — including ones it otherwise makes no use of.
+Editing an ingredient did nothing at all for exactly this reason: the row opened, and its
+fields stayed blank because nothing here was listening to the edit signal.
 Its submit handler runs `shouldNotSubmitAndFocusInputs` (`src/components/NewRecipe/utils.ts`)
-**first**: that helper reads `document.activeElement` and probes for the marker ids
-`add-ingredient` / `add-section` / `add-step` to decide whether Enter should commit an
-ingredient, section, or step to the presenter instead of submitting the recipe. Renaming
-those ids, the `nameInput` / `nextStep-{i}` ids, or the `name` / `amount` / `section` /
-`nextStep-*` field names silently breaks Enter-key editing.
+**first**: that helper reads `document.activeElement` and probes for the `add-ingredient`
+marker id to decide whether Enter should commit an ingredient or a section title to the
+presenter instead of submitting the recipe. Renaming that id, the `nameInput` id, or the
+`name` / `amount` / `section` field names silently breaks Enter-key editing. The follow-up
+focus is deferred a tick, because committing a row unmounts the element under the cursor
+and mounts a different one carrying the same id.
 
-`TextField` forwards its ref to the **wrapper div**, not the input, because callers do
-`ref.current.querySelector("input").focus()`. Its `id` prop lands on the input, because
-the helper above focuses by element id.
+`TextField` and `TextArea` forward their ref to the **wrapper div**, not the control,
+because callers do `ref.current.querySelector("input" | "textarea").focus()`. The `id`
+prop lands on the control, because the helper above focuses by element id.
 
 ### Styling — the "Industry" design system
 
@@ -356,18 +455,20 @@ Local components live in `src/components/ui/`: `Button`, `Dialog`, `Spinner`, `A
   and must not sit inside anything that clips, because the marks are drawn *outside* the
   box. Recipe photos, the login card, and the profile avatar wear it.
 
-Two places deviate from the supplied assets on purpose, both noted in the code: the
+Three places deviate from the supplied assets on purpose, each noted in the code: the
 manifest's `theme_color` is the ground rather than steel (it paints the Android status bar
-directly above a ground-colored header), and `danger` exists at all.
+directly above a ground-colored header), `danger` exists at all, and **`src/tagColors.ts`**
+is a closed eight-tint palette for tags — the one thing users colour themselves (see the
+tags section).
 
 ### App chrome, and the four numbers that must agree
 
 Two fixed bars sandwich the scrolling column: `components/Toolbar` (title only) at the
 top and `components/NavBar` at the bottom. The hamburger menu they replaced is gone.
 
-`NavBar`'s tabs are Recipes, Editor, and the account — plus an Admin tab for the one admin
-address (see the admin console section) — an `<Avatar>` with the user's
-first name, linking to `/profile`. It is deliberately **not** a Logout button: signing out
+`NavBar`'s tabs are Recipes, Editor, Tags, and the account — plus an Admin tab for the one
+admin address (see the admin console section). The account tab is an `<Avatar>` with the
+user's first name, linking to `/profile`. It is deliberately **not** a Logout button: signing out
 sat one mis-tap from the tab used most, and it is destructive here because it drops
 whatever is half-typed in the editor. `src/views/Profile.tsx` owns signing out, behind a
 confirm dialog. `Avatar` (`components/ui/Avatar.tsx`) shows the Google `photoURL` and
@@ -376,6 +477,13 @@ falls back to initials — on `onError` as well as when the URL is missing, beca
 
 `NavBar` renders `null` unless `useAuthStatus()` is `"loggedIn"` — every entry needs a
 session — and `App` reads the same status to decide whether to reserve room for it.
+
+A row in `RecipeTable` carries a **New** chip for its first week, from the `createdAt`
+`serverTimestamp()` that `addRecipe` stamps — the server's clock, since a phone with a wrong
+date would otherwise decide for itself how new its recipes are. `updateRecipeById` drops
+`createdAt` on the way past so editing a recipe cannot re-date it. **A missing or pending
+timestamp reads as "not new"**: every recipe written before the field existed has none, and
+a local write has null until the round trip lands.
 
 The recipe view offers **Edit** (top right, opposite "All recipes") on recipes you own,
 linking to **`/recipes/new?edit=<id>`**. The editor reads that param once on arrival and

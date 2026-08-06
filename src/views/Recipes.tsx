@@ -6,6 +6,7 @@ import { ArrowBackIcon, Button, EditIcon } from "components"
 import Recipe from "components/Recipe"
 import RecipeTable from "components/RecipeTable"
 import { useSessionUser } from "contexts/AuthProvider"
+import useTagLibrary from "hooks/useTagLibrary"
 import { onRecipesSnapshot } from "fire/services"
 import type { Recipe as RecipeType } from "@/types"
 
@@ -13,6 +14,9 @@ const Recipes = () => {
   const navigate = useNavigate()
   const user = useSessionUser()
   const [recipes, setRecipes] = useState<RecipeType[]>([])
+  // Colours are read once, here, and handed down: the list and the open recipe
+  // draw the same tag, and neither should own a listener to do it.
+  const { colors: tagColors } = useTagLibrary()
   const [selected, setSelected] = useState<RecipeType | null>(null)
   /** Where the list was scrolled to when the open recipe was picked. */
   const listScrollY = useRef(0)
@@ -66,6 +70,7 @@ const Recipes = () => {
           selectedId={selected?.id}
           onSelect={openRecipe}
           initialFilter={initialFilter}
+          tagColors={tagColors}
         />
       </div>
 
@@ -92,7 +97,7 @@ const Recipes = () => {
               </Button>
             )}
           </div>
-          <Recipe recipe={selected} />
+          <Recipe recipe={selected} tagColors={tagColors} />
         </>
       )}
     </div>

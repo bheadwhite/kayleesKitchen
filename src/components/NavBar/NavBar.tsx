@@ -1,7 +1,15 @@
 import clsx from "clsx"
 import { NavLink } from "react-router-dom"
 
-import { ActivityIcon, Avatar, EditIcon, PotIcon, firstNameFor, nameFor } from "components"
+import {
+  ActivityIcon,
+  Avatar,
+  EditIcon,
+  PotIcon,
+  TagIcon,
+  firstNameFor,
+  nameFor,
+} from "components"
 import { useAuthStatus, useSessionUser } from "contexts/AuthProvider"
 import { isAdmin } from "@/admin"
 
@@ -29,7 +37,7 @@ const iconClass = "h-[23px] w-[23px] shrink-0"
  * place always reachable one-handed, and a tab bar shows where you are without
  * a tap, which a menu behind a button cannot.
  *
- * The third tab is the account, not a sign-out button. Signing out is one
+ * The last tab is the account, not a sign-out button. Signing out is one
  * mis-tap away from the tab you use most, and it is destructive in the way that
  * matters here — it drops half-typed work in the editor. It lives at the bottom
  * of <Profile> instead, where nothing else is adjacent.
@@ -46,7 +54,7 @@ const NavBar = () => {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     clsx(itemClass, isActive ? activeClass : idleClass)
 
-  // The admin gets a fourth tab. Everyone else must not even see that the
+  // The admin gets a fifth tab. Everyone else must not even see that the
   // console exists — and `isAdmin` only decides rendering, never access: the
   // Firestore rules are what stop a non-admin reading the collections.
   const showAdmin = isAdmin(user)
@@ -61,7 +69,7 @@ const NavBar = () => {
       <div
         className={clsx(
           "mx-auto grid h-[var(--navbar-h)] w-full max-w-[900px]",
-          showAdmin ? "grid-cols-4" : "grid-cols-3"
+          showAdmin ? "grid-cols-5" : "grid-cols-4"
         )}>
         {/* `end`, or /recipes/new would light up both tabs. */}
         <NavLink to='/recipes' end className={linkClass}>
@@ -71,6 +79,10 @@ const NavBar = () => {
         <NavLink to='/recipes/new' className={linkClass}>
           <EditIcon className={iconClass} />
           Editor
+        </NavLink>
+        <NavLink to='/tags' className={linkClass}>
+          <TagIcon className={iconClass} />
+          Tags
         </NavLink>
         {showAdmin && (
           <NavLink to='/admin' className={linkClass}>

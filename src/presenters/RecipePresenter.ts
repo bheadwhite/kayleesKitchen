@@ -9,6 +9,12 @@ const EMPTY_INGREDIENT: Ingredient = {
   unique: false,
 }
 
+/** Enough to describe a dish; past this a tag list stops narrowing anything. */
+const MAX_TAGS = 12
+
+/** Lowercase, trimmed, and single-spaced — see `addTag`. */
+export const normaliseTag = (raw: string) => raw.trim().replace(/\s+/g, " ").toLowerCase()
+
 /**
  * Owns everything the recipe editor manipulates. A direct port of the old
  * `RecipeController`, with `StatefulSubject` swapped for `Signal` and
@@ -20,9 +26,13 @@ export class RecipePresenter {
 
   private readonly _directions = new Signal<DirectionSection[]>([])
   private readonly _ingredients = new Signal<Ingredient[]>([])
+  private readonly _tags = new Signal<string[]>([])
   private readonly _imageUrl = new Signal<string | null>(null)
   private readonly _imageFile = new Signal<File | null>(null)
-  private readonly _editIngredient = new Signal<Ingredient>(EMPTY_INGREDIENT)
+  // The row being edited in place, by position. An earlier version held a copy
+  // of the ingredient and looked it up again by name on save, which edited the
+  // wrong row whenever a recipe listed the same name twice.
+  private readonly _editIngredientIndex = new Signal<number | null>(null)
   private readonly _editSection = new Signal<number | null>(null)
   private readonly _loadingRecipeImage = new Signal(false)
 
@@ -34,12 +44,16 @@ export class RecipePresenter {
     return this._ingredients.broadcast
   }
 
+  get tagsBroadcast() {
+    return this._tags.broadcast
+  }
+
   get imageUrlBroadcast() {
     return this._imageUrl.broadcast
   }
 
-  get editIngredientBroadcast() {
-    return this._editIngredient.broadcast
+  get editIngredientIndexBroadcast() {
+    return this._editIngredientIndex.broadcast
   }
 
   get editSectionBroadcast() {
@@ -99,16 +113,25 @@ export class RecipePresenter {
     return this._ingredients.get()
   }
 
-  getEditIngredient() {
-    return this._editIngredient.get()
+  getEditIngredientIndex() {
+    return this._editIngredientIndex.get()
   }
 
-  setEditIngredient(ingredient: Ingredient) {
-    this._editIngredient.set(ingredient)
+  /** The ingredient being edited, or a blank one when no row is open. */
+  getEditIngredient(): Ingredient {
+    const index = this._editIngredientIndex.get()
+    if (index == null) return EMPTY_INGREDIENT
+    return this._ingredients.get()[index] ?? EMPTY_INGREDIENT
   }
 
-  resetEditIngredient() {
-    this._editIngredient.set(EMPTY_INGREDIENT)
+  /** Opens a row for editing. An index with no ingredient behind it closes it. */
+  setEditIngredientIndex(index: number | null) {
+    const exists = index != null && this._ingredients.get()[index] != null
+    this._editIngredientIndex.set(exists ? index : null)
+  }
+
+  clearEditIngredient() {
+    this._editIngredientIndex.set(null)
   }
 
   addIngredient({ name, amount, unique, optional }: Ingredient) {
@@ -119,13 +142,12 @@ export class RecipePresenter {
   }
 
   updateIngredient({ name, amount, unique, optional }: Ingredient) {
-    const target = this._editIngredient.get().name
-    const index = this._ingredients.get().findIndex((i) => i.name === target)
+    const index = this._editIngredientIndex.get()
 
-    // Guard against -1: the old controller's `splice(-1, 1, ...)` silently
-    // overwrote the last ingredient when the edit target had gone away.
-    if (index === -1) {
-      this.resetEditIngredient()
+    // Guard against a stale target: the old controller's `splice(-1, 1, ...)`
+    // silently overwrote the last ingredient when the edit target had gone away.
+    if (index == null || this._ingredients.get()[index] == null) {
+      this.clearEditIngredient()
       return
     }
 
@@ -134,11 +156,39 @@ export class RecipePresenter {
         i === index ? { name, amount, unique, optional } : ingredient
       )
     )
-    this.resetEditIngredient()
+    this.clearEditIngredient()
   }
 
   deleteIngredient(index: number) {
     this._ingredients.transform((current) => current.filter((_, i) => i !== index))
+    // Every row below the deleted one shifts up, so an open editor would be
+    // pointing at the wrong ingredient. Close it rather than re-aim it.
+    this.clearEditIngredient()
+  }
+
+  /* ----------------------------------------------------------------- tags */
+
+  getTags() {
+    return this._tags.get()
+  }
+
+  /**
+   * Normalised on the way in, never on the way out: "  Mexican " and "mexican"
+   * are the same label, and a list that holds both filters as two. The cap is
+   * there because a recipe wearing forty labels is not filterable by any of
+   * them — it is a second copy of the ingredient list.
+   */
+  addTag(raw: string) {
+    const tag = normaliseTag(raw)
+    if (tag === "") return
+
+    this._tags.transform((current) =>
+      current.includes(tag) || current.length >= MAX_TAGS ? current : [...current, tag]
+    )
+  }
+
+  removeTag(tag: string) {
+    this._tags.transform((current) => current.filter((t) => t !== tag))
   }
 
   /* ---------------------------------------------------------- directions */
@@ -273,6 +323,17 @@ export class RecipePresenter {
       (recipe.directions ?? []).map((section) => ({ ...section, editStep: null }))
     )
     this._ingredients.set((recipe.ingredients ?? []).slice())
+    // Normalised on load too: tags written before the rule existed, or by hand
+    // in the console, should not filter differently from ones typed today.
+    this._tags.set(
+      Array.from(new Set((recipe.tags ?? []).map(normaliseTag).filter(Boolean))).slice(
+        0,
+        MAX_TAGS
+      )
+    )
+    // A row left open would now be pointing into a different recipe's list.
+    this._editIngredientIndex.set(null)
+    this._editSection.set(null)
   }
 
   /** Clears the editor back to a blank recipe. */
@@ -285,8 +346,9 @@ export class RecipePresenter {
     this._imageFile.set(null)
     this._directions.set([])
     this._ingredients.set([])
+    this._tags.set([])
     this._editSection.set(null)
-    this._editIngredient.set(EMPTY_INGREDIENT)
+    this._editIngredientIndex.set(null)
   }
 
   dispose() {
@@ -294,7 +356,8 @@ export class RecipePresenter {
     this._imageUrl.dispose()
     this._ingredients.dispose()
     this._directions.dispose()
-    this._editIngredient.dispose()
+    this._tags.dispose()
+    this._editIngredientIndex.dispose()
     this._editSection.dispose()
     this._loadingRecipeImage.dispose()
   }

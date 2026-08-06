@@ -74,6 +74,10 @@ const AiAssistant = () => {
       ...proposedDraft,
       // `loadRecipe` reads `id` off the argument; keep the editor's own.
       id: recipe.getId() ?? undefined,
+      // The assistant does not propose tags, and `loadRecipe` replaces
+      // everything it is handed — without this, applying a draft would quietly
+      // strip the tags already on the recipe.
+      tags: recipe.getTags(),
     })
     assistant.clearProposedDraft()
     toast.success("Draft applied to the editor.")

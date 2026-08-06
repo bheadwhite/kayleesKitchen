@@ -1,7 +1,7 @@
 import clsx from "clsx"
 import { useMemo, useState } from "react"
 
-import { ChevronRightIcon, PotIcon, SearchIcon } from "components"
+import { ChevronRightIcon, PotIcon, SearchIcon, TagChip } from "components"
 import type { Recipe } from "@/types"
 
 interface RecipeTableProps {
@@ -11,10 +11,29 @@ interface RecipeTableProps {
   onSelect: (recipe: Recipe) => void
   /** Seeds the search box — used when arriving from a cook on the profile page. */
   initialFilter?: string
+  /**
+   * Colour id per tag name, from `useTagLibrary`. Passed in rather than read
+   * here so this stays a presentational component with no Firestore listener of
+   * its own; a tag missing from the map just wears the default.
+   */
+  tagColors?: Record<string, string>
 }
 
 const matches = (recipe: Recipe, filter: string) =>
-  `${recipe.title} ${recipe.contributor ?? ""}`.toLowerCase().includes(filter)
+  `${recipe.title} ${recipe.contributor ?? ""} ${(recipe.tags ?? []).join(" ")}`
+    .toLowerCase()
+    .includes(filter)
+
+const NEW_FOR_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Recipes written before `createdAt` existed have none, and a recipe saved a
+ * moment ago has null until the server timestamp lands — both read as "not
+ * new", which is the safe way round: a missing badge is invisible, a wrong one
+ * is a lie about every recipe in the list.
+ */
+const isNew = (recipe: Recipe, now: number) =>
+  recipe.createdAt != null && now - recipe.createdAt.getTime() < NEW_FOR_MS
 
 /** Two letters at most — three initials are unreadable in a 22px box. */
 const initialsOf = (name: string) => {
@@ -36,13 +55,23 @@ const RecipeTable = ({
   selectedId,
   onSelect,
   initialFilter = "",
+  tagColors = {},
 }: RecipeTableProps) => {
   // Seeded, not controlled: after the first render the box belongs to whoever
   // is typing in it.
   const [filter, setFilter] = useState(initialFilter)
+  // One tag at a time. Stacking them narrows to nothing fast on a list this
+  // size, and "tap another to switch" needs no explaining.
+  const [tag, setTag] = useState<string | null>(null)
   // Thumbnails whose URL no longer resolves fall back to the placeholder box
   // instead of a broken-image icon, keeping row heights uniform.
   const [brokenImages, setBrokenImages] = useState<string[]>([])
+
+  // One clock reading for the whole list, refreshed only when the list itself
+  // changes — reading it per row lets two recipes saved in the same second land
+  // on opposite sides of the cutoff. A badge going stale while the page sits
+  // open is not worth a timer.
+  const now = useMemo(() => Date.now(), [recipes])
 
   const sorted = useMemo(
     () =>
@@ -52,10 +81,23 @@ const RecipeTable = ({
     [recipes]
   )
 
+  // Every tag in the list, so the row of chips is the vocabulary that actually
+  // exists rather than one carried over from deleted recipes.
+  const allTags = useMemo(
+    () => Array.from(new Set(sorted.flatMap((recipe) => recipe.tags ?? []))).sort(),
+    [sorted]
+  )
+
+  // A tag that stops existing — renamed, or its last recipe deleted — must not
+  // leave the list filtered to nothing with no way back.
+  const activeTag = tag != null && allTags.includes(tag) ? tag : null
+
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase()
-    return needle ? sorted.filter((recipe) => matches(recipe, needle)) : sorted
-  }, [sorted, filter])
+    const byTag =
+      activeTag == null ? sorted : sorted.filter((r) => (r.tags ?? []).includes(activeTag))
+    return needle ? byTag.filter((recipe) => matches(recipe, needle)) : byTag
+  }, [sorted, filter, activeTag])
 
   return (
     <div className='w-full max-w-[720px]'>
@@ -69,11 +111,41 @@ const RecipeTable = ({
             type='search'
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder='Search recipes and cooks'
+            placeholder='Search recipes, cooks and tags'
             aria-label='Filter recipes'
             className='h-12 w-full border border-divider bg-surface pr-3 pl-10 text-base tracking-[0.01em] hover:border-ink/45 focus-visible:border-steel focus-visible:outline-offset-0'
           />
         </div>
+
+        {/* One scrolling row, not a wrapping block: the bar is sticky, and a
+            dozen tags wrapping to four lines would eat the list underneath it.
+            `-mx-` + `px-` so the row bleeds to the edges as it scrolls while
+            the chips still line up with the column. */}
+        {allTags.length > 0 && (
+          <div className='-mx-4 mt-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+            <div className='flex w-max gap-2'>
+              {allTags.map((name) => {
+                const isActive = activeTag === name
+                return (
+                  <TagChip
+                    key={name}
+                    name={name}
+                    color={tagColors[name]}
+                    // Unpicked chips are outlines, the picked one is filled —
+                    // the same colour either way, so a tag is recognisable
+                    // before you touch it and unmistakable after.
+                    muted={!isActive}
+                    pressed={isActive}
+                    onClick={() => setTag(isActive ? null : name)}
+                    label={isActive ? `Clear tag filter: ${name}` : `Filter by tag: ${name}`}
+                    className={clsx(isActive && "ring-1 ring-ink/25")}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <div className='mt-2 flex items-baseline justify-between font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
           <span>Recipe · Contributed by</span>
           <span>
@@ -133,6 +205,13 @@ const RecipeTable = ({
                 <span className='min-w-0'>
                   <span className='mb-1.5 block font-heading text-xl leading-tight font-semibold break-words'>
                     {recipe.title}
+                    {/* Sits inside the title so it flows with a wrapped one
+                     *  instead of stranding itself on a line of its own. */}
+                    {isNew(recipe, now) && (
+                      <span className='ml-2 inline-block border border-steel bg-steel-100 px-1.5 align-[3px] font-mono text-[10px] leading-[1.6] font-semibold tracking-[0.14em] text-steel-700 uppercase'>
+                        New
+                      </span>
+                    )}
                   </span>
                   {recipe.contributor && (
                     <span className='flex items-center gap-2'>
@@ -144,6 +223,22 @@ const RecipeTable = ({
                       <span className='min-w-0 truncate text-sm text-ink/70'>
                         {recipe.contributor}
                       </span>
+                    </span>
+                  )}
+
+                  {/* Small, and only the first few: the row is a title and who
+                   *  cooked it, and a recipe wearing six tags must not push
+                   *  that off the screen. The rest are one tap away. */}
+                  {(recipe.tags ?? []).length > 0 && (
+                    <span className='mt-1.5 flex flex-wrap items-center gap-1'>
+                      {(recipe.tags ?? []).slice(0, 3).map((tag) => (
+                        <TagChip key={tag} name={tag} color={tagColors[tag]} size='sm' />
+                      ))}
+                      {(recipe.tags ?? []).length > 3 && (
+                        <span className='font-mono text-[9.5px] tracking-[0.12em] text-muted'>
+                          +{(recipe.tags ?? []).length - 3}
+                        </span>
+                      )}
                     </span>
                   )}
                 </span>
@@ -161,7 +256,13 @@ const RecipeTable = ({
             {sorted.length === 0 ? "No recipes yet." : "Nothing matches"}
           </p>
           {sorted.length > 0 && (
-            <p className='text-muted'>{`No recipes match "${filter.trim()}".`}</p>
+            <p className='text-muted'>
+              {filter.trim() === ""
+                ? `Nothing is tagged "${activeTag}".`
+                : `No recipes match "${filter.trim()}"${
+                    activeTag != null ? ` in "${activeTag}"` : ""
+                  }.`}
+            </p>
           )}
         </div>
       )}

@@ -39,6 +39,7 @@ vi.mock("fire/services", () => ({
     callback(RECIPES)
     return () => {}
   },
+  onTagsSnapshot: () => () => {},
 }))
 
 /** jsdom never scrolls, so drive `scrollY` by hand. */
