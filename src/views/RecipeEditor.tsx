@@ -250,7 +250,10 @@ const RecipeEditor = () => {
               return
             }
             void handleSubmit()
-          }}>
+          }}
+          // Room for the save bar, which is fixed and so out of flow — without
+          // this the last thing on the page sits underneath it.
+          className='pb-[var(--editor-actions-h)]'>
           <Select<RecipeOption>
             className='mb-1 w-full max-w-[400px]'
             placeholder='Edit an existing recipe'
@@ -306,23 +309,37 @@ const RecipeEditor = () => {
 
           <AiAssistant />
 
-          <div className='mt-8 flex flex-col items-stretch gap-2 border-t border-divider pt-4 max-sm:[&>button]:mr-0 sm:flex-row sm:items-center sm:justify-end'>
-            {saving ? (
-              <div className='flex justify-center'>
-                <Spinner size={32} />
-              </div>
-            ) : (
-              <>
-                {editMode && <Button onClick={handleCancelEditMode}>Cancel</Button>}
-                {/* The one solid accent object on the page — the page's single
-                 *  real commitment, which is what `primary` is reserved for. */}
-                <Button type='submit' variant='primary'>
-                  {editMode ? "Update recipe" : "Save recipe"}
-                </Button>
-              </>
-            )}
+          {/* Saving sits on the screen rather than at the end of it. The editor
+           *  is a long form — ingredients, a dozen steps, an assistant — and
+           *  the commitment it exists for was three scrolls away from wherever
+           *  you were typing. Fixed directly on top of the nav bar, so the two
+           *  read as one piece of chrome; `left/right-0` with the inner row
+           *  capped at the content width keeps the fill edge-to-edge while the
+           *  buttons stay in the column. */}
+          <div className='fixed right-0 bottom-[calc(var(--navbar-h)+var(--sai-bottom))] left-0 z-40 border-t border-divider bg-ground'>
+            <div className='mx-auto flex h-[var(--editor-actions-h)] w-full max-w-[900px] items-center justify-end gap-2 px-3 sm:px-2.5'>
+              {saving ? (
+                <Spinner size={28} />
+              ) : (
+                <>
+                  {editMode && (
+                    <Button onClick={handleCancelEditMode} className='mt-0 mr-0'>
+                      Cancel
+                    </Button>
+                  )}
+                  {/* The one solid accent object on the page — the page's single
+                   *  real commitment, which is what `primary` is reserved for. */}
+                  <Button type='submit' variant='primary' className='mt-0 mr-0'>
+                    {editMode ? "Update recipe" : "Save recipe"}
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
+          {/* Deleting stays at the far end of the scroll, deliberately: it is
+           *  the one action here that cannot be undone, and it has no business
+           *  sitting a thumb's width from Update. */}
           {editMode && (
             <div className='mt-16 sm:mt-20'>
               <Button

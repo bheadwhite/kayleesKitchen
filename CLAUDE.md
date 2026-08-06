@@ -513,6 +513,14 @@ the heights are `:root` variables in `src/index.css` (`--header-h`, `--navbar-h`
 than literals: the two bars themselves, `App`'s content padding, and `RecipeTable`'s
 sticky filter bar (`top-[calc(var(--header-h)+var(--sai-top))]`).
 
+`RecipeEditor` adds a **third fixed bar** — Save/Update and Cancel, stacked directly on top
+of the nav bar at `bottom-[calc(var(--navbar-h)+var(--sai-bottom))]`. The editor is a long
+form, and the one commitment it exists for was several scrolls below wherever you were
+typing. It follows the same rule: `--editor-actions-h` is a `:root` variable because the bar
+and the form's own `pb-` have to agree, and only that form pays the padding. **Delete recipe
+stays at the far end of the scroll** — it is the one action here that cannot be undone, and
+it has no business a thumb's width from Update.
+
 The **z-index scale is written out in the `:root` block of `src/index.css`** (drag 10,
 sticky filter 30, portaled menu 35, fixed chrome 40, dialog 50). Layers get set three
 different ways here — Tailwind classes, react-select's `styles` prop, and a portal into

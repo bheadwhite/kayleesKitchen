@@ -81,6 +81,12 @@
   --header-h: 3.5rem;
   --navbar-h: 67px;
 
+  /* The editor's save bar, which stacks directly on top of the nav bar. Only
+   * <RecipeEditor> wears it, so only that form pays the padding for it — but
+   * the height still belongs here, because the bar and the padding have to
+   * agree the same way the two fixed bars above do. */
+  --editor-actions-h: 60px;
+
   /*
    * The whole z-index scale, in one place, because the layers are set in three
    * different ways — Tailwind classes, react-select's `styles` prop, and a
@@ -89,7 +95,7 @@
    *   10  a row being dragged, above its siblings (Directions)
    *   30  the recipe list's sticky filter bar
    *   35  a portaled dropdown menu (RecipeEditor's react-select)
-   *   40  the fixed chrome: Toolbar and NavBar
+   *   40  the fixed chrome: Toolbar, NavBar, the editor's save bar
    *   45  UpdateBanner, which sits over the header it replaces for a moment
    *   50  Dialog, which covers everything including the chrome
    *
