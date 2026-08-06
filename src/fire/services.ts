@@ -40,6 +40,7 @@ import {
   invitesRef,
   loginEventsRef,
   pantryRef,
+  profileRef,
   recipeScalingRef,
   recipeVariantsRef,
   recipeYieldRef,
@@ -51,6 +52,7 @@ import {
   tagsRef,
   userRef,
 } from "./firebase"
+import { normaliseEmail } from "@/email"
 import type { ScalingSpec } from "@/scaling"
 import type {
   AiUsageEvent,
@@ -72,11 +74,20 @@ import type {
 
 /* ------------------------------------------------------------------ auth */
 
+/**
+ * Normalised on the way in, both of them. Firebase folds the case of an
+ * address itself, so this is not what makes `Kaylee.…` and `kaylee.…` the same
+ * account — but a phone that autocapitalises the first letter also likes to
+ * leave a trailing space behind a paste, and an address is the one field where
+ * an invisible character means "no such account" rather than a typo you can
+ * see. It also keeps the account and the `users` profile derived from exactly
+ * the same string.
+ */
 export const loginWithEmail = ({ email, password }: { email: string; password: string }) =>
-  signInWithEmailAndPassword(auth, email, password)
+  signInWithEmailAndPassword(auth, normaliseEmail(email), password)
 
 export const createAuthUser = (email: string, password: string) =>
-  createUserWithEmailAndPassword(auth, email, password)
+  createUserWithEmailAndPassword(auth, normaliseEmail(email), password)
 
 export const signOut = () => firebaseSignOut(auth)
 
@@ -95,23 +106,28 @@ export const signOut = () => firebaseSignOut(auth)
  * account exists without a profile, which the app already tolerates
  * (`_toSessionUser` falls back to a null display name). The reverse leaves an
  * orphaned profile document for an account that was never created.
+ *
+ * The profile is filed under the **normalised address as its id**, like `tags`
+ * and `pantry`, so a second profile for one person cannot be written at all —
+ * see `profileRef`. This is the one place in the app where a *typed* address is
+ * stored rather than one read back from the auth token, and until the id was
+ * pinned it was the one place two spellings of a person could enter.
  */
 export const addUser = async (values: RegisterValues): Promise<UserCredential> => {
   const credential = await createAuthUser(values.email, values.password)
 
-  const existing = await getDocs(query(userRef, where("email", "==", values.email)))
-  if (existing.docs.length === 0) {
-    const { password: _password, confirmPassword: _confirmPassword, ...profile } = values
-    await addDoc(userRef, profile)
+  const { password: _password, confirmPassword: _confirmPassword, ...profile } = values
+  const email = normaliseEmail(values.email)
+  if (!(await getDoc(profileRef(email))).exists()) {
+    await setDoc(profileRef(email), { ...profile, email })
   }
 
   return credential
 }
 
 export const getUserProfile = async (email: string): Promise<UserProfile | null> => {
-  const snapshot = await getDocs(query(userRef, where("email", "==", email)))
-  const first = snapshot.docs[0]
-  return first ? (first.data() as UserProfile) : null
+  const snapshot = await getDoc(profileRef(email))
+  return snapshot.exists() ? (snapshot.data() as UserProfile) : null
 }
 
 /**
@@ -123,11 +139,11 @@ export const getUserProfile = async (email: string): Promise<UserProfile | null>
 export const ensureUserProfile = async (user: User): Promise<void> => {
   if (!user.email) return
 
-  const existing = await getDocs(query(userRef, where("email", "==", user.email)))
-  if (existing.docs.length > 0) return
+  const email = normaliseEmail(user.email)
+  if ((await getDoc(profileRef(email))).exists()) return
 
   const [firstName = "", ...rest] = (user.displayName ?? "").trim().split(/\s+/)
-  await addDoc(userRef, { firstName, lastName: rest.join(" "), email: user.email })
+  await setDoc(profileRef(email), { firstName, lastName: rest.join(" "), email })
 }
 
 const googleProvider = new GoogleAuthProvider()
@@ -594,7 +610,7 @@ export const onMyInvitesSnapshot = (
   onError?: (error: Error) => void
 ) =>
   onSnapshot(
-    query(invitesRef, where("toEmail", "==", email)),
+    query(invitesRef, where("toEmail", "==", normaliseEmail(email))),
     (snapshot) => callback(snapshot.docs.map((d) => toInvite(d.id, d.data()))),
     (error) => {
       console.error("Could not read your invitations", error)
@@ -605,6 +621,11 @@ export const onMyInvitesSnapshot = (
 /**
  * Asks someone into a session. The id is `${toEmail}_${sessionId}`, so asking
  * twice replaces rather than stacks — and so the join rule can find it.
+ *
+ * The address is normalised into the id **and** the field, which have to agree:
+ * the create rule pins one to the other, and the recipient finds the ask by
+ * querying `toEmail` against the address on their token. Normalising only the
+ * id would trade a silently undeliverable invite for a rejected write.
  */
 export const inviteToSession = (
   session: PlanningSession,
@@ -617,7 +638,7 @@ export const inviteToSession = (
     covers: session.covers,
     fromUid: from.uid,
     fromName: from.name,
-    toEmail,
+    toEmail: normaliseEmail(toEmail),
     createdAt: serverTimestamp(),
   })
 

@@ -139,6 +139,55 @@ takes the flow as an injectable third constructor argument, like `lookupProfile`
 provider must be enabled under Firebase Console → Authentication → Sign-in method, with the
 serving domain listed under Authorized domains.
 
+### One address, one spelling
+
+**Every email in the app is normalised — `normaliseEmail` in `src/email.ts`, lowercased and
+trimmed — and profiles are keyed by it: `users/{email}`.**
+
+Firebase Auth folds the case of the address it stores, so everything the app reads back from
+a token (`user.email`, `request.auth.token.email`) is already lowercase, and everything
+derived from a token — recipe authorship, session members, storage paths, invites — is
+consistent with everything else for free. **Registration was the one place a *typed* address
+entered the system**, and it wrote `values.email` verbatim. One capital letter there filed a
+profile under a spelling nothing else could ever match again.
+
+That is not a cosmetic bug, and the visible half was the mild half:
+
+- The person appears **twice in the invite picker**, once reachable and once not.
+- An ask sent to the unmatched spelling is **invisible from both ends** — filtered out by the
+  recipient's own `where("toEmail", "==", …)` query against their token, *and* denied by the
+  invite read rule, which compares the same two strings. It is written successfully and
+  never arrives, which is precisely the failure `useEveryone`'s picker exists to prevent.
+
+The fix is the id, not a check. The previous guard was `addDoc` plus "is there one already?",
+which is both a race and — fatally — case-sensitive. `profileRef` keys the document by the
+normalised address the way `tags` and `pantry` do, and **`firestore.rules` pins the id to the
+document's own `email` field**, exactly as the invites block does. Rules have no `lower()`,
+so the pin is to equality with the field; `profileRef` is what normalises, and it is the only
+way the collection is addressed. `create`/`update` are spelled out separately from `delete`
+because `request.resource` is null on a delete, and a single `write` clause carrying the
+check would forbid deletion as a side effect rather than as a decision.
+
+Two things follow that are easy to get wrong:
+
+- **The id and the stored field have to move together.** `inviteToSession` normalises
+  `toEmail` into both, because the create rule pins one to the other. Normalising only the id
+  trades a silently undeliverable invite for a rejected write.
+- **Re-keying existing data is not optional.** A profile still sitting under a random id is
+  invisible to `getDoc(profileRef(email))`, so `ensureUserProfile` decides there is none and
+  writes a second one — the migration and the client deploy cannot be separated without
+  reintroducing the bug for everyone at once.
+
+`isValidEmail` (same file) is what keeps an unreachable address out in the first place. It is
+deliberately not RFC 5322 — the local part may legally contain almost anything, and a
+validator that chases that correctly rejects real addresses to catch typos a confirmation
+mail would catch for free. It insists on the part that actually went wrong: **no whitespace
+anywhere, anchored at both ends**, and a domain of at least two non-empty labels. The pattern
+it replaced, `/[^@]+@[^.]+\..+/`, had neither anchors nor a whitespace rule, so `[^@]+`
+matched `maint .8` and a profile went into `users` at `maint .8@gmail.com` — a person who
+could be picked out of the invite list and never reached. It validates the *normalised*
+address, since trimming is what gets stored anyway.
+
 Async work belongs in a `Runner`, not a `Signal` plus a loading boolean — `Runner` tracks
 `status`/`error`/`progress` and supports `retry()` and `cancel()`.
 

@@ -40,14 +40,24 @@ vi.mock("firebase/firestore", () => ({
   writeBatch: vi.fn(),
 }))
 
+/**
+ * The real normaliser, hoisted so the `./firebase` mock below can key documents
+ * the way production does. Mocking it as a passthrough would leave the two
+ * tests at the bottom of this file asserting nothing.
+ */
+const { normalise } = vi.hoisted(() => ({
+  normalise: (raw: string) => raw.trim().toLowerCase(),
+}))
+
 vi.mock("./firebase", () => ({
   aiUsageRef: {},
   auth: {},
   db: {},
-  inviteId: (a: string, b: string) => `${a}_${b}`,
+  inviteId: (a: string, b: string) => `${normalise(a)}_${b}`,
   invitesRef: {},
   loginEventsRef: {},
   pantryRef: {},
+  profileRef: (email: string) => ({ id: normalise(email) }),
   recipeScalingRef: vi.fn(() => ({})),
   recipeVariantsRef: vi.fn(() => ({})),
   recipeYieldRef: vi.fn(() => ({})),
@@ -211,5 +221,87 @@ describe("onMySessionsSnapshot", () => {
     })
 
     expect(seen[0]).toEqual(["pending", "new", "old"])
+  })
+})
+
+/**
+ * Two documents in this app are keyed by an email address, and both have a
+ * rule pinning the id to the address stored *inside* the document —
+ * `users/{email}` and `invites/{toEmail}_{sessionId}`. Neither pin can be
+ * checked by the client, and getting one wrong fails in a way nobody reports:
+ * a second profile for a person who then appears twice in the picker, or an
+ * ask that is written successfully and is invisible to the person it names.
+ *
+ * So both are asserted here in the shape the rule states them, rather than
+ * against a hard-coded lowercase string — a test that says
+ * `expect(id).toBe("kaylee@…")` passes just as happily when the field beside it
+ * has drifted out of step.
+ */
+describe("addresses used as document ids", () => {
+  const capitalised = "Kaylee.Whitehead1@gmail.com"
+
+  it("files one profile per person, however the address was typed", async () => {
+    const firestore = await import("firebase/firestore")
+    const auth = await import("firebase/auth")
+    vi.mocked(auth.createUserWithEmailAndPassword).mockResolvedValue({} as never)
+    vi.mocked(firestore.getDoc).mockResolvedValue({ exists: () => false } as never)
+    vi.mocked(firestore.setDoc).mockClear()
+
+    await services.addUser({
+      firstName: "Kaylee",
+      lastName: "Whitehead",
+      email: capitalised,
+      password: "secret",
+      confirmPassword: "secret",
+    } as never)
+
+    const [ref, written] = vi.mocked(firestore.setDoc).mock.calls[0] as unknown as [
+      { id: string },
+      { email: string; password?: string },
+    ]
+    // The rule is `docId == request.resource.data.email`. Write a raw address
+    // into a normalised id and every registration is rejected outright.
+    expect(ref.id).toBe(written.email)
+    // Same person, so the account Firebase just lowercased must find it.
+    expect(ref.id).toBe(capitalised.toLowerCase())
+    expect(written.password).toBeUndefined()
+  })
+
+  it("leaves an existing profile alone rather than filing a second spelling", async () => {
+    const firestore = await import("firebase/firestore")
+    vi.mocked(firestore.getDoc).mockResolvedValue({ exists: () => true } as never)
+    vi.mocked(firestore.setDoc).mockClear()
+
+    // Registered by email as `Kaylee.…`, now arriving through Google, whose
+    // token carries `kaylee.…`. Before the id was normalised this wrote the
+    // duplicate that put her in the picker twice.
+    await services.ensureUserProfile({
+      email: capitalised.toLowerCase(),
+      displayName: "Kaylee Whitehead",
+    } as never)
+
+    expect(firestore.setDoc).not.toHaveBeenCalled()
+  })
+
+  it("addresses an ask so its own recipient can find it", async () => {
+    const firestore = await import("firebase/firestore")
+    vi.mocked(firestore.setDoc).mockClear()
+    vi.mocked(firestore.doc).mockImplementation(((_db: unknown, _path: string, id: string) =>
+      ({ id })) as never)
+
+    await services.inviteToSession(
+      { id: "s1", name: "Whiteheads", covers: 5 } as never,
+      { uid: "u1", name: "Brent" } as never,
+      capitalised
+    )
+
+    const [ref, written] = vi.mocked(firestore.setDoc).mock.calls[0] as unknown as [
+      { id: string },
+      { toEmail: string },
+    ]
+    // The create rule pins the id to the field, and the recipient's listener
+    // queries the field against the address on their token.
+    expect(ref.id).toBe(`${written.toEmail}_s1`)
+    expect(written.toEmail).toBe(capitalised.toLowerCase())
   })
 })

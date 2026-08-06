@@ -5,6 +5,8 @@ import { collection, doc, getFirestore } from "firebase/firestore"
 import { getFunctions } from "firebase/functions"
 import { getStorage } from "firebase/storage"
 
+import { normaliseEmail } from "@/email"
+
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -42,6 +44,20 @@ export const storage = getStorage(app)
 export const functions = getFunctions(app)
 
 export const userRef = collection(db, "users")
+/**
+ * One profile per person, keyed by their **normalised email address** — the
+ * same trick `tags` and `pantry` use, and for the same reason: a duplicate is
+ * not something to guard against on the way in, it is something the id makes
+ * impossible. The previous `addDoc` + "is there one already?" query was both a
+ * race and case-sensitive, and the case-sensitivity is what actually bit —
+ * an address typed with a capital at registration filed a second profile the
+ * rest of the app could never match, because everything else reads the address
+ * back from the auth token, which Firebase has already lowercased.
+ *
+ * `firestore.rules` pins the id to the document's own `email` field, so this is
+ * an invariant rather than a convention.
+ */
+export const profileRef = (email: string) => doc(userRef, normaliseEmail(email))
 export const recipesRef = collection(db, "recipes")
 /**
  * The tag registry: one document per tag, keyed by the tag's own normalised
@@ -101,7 +117,8 @@ export const sessionShoppingRef = (sessionId: string) =>
  * look somebody up by and what the auth token carries — see `SessionInvite`.
  */
 export const invitesRef = collection(db, "invites")
-export const inviteId = (toEmail: string, sessionId: string) => `${toEmail}_${sessionId}`
+export const inviteId = (toEmail: string, sessionId: string) =>
+  `${normaliseEmail(toEmail)}_${sessionId}`
 /**
  * How a recipe's ingredient lines respond to cooking for more people —
  * `recipes/{recipeId}/scaling/{ingredientsFingerprint}`.
