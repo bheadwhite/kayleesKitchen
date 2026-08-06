@@ -143,7 +143,10 @@ describe("Admin console", () => {
 
     expect(await screen.findByRole("heading", { name: "AI" })).toBeInTheDocument()
     // 12k in / 3k out across the two calls, one assistant and one image.
-    expect(screen.getByText("12k")).toBeInTheDocument()
+    // Awaited, not read synchronously: the heading is up as soon as `allowed`
+    // flips, but the feed arrives from a listener the *next* effect starts, so
+    // there is a render in between where the totals are still zero.
+    expect(await screen.findByText("12k")).toBeInTheDocument()
     expect(screen.getByText("3k")).toBeInTheDocument()
     // The failed image call is surfaced rather than quietly dropped from totals.
     expect(screen.getAllByText(/1 failed/).length).toBeGreaterThan(0)
@@ -175,8 +178,9 @@ describe("Admin console", () => {
     expect(await screen.findByRole("heading", { name: "Sign-ins" })).toBeInTheDocument()
 
     // Three events, two people — the repeated cook is one row carrying a count,
-    // not two rows saying the same name.
-    expect(screen.getByText(/2 sign-ins/)).toBeInTheDocument()
+    // not two rows saying the same name. Awaited for the same reason as the AI
+    // totals above — the heading lands a render before the feed does.
+    expect(await screen.findByText(/2 sign-ins/)).toBeInTheDocument()
     expect(screen.getByText(/1 sign-in\b/)).toBeInTheDocument()
     expect(screen.getByText("dev@example.test")).toBeInTheDocument()
 
