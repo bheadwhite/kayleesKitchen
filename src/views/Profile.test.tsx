@@ -7,6 +7,7 @@ import type { Auth } from "firebase/auth"
 import Profile from "./Profile"
 import AuthProvider from "contexts/AuthProvider"
 import { AuthPresenter } from "presenters/AuthPresenter"
+import { APP_COMMIT, APP_VERSION } from "@/version"
 import type { Recipe } from "@/types"
 
 let emitAuthState: (user: unknown) => void = () => {}
@@ -159,6 +160,20 @@ describe("Profile", () => {
 
     expect(signOutMock).toHaveBeenCalled()
     expect(await screen.findByText("login")).toBeInTheDocument()
+
+    presenter.dispose()
+  })
+})
+
+describe("Profile — build stamp", () => {
+  it("names the running build so a deploy can be confirmed from a phone", async () => {
+    const presenter = renderProfile()
+    signIn()
+
+    expect(await screen.findByRole("heading", { name: "Build" })).toBeInTheDocument()
+    // Vitest reads the same vite.config.ts, so `define` applies here too.
+    expect(screen.getByText(APP_VERSION)).toBeInTheDocument()
+    expect(screen.getByText(APP_COMMIT)).toBeInTheDocument()
 
     presenter.dispose()
   })

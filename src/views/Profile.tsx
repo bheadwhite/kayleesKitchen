@@ -13,7 +13,7 @@ import {
 } from "components"
 import { useAuthPresenter, useAuthStatus, useSessionUser } from "contexts/AuthProvider"
 import useUsersRecipes from "hooks/useUsersRecipes"
-import { buildDate, buildLabel } from "@/version"
+import { APP_COMMIT, APP_VERSION, buildDate } from "@/version"
 import { onRecipesSnapshot } from "fire/services"
 import type { Recipe } from "@/types"
 
@@ -169,13 +169,22 @@ const Profile = () => {
         </Button>
       </div>
 
-      {/* Which build is running. Bottom of the page and quiet, but always
-       *  present — "did my fix actually deploy?" should be answerable from a
-       *  phone without asking anyone. */}
-      <p className='mt-8 border-t border-divider pt-3 font-mono text-[11px] tracking-[0.1em] text-muted'>
-        {buildLabel()}
-        {buildDate() && ` · ${buildDate()}`}
-      </p>
+      {/* Which build is running. Given its own section rather than a footer
+       *  whisper: "did my fix actually deploy?" is a question people ask from a
+       *  phone, and an answer they have to hunt for is one they will not find.
+       *  The commit is the part that identifies a deploy — the version moves
+       *  rarely, so on its own it cannot tell two builds apart. */}
+      <SectionHeading meta={buildDate() || undefined}>Build</SectionHeading>
+      <dl className='pt-3 font-mono text-[13px]'>
+        <div className='flex justify-between gap-3 border-b border-ink/8 py-1.5'>
+          <dt className='text-muted'>version</dt>
+          <dd>{APP_VERSION}</dd>
+        </div>
+        <div className='flex justify-between gap-3 border-b border-ink/8 py-1.5'>
+          <dt className='text-muted'>commit</dt>
+          <dd>{APP_COMMIT}</dd>
+        </div>
+      </dl>
 
       <Dialog
         open={confirmOpen}
