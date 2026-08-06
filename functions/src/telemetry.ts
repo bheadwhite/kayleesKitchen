@@ -1,5 +1,5 @@
-import { getApps, initializeApp } from "firebase-admin/app"
-import { FieldValue, getFirestore } from "firebase-admin/firestore"
+import { getApp, getApps, initializeApp } from "firebase-admin/app"
+import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore"
 
 /**
  * Where AI calls are recorded for the admin console.
@@ -11,10 +11,23 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore"
  */
 export const AI_USAGE_COLLECTION = "aiUsage"
 
-/** The admin SDK is shared with anything else that needs it, and only ever initialised once. */
-const db = () => {
-  if (getApps().length === 0) initializeApp()
-  return getFirestore()
+let firestore: Firestore | undefined
+
+/**
+ * The Firestore handle, initialised on first use.
+ *
+ * `getFirestore()` with no argument looks up the *default* app and throws
+ * `app/no-app` if there isn't one — which is what happened when this checked
+ * `getApps().length === 0` and then called the no-argument form: the length
+ * check is not a reliable proxy for "a default app exists". Resolving the app
+ * explicitly and handing it to `getFirestore(app)` removes the guesswork.
+ */
+const db = (): Firestore => {
+  if (!firestore) {
+    const app = getApps().length > 0 ? getApp() : initializeApp()
+    firestore = getFirestore(app)
+  }
+  return firestore
 }
 
 export interface AiUsageEvent {
@@ -37,16 +50,27 @@ export interface AiUsageEvent {
 }
 
 /**
- * Records one AI call. Deliberately never throws and is never awaited by the
- * request path: a telemetry write that fails, or a Firestore that is briefly
- * unreachable, must not turn into a failed recipe transcription for the user.
- * The console showing one call short is the cheaper failure by a wide margin.
+ * Records one AI call. Never throws, and is never awaited by the request path:
+ * a telemetry write that fails — or a Firestore briefly unreachable — must not
+ * turn into a failed recipe transcription for the user. The console showing one
+ * call short is the cheaper failure by a wide margin.
+ *
+ * The whole body is guarded, not just the promise. A `.catch()` alone only
+ * covers a *rejected* write; `db()` can throw **synchronously** before there is
+ * any promise to attach to, and that is precisely how an earlier version of
+ * this turned every image generation into an unhandled `INTERNAL`. If a
+ * function must not be able to break its caller, the guard has to cover the
+ * synchronous path too.
  */
 export const recordAiUsage = (event: AiUsageEvent): void => {
-  void db()
-    .collection(AI_USAGE_COLLECTION)
-    .add({ ...event, at: FieldValue.serverTimestamp() })
-    .catch((error) => console.error("Could not record AI usage", error))
+  try {
+    void db()
+      .collection(AI_USAGE_COLLECTION)
+      .add({ ...event, at: FieldValue.serverTimestamp() })
+      .catch((error) => console.error("Could not record AI usage", error))
+  } catch (error) {
+    console.error("Could not record AI usage", error)
+  }
 }
 
 /** Sums the usage across every iteration of a paused/continued turn. */
