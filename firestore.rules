@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// Kitchen Help — Firestore security rules.
+//
+// This file is NOT deployed by `firebase deploy` (firebase.json has no
+// `firestore` section). It is the reviewed copy of what should be pasted into
+// Firebase console → Firestore → Rules. Keep the two in step by hand.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Mirrors ADMIN_EMAIL in src/admin.ts. Rules have no lower(), so this
+    // compares the address in the token exactly as Firebase issued it.
+    function isAdmin() {
+      return signedIn() && request.auth.token.email == 'bheadwhite@gmail.com';
+    }
+
+    // The shared family recipe box: everyone signed in can read everything and
+    // add their own. Deliberately not owner-scoped for writes — the app is a
+    // household with a single shared collection, and existing recipes predate
+    // any ownership field being reliably set.
+    match /recipes/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    // Profile documents. Written at registration *after* the account is
+    // created, so the write is authenticated (see `addUser` in services.ts).
+    match /users/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    match /ratings/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    // AI usage — written by the Cloud Functions through the admin SDK, which
+    // bypasses these rules entirely. The client therefore needs no write access
+    // at all, and saying so outright is better than a rule nobody exercises.
+    match /aiUsage/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Sign-in log. A user may record *their own* sign-in and nothing else:
+    // without the uid check anyone could forge entries for anyone. No update or
+    // delete — an audit log its subjects can edit is not an audit log.
+    match /loginEvents/{docId} {
+      allow read: if isAdmin();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Anything not named above is denied by default. No catch-all rule is
+    // needed — and a `match /{document=**} { allow read, write: if false; }`
+    // would not add safety anyway, since rules are OR'd: a deny cannot override
+    // an allow granted by a more specific match.
+  }
+}

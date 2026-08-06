@@ -41,19 +41,31 @@ export const createAuthUser = (email: string, password: string) =>
 export const signOut = () => firebaseSignOut(auth)
 
 /**
- * Creates the `users` profile document (if one does not already exist for this
- * email) and then the Firebase auth account. Password fields are stripped
+ * Creates the Firebase auth account and then the `users` profile document
+ * (if one does not already exist for this email). Password fields are stripped
  * before the profile is written.
+ *
+ * **Account first, profile second** — the order is load-bearing.
+ * `createUserWithEmailAndPassword` signs the new user in, which is what makes
+ * the profile write below an *authenticated* one. Written the other way round,
+ * registration touches `users` with no credentials at all, and the security
+ * rules would have to leave that collection open to the internet to allow it.
+ *
+ * The failure modes also favour this order: if the profile write fails, the
+ * account exists without a profile, which the app already tolerates
+ * (`_toSessionUser` falls back to a null display name). The reverse leaves an
+ * orphaned profile document for an account that was never created.
  */
 export const addUser = async (values: RegisterValues): Promise<UserCredential> => {
-  const existing = await getDocs(query(userRef, where("email", "==", values.email)))
+  const credential = await createAuthUser(values.email, values.password)
 
+  const existing = await getDocs(query(userRef, where("email", "==", values.email)))
   if (existing.docs.length === 0) {
     const { password: _password, confirmPassword: _confirmPassword, ...profile } = values
     await addDoc(userRef, profile)
   }
 
-  return createAuthUser(values.email, values.password)
+  return credential
 }
 
 export const getUserProfile = async (email: string): Promise<UserProfile | null> => {

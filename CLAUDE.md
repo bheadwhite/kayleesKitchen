@@ -242,11 +242,23 @@ only the admin sees** — `NavBar` switches to `grid-cols-4` for them — and `s
 holds the one address.
 
 > ⚠️ **`isAdmin()` is a UI affordance, not access control.** It decides what to render; it
-> cannot decide what Firestore hands out. Until the rules in **`firestore.rules.snippet`**
-> are merged into the ruleset in the Firebase console, any signed-in user can read `aiUsage`
-> and `loginEvents` straight from the SDK. That snippet is deliberately **not** wired into
-> `firebase.json` — this repo has never held a copy of the project's rules, so deploying an
-> invented rules file would overwrite whatever protects `recipes` and `users` today.
+> cannot decide what Firestore hands out. **`firestore.rules`** is what enforces it.
+
+`firestore.rules` is **not deployed by `firebase deploy`** — `firebase.json` has no
+`firestore` section, on purpose. It is the reviewed copy of what belongs in Firebase console
+→ Firestore → Rules, and the two are kept in step by hand. Read the live ruleset with:
+
+```bash
+TOKEN=$(gcloud auth print-access-token)
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Goog-User-Project: whatsfordinner-e69a4" \
+  https://firebaserules.googleapis.com/v1/projects/whatsfordinner-e69a4/releases
+# then GET the rulesetName from that response
+```
+
+**`addUser` creates the auth account before writing the `users` profile, and the order is
+load-bearing.** `createUserWithEmailAndPassword` signs the new user in, which is what makes
+the profile write authenticated. Reversed, registration touches `users` with no credentials
+and the rules would have to leave that collection open to the internet.
 
 Where each half of the data comes from, and why:
 
