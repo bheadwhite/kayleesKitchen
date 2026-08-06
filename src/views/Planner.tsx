@@ -15,6 +15,7 @@ import {
 } from "components/Planner"
 import { useSessionUser } from "contexts/AuthProvider"
 import {
+  useAskedIn,
   useBuildStatus,
   useCurrentSession,
   useLastBuild,
@@ -88,6 +89,7 @@ const Planner = () => {
 
   const sessions = usePlanningSessions()
   const session = useCurrentSession()
+  const asked = useAskedIn()
   const meals = usePlannedMeals()
   const items = useShoppingItems()
   const weekOffset = useWeekOffset()
@@ -191,6 +193,7 @@ const Planner = () => {
           current={null}
           me={me}
           people={everyone}
+          asked={asked}
           onPick={(id) => planner.selectSession(id)}
           onStart={(name, covers) =>
             guard(planner.startSession(name, covers), "Could not start that session.")
@@ -359,6 +362,7 @@ const Planner = () => {
         current={session}
         me={me}
         people={everyone}
+        asked={asked}
         onPick={(id) => planner.selectSession(id)}
         onStart={(name, covers) =>
           guard(planner.startSession(name, covers), "Could not start that session.")

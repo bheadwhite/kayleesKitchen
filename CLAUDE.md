@@ -72,7 +72,7 @@ The shape is always the same:
    `useRecipeImageUrl`, `useLoadingRecipeImage`, `useAuthStatus`, `useSessionUser`,
    `useAssistantTurns`, `usePendingImages`, `useProposedDraft`, `useAssistantStatus`,
 `useChefTurns`, `useChefFork`, `useBaseServes`, `useChefStatus`, `usePlanningSessions`,
-`useCurrentSession`, `useSessionInvites`, `usePlannedMeals`, `useShoppingItems`,
+`useCurrentSession`, `useSessionInvites`, `useAskedIn`, `usePlannedMeals`, `useShoppingItems`,
 `useWeekOffset`, `useShopDays`, `useLastBuild`, `useBuildStatus`, `useSessionStatus`).
 
 To add shared state: add a private `Signal` + a `xBroadcast` getter + mutators on the
@@ -732,6 +732,31 @@ the session is the one that reads the invite, so consuming it first would revoke
 the permission for the write that follows. The failure mode of this order is a
 stale ask for a session you are already in, which the list filters out; the other
 order loses the session.
+
+**An ask is read from both ends, and the two must not be confused.** `onMyInvitesSnapshot`
+finds the asks waiting on *you* (`where toEmail`), shown on your own tab by
+`<SessionInvites>`; `onSessionInvitesSnapshot` finds the asks a session is waiting on *other
+people* to answer (`where sessionId`), shown under "In this session". Both hand back
+`SessionInvite[]`, so only the names keep them apart — `_invites` / `useSessionInvites`
+against `_asked` / `useAskedIn`.
+
+The second query is legal only because the invite read rule has a second arm for members
+(`inSession(resource.data.sessionId)`) — **rules are not filters**, so a query is rejected
+outright if it *could* return a document the reader is not allowed. That arm already had to
+exist for a deleted session to sweep its own unanswered asks.
+
+Showing them is not decoration. Pressing Invite used to leave the sheet looking exactly as it
+did before, so asking again was the only way to find out you already had. Someone already
+asked is dropped from the picker too: asking twice is harmless — the id makes it a replace,
+not a stack — but a button that appears to do something and provably does nothing is worse
+than no button.
+
+**The picker shows the address under every name**, and matches on both. One profile per
+address is an invariant; one profile per *name* is not, and must not be, because two people
+can be called the same thing and both belong in the list. An invite sent to the wrong one of
+two identical rows reaches a real person who is not the one meant — and the address is what
+the ask is addressed to, so showing it is showing what the button will do. It rides in the
+`aria-label` for the same reason.
 
 #### Scaling is a cached *rule*, not a cached answer
 

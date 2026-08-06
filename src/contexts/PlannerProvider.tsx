@@ -54,6 +54,14 @@ export const usePlannerLoadError = () =>
 /** Asks waiting on you. Shown on your own tab, never inside a session. */
 export const useSessionInvites = () => useSignalValue(usePlannerPresenter().invitesBroadcast)
 
+/**
+ * Asks waiting on *other people*, for the open session — the other direction
+ * from `useSessionInvites`. Shown in the session sheet, so pressing Invite
+ * leaves something behind: without it the sheet looks identical afterwards and
+ * asking again is the only way to find out you already did.
+ */
+export const useAskedIn = () => useSignalValue(usePlannerPresenter().askedBroadcast)
+
 /** Everything planned in the open session from the earliest week on screen. */
 export const usePlannedMeals = () => useSignalValue(usePlannerPresenter().mealsBroadcast)
 

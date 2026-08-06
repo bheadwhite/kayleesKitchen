@@ -679,6 +679,29 @@ const toPlannedMeal = (id: string, data: Record<string, unknown>): PlannedMeal =
 })
 
 /**
+ * Asks outstanding on a session — who has been invited and has not yet answered.
+ *
+ * Readable by members because the invite rule's read clause has a second arm
+ * for exactly this (`inSession(resource.data.sessionId)`), which also has to
+ * exist for a deleted session to sweep its own unanswered asks. **Rules are not
+ * filters**: a query is rejected outright if it *could* return a document the
+ * reader is not allowed, so this query is only legal because that arm is there.
+ */
+export const onSessionInvitesSnapshot = (
+  sessionId: string,
+  callback: (invites: SessionInvite[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    query(invitesRef, where("sessionId", "==", sessionId)),
+    (snapshot) => callback(snapshot.docs.map((d) => toInvite(d.id, d.data()))),
+    (error) => {
+      console.error("Could not read this session's invitations", error)
+      onError?.(error)
+    }
+  )
+
+/**
  * Everything planned in a session from `from` (a `YYYY-MM-DD` day) onward.
  *
  * A floor and no ceiling, because that is the shape of the question: a week is

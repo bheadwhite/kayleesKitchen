@@ -39,6 +39,11 @@ export interface PlannerStore {
     onError: (error: Error) => void
   ) => () => void
   watchInvites: (email: string, callback: (invites: SessionInvite[]) => void) => () => void
+  /** Asks outstanding *on a session*, as against `watchInvites`' asks on a person. */
+  watchSessionInvites: (
+    sessionId: string,
+    callback: (invites: SessionInvite[]) => void
+  ) => () => void
   watchMeals: (
     sessionId: string,
     from: string,
@@ -91,6 +96,7 @@ export interface PlannerStore {
 const FIRESTORE_PLANNER_STORE: PlannerStore = {
   watchSessions: (uid, cb, onError) => services.onMySessionsSnapshot(uid, cb, onError),
   watchInvites: (email, cb) => services.onMyInvitesSnapshot(email, cb),
+  watchSessionInvites: (sessionId, cb) => services.onSessionInvitesSnapshot(sessionId, cb),
   watchMeals: (sessionId, from, cb) => services.onSessionMealsSnapshot(sessionId, from, cb),
   watchShopping: (sessionId, cb) => services.onSessionShoppingSnapshot(sessionId, cb),
   watchPantry: (cb) => services.onPantrySnapshot(cb),
@@ -158,6 +164,12 @@ export class PlannerPresenter {
   private readonly _sessions = new Signal<PlanningSession[]>([])
   private readonly _sessionId = new Signal<string | null>(null)
   private readonly _invites = new Signal<SessionInvite[]>([])
+  /**
+   * Asks outstanding on the **open session** — the other direction from
+   * `_invites`, which holds the asks outstanding on *you*. Both are lists of
+   * `SessionInvite`, which is why they are named apart rather than by type.
+   */
+  private readonly _asked = new Signal<SessionInvite[]>([])
   private readonly _meals = new Signal<PlannedMeal[]>([])
   private readonly _items = new Signal<ShoppingItem[]>([])
   /** Ingredient name → aisle, from the shared pantry. Free to read, always. */
@@ -197,6 +209,10 @@ export class PlannerPresenter {
 
   get invitesBroadcast() {
     return this._invites.broadcast
+  }
+
+  get askedBroadcast() {
+    return this._asked.broadcast
   }
 
   get mealsBroadcast() {
@@ -242,6 +258,10 @@ export class PlannerPresenter {
 
   getInvites() {
     return this._invites.get()
+  }
+
+  getAsked() {
+    return this._asked.get()
   }
 
   getMeals() {
@@ -371,6 +391,7 @@ export class PlannerPresenter {
     const id = this._sessionId.get()
     if (id == null) {
       this.watchingSession = null
+      this._asked.set([])
       return
     }
 
@@ -381,6 +402,10 @@ export class PlannerPresenter {
     this.stopWatchingSession = [
       this.store.watchMeals(id, from, (meals) => this._meals.set(meals)),
       this.store.watchShopping(id, (items) => this._items.set(items)),
+      // Who has been asked and not answered. Scoped to the session rather than
+      // to the viewer — `_invites` is the other direction, the asks waiting on
+      // *you*, and the two must not be confused.
+      this.store.watchSessionInvites(id, (asked) => this._asked.set(asked)),
     ]
   }
 
@@ -792,6 +817,7 @@ export class PlannerPresenter {
     this._sessions.dispose()
     this._sessionId.dispose()
     this._invites.dispose()
+    this._asked.dispose()
     this._loadError.dispose()
     this._meals.dispose()
     this._items.dispose()

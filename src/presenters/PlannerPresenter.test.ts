@@ -84,6 +84,8 @@ const fakeStore = () => {
   let emitSessions: (s: PlanningSession[]) => void = () => {}
   let failSessions: (error: Error) => void = () => {}
   let emitInvites: (i: SessionInvite[]) => void = () => {}
+  /** Asks on the open session, as against `emitInvites`' asks on the viewer. */
+  let emitAsked: (i: SessionInvite[]) => void = () => {}
   let emitMeals: (m: PlannedMeal[]) => void = () => {}
   let emitItems: (i: ShoppingItem[]) => void = () => {}
   let emitPantry: (p: Record<string, string>) => void = () => {}
@@ -98,6 +100,10 @@ const fakeStore = () => {
     ),
     watchInvites: vi.fn((_uid: string, cb: (i: SessionInvite[]) => void) => {
       emitInvites = cb
+      return () => {}
+    }),
+    watchSessionInvites: vi.fn((_id: string, cb: (i: SessionInvite[]) => void) => {
+      emitAsked = cb
       return () => {}
     }),
     watchMeals: vi.fn((_id: string, _from: string, cb: (m: PlannedMeal[]) => void) => {
@@ -132,6 +138,7 @@ const fakeStore = () => {
     sessions: (s: PlanningSession[]) => emitSessions(s),
     failSessions: (error: Error) => failSessions(error),
     invites: (i: SessionInvite[]) => emitInvites(i),
+    asked: (i: SessionInvite[]) => emitAsked(i),
     meals: (m: PlannedMeal[]) => emitMeals(m),
     items: (i: ShoppingItem[]) => emitItems(i),
     pantry: (p: Record<string, string>) => emitPantry(p),
@@ -167,6 +174,35 @@ describe("PlannerPresenter", () => {
     } catch {
       /* not every environment has one */
     }
+  })
+
+  /**
+   * Two lists of `SessionInvite` that mean opposite things: the asks waiting on
+   * *you* (any session, shown on your own tab) and the asks this session is
+   * waiting on *other people* to answer. Same type, so only the wiring keeps
+   * them apart.
+   */
+  describe("asks on the open session", () => {
+    it("keeps them apart from the asks waiting on you", () => {
+      const { presenter } = opened(store)
+
+      store.asked([{ id: "a", sessionId: "s1", toEmail: "kaylee@x.test" } as SessionInvite])
+      expect(presenter.getAsked().map((i) => i.toEmail)).toEqual(["kaylee@x.test"])
+      expect(presenter.getInvites()).toEqual([])
+
+      presenter.dispose()
+    })
+
+    it("forgets them when the session changes, rather than showing the last one's", () => {
+      const { presenter } = opened(store)
+      store.asked([{ id: "a", sessionId: "s1", toEmail: "kaylee@x.test" } as SessionInvite])
+      expect(presenter.getAsked()).toHaveLength(1)
+
+      presenter.selectSession(null)
+      expect(presenter.getAsked()).toEqual([])
+
+      presenter.dispose()
+    })
   })
 
   describe("openFor", () => {

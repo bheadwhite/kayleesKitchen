@@ -104,6 +104,7 @@ const fakeStore = () => {
       return () => {}
     }),
     watchInvites: vi.fn((_email: string, _cb: (i: SessionInvite[]) => void) => () => {}),
+    watchSessionInvites: vi.fn((_id: string, _cb: (i: SessionInvite[]) => void) => () => {}),
     watchMeals: vi.fn((_id: string, _from: string, cb: (m: PlannedMeal[]) => void) => {
       emitMeals = cb
       return () => {}
@@ -418,12 +419,12 @@ describe("Planner", () => {
     // must not grow with it.
     expect(within(sheet).queryByRole("button", { name: /^Ask / })).not.toBeInTheDocument()
 
-    await user.type(within(sheet).getByLabelText("Search people to ask in"), "amy")
+    await user.type(within(sheet).getByLabelText(/Search people/i), "amy")
 
     expect(within(sheet).getByText("Amy Ham")).toBeInTheDocument()
     expect(within(sheet).queryByText("B W")).not.toBeInTheDocument()
 
-    await user.click(within(sheet).getByRole("button", { name: /Ask Amy Ham into Weeknights/ }))
+    await user.click(within(sheet).getByRole("button", { name: /Ask Amy Ham \(amy@example\.test\) into Weeknights/ }))
     expect(store.invite).toHaveBeenCalledWith(
       expect.objectContaining({ id: "s1" }),
       expect.anything(),
@@ -441,7 +442,7 @@ describe("Planner", () => {
     await user.click(screen.getByRole("button", { name: /Weeknights/ }))
     const sheet = screen.getByRole("dialog", { name: "Planning sessions" })
 
-    await user.type(within(sheet).getByLabelText("Search people to ask in"), "bw@")
+    await user.type(within(sheet).getByLabelText(/Search people/i), "bw@")
     expect(within(sheet).getByText("B W")).toBeInTheDocument()
 
     auth.dispose()
@@ -456,7 +457,7 @@ describe("Planner", () => {
     const sheet = screen.getByRole("dialog", { name: "Planning sessions" })
 
     // "Cook" is the signed-in user and already a member.
-    await user.type(within(sheet).getByLabelText("Search people to ask in"), "cook")
+    await user.type(within(sheet).getByLabelText(/Search people/i), "cook")
     expect(within(sheet).getByText(/Nobody here matches/)).toBeInTheDocument()
 
     auth.dispose()
