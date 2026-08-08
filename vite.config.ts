@@ -143,8 +143,31 @@ export default defineConfig({
             urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*/,
             handler: "CacheFirst",
             options: {
+              // Must match `RECIPE_IMAGE_CACHE` in `src/pwa.ts`, which evicts
+              // from this cache by name — see below for why it has to.
               cacheName: "recipe-images",
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              // **Status 0 is here on purpose, and it is a known hazard.**
+              //
+              // An `<img>` fetches cross-origin with `no-cors`, so what reaches
+              // the worker is an *opaque* response — status 0 — and an opaque
+              // response says nothing about whether the request worked: a 403
+              // and a 200 arrive looking identical. Dropping 0 is the tidy fix
+              // and the wrong one, because opaque is *all* these requests ever
+              // are: it would mean caching no recipe photo at all, and the
+              // photos on a phone with no signal in a kitchen are the reason
+              // this rule exists.
+              //
+              // So the failure is repaired where it can be seen instead. A
+              // response that will not decode is a broken picture in the
+              // editor, and `ImageUpload` answers that by evicting the URL from
+              // this cache and asking again — see `forgetCachedImage`. Without
+              // that, `CacheFirst` served a cached 403 back for thirty days.
+              //
+              // The real fix is a CORS configuration on the bucket, which would
+              // make these responses ordinary 200s the worker can judge for
+              // itself. `gsutil cors get gs://whatsfordinner-e69a4.appspot.com`
+              // currently reports none.
               cacheableResponse: { statuses: [0, 200] },
             },
           },

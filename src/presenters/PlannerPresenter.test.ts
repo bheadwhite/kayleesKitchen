@@ -87,6 +87,8 @@ const fakeStore = () => {
   /** Asks on the open session, as against `emitInvites`' asks on the viewer. */
   let emitAsked: (i: SessionInvite[]) => void = () => {}
   let emitMeals: (m: PlannedMeal[]) => void = () => {}
+  let failMeals: (e: Error) => void = () => {}
+  let failItems: (e: Error) => void = () => {}
   let emitItems: (i: ShoppingItem[]) => void = () => {}
   let emitPantry: (p: Record<string, string>) => void = () => {}
 
@@ -106,14 +108,25 @@ const fakeStore = () => {
       emitAsked = cb
       return () => {}
     }),
-    watchMeals: vi.fn((_id: string, _from: string, cb: (m: PlannedMeal[]) => void) => {
-      emitMeals = cb
-      return () => {}
-    }),
-    watchShopping: vi.fn((_id: string, cb: (i: ShoppingItem[]) => void) => {
-      emitItems = cb
-      return () => {}
-    }),
+    watchMeals: vi.fn(
+      (
+        _id: string,
+        _from: string,
+        cb: (m: PlannedMeal[]) => void,
+        onError: (e: Error) => void
+      ) => {
+        emitMeals = cb
+        failMeals = onError
+        return () => {}
+      }
+    ),
+    watchShopping: vi.fn(
+      (_id: string, cb: (i: ShoppingItem[]) => void, onError: (e: Error) => void) => {
+        emitItems = cb
+        failItems = onError
+        return () => {}
+      }
+    ),
     watchPantry: vi.fn((cb: (p: Record<string, string>) => void) => {
       emitPantry = cb
       return () => {}
@@ -121,6 +134,7 @@ const fakeStore = () => {
     createSession: vi.fn().mockResolvedValue("s-new"),
     setCovers: vi.fn().mockResolvedValue(undefined),
     leaveSession: vi.fn().mockResolvedValue(undefined),
+    removeMember: vi.fn().mockResolvedValue(undefined),
     deleteSession: vi.fn().mockResolvedValue(undefined),
     invite: vi.fn().mockResolvedValue(undefined),
     acceptInvite: vi.fn().mockResolvedValue(undefined),
@@ -140,7 +154,9 @@ const fakeStore = () => {
     invites: (i: SessionInvite[]) => emitInvites(i),
     asked: (i: SessionInvite[]) => emitAsked(i),
     meals: (m: PlannedMeal[]) => emitMeals(m),
+    failMeals: (e: Error) => failMeals(e),
     items: (i: ShoppingItem[]) => emitItems(i),
+    failItems: (e: Error) => failItems(e),
     pantry: (p: Record<string, string>) => emitPantry(p),
   }
 }
@@ -273,7 +289,12 @@ describe("PlannerPresenter", () => {
 
       expect(presenter.getMeals()).toEqual([])
       expect(presenter.getItems()).toEqual([])
-      expect(store.watchMeals).toHaveBeenLastCalledWith("s2", expect.any(String), expect.any(Function))
+      expect(store.watchMeals).toHaveBeenLastCalledWith(
+        "s2",
+        expect.any(String),
+        expect.any(Function),
+        expect.any(Function)
+      )
       presenter.dispose()
     })
 
@@ -323,6 +344,68 @@ describe("PlannerPresenter", () => {
 
       expect(store.leaveSession).toHaveBeenCalledWith(expect.objectContaining({ id: "s1" }), "u1")
       expect(store.deleteSession).not.toHaveBeenCalled()
+      presenter.dispose()
+    })
+  })
+
+  /**
+   * A session is one person's invitation to a group, so withdrawing it belongs
+   * to whoever issued it. Everybody else's only exit is their own.
+   */
+  describe("taking somebody out", () => {
+    const shared = () => session({ memberUids: [ME.uid, DEV.uid], members: [ME, DEV] })
+
+    it("lets whoever started it take another member out", async () => {
+      const { presenter } = opened(store)
+      store.sessions([shared()])
+
+      await presenter.removeMember(DEV.uid)
+
+      expect(store.removeMember).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "s1" }),
+        DEV.uid
+      )
+      // Removing somebody is not ending the session for everybody else.
+      expect(store.deleteSession).not.toHaveBeenCalled()
+      expect(presenter.getSession()?.id).toBe("s1")
+      presenter.dispose()
+    })
+
+    it("refuses when the session is somebody else's", async () => {
+      const { presenter } = opened(store)
+      store.sessions([
+        session({ ownerUid: DEV.uid, memberUids: [DEV.uid, ME.uid], members: [DEV, ME] }),
+      ])
+
+      expect(presenter.iOwnThis()).toBe(false)
+      await presenter.removeMember(ME.uid)
+
+      // A member's only exit is `leaveSession` — and the rules say the same.
+      expect(store.removeMember).not.toHaveBeenCalled()
+      presenter.dispose()
+    })
+
+    /**
+     * Reading a session needs membership and deleting one needs to be the
+     * owner, so an owner who took themselves out would leave a session standing
+     * that nobody can read and nobody can ever delete.
+     */
+    it("refuses to take the owner out, even at the owner's asking", async () => {
+      const { presenter } = opened(store)
+      store.sessions([shared()])
+
+      await presenter.removeMember(ME.uid)
+
+      expect(store.removeMember).not.toHaveBeenCalled()
+      presenter.dispose()
+    })
+
+    it("does nothing for somebody who is not in it", async () => {
+      const { presenter } = opened(store)
+
+      await presenter.removeMember("u404")
+
+      expect(store.removeMember).not.toHaveBeenCalled()
       presenter.dispose()
     })
   })
@@ -388,6 +471,86 @@ describe("PlannerPresenter", () => {
       const { presenter } = opened(store)
       await presenter.setMealServes(meal({ id: "m1" }), 12)
       expect(store.setMealServes).toHaveBeenCalledWith("s1", "m1", 12)
+      presenter.dispose()
+    })
+
+    /**
+     * All three of these resolved quietly, so the one path people take most —
+     * "Plan something", pick a recipe — could do nothing whatsoever and report
+     * nothing whatsoever. The recipe was picked out of a list; if it will not
+     * go on the week, something is wrong and the caller has to be able to say
+     * what.
+     */
+    describe("refusing to plan", () => {
+      it("says so when no session is open", async () => {
+        const presenter = new PlannerPresenter(
+          build(),
+          analyse(null),
+          store as unknown as PlannerStore
+        )
+        presenter.openFor(ME)
+
+        await expect(presenter.planMeal(TODAY, "dinner", CHILLI)).rejects.toThrow(/no session/i)
+        expect(store.planMeal).not.toHaveBeenCalled()
+        presenter.dispose()
+      })
+
+      it("says so when the recipe has no id to plan", async () => {
+        const { presenter } = opened(store)
+
+        await expect(
+          presenter.planMeal(TODAY, "dinner", { ...CHILLI, id: undefined })
+        ).rejects.toThrow(/Chilli/)
+        expect(store.planMeal).not.toHaveBeenCalled()
+        presenter.dispose()
+      })
+    })
+  })
+
+  /**
+   * A listener that fails hands back nothing, which renders exactly like a week
+   * nobody has planned — and then everything done next looks broken, because
+   * the meal is written and never appears. The sessions listener already had
+   * this; the week's did not.
+   */
+  describe("a week that cannot be read", () => {
+    it("reports it rather than showing an empty week", () => {
+      const { presenter } = opened(store)
+
+      store.failMeals(new Error("Missing or insufficient permissions."))
+
+      expect(presenter.getWeekError()?.message).toMatch(/insufficient permissions/)
+      presenter.dispose()
+    })
+
+    it("reports a shopping list that cannot be read too", () => {
+      const { presenter } = opened(store)
+
+      store.failItems(new Error("denied"))
+
+      expect(presenter.getWeekError()?.message).toBe("denied")
+      presenter.dispose()
+    })
+
+    it("clears as soon as anything reads", () => {
+      const { presenter } = opened(store)
+      store.failMeals(new Error("denied"))
+
+      store.meals([meal({ id: "m1" })])
+
+      expect(presenter.getWeekError()).toBeNull()
+      presenter.dispose()
+    })
+
+    it("does not carry into the next session", () => {
+      const { presenter } = opened(store)
+      store.failMeals(new Error("denied"))
+
+      presenter.selectSession("s2")
+
+      // The failure belonged to the session that was open, and switching is a
+      // fresh pair of listeners.
+      expect(presenter.getWeekError()).toBeNull()
       presenter.dispose()
     })
   })

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -41,6 +41,7 @@ const show = (people: UserProfile[], onInvite = vi.fn(), asked: SessionInvite[] 
       onPick={vi.fn()}
       onStart={vi.fn()}
       onInvite={onInvite}
+      onRemove={vi.fn()}
       onLeave={vi.fn()}
       onDelete={vi.fn()}
       iOwnThis
@@ -50,6 +51,41 @@ const show = (people: UserProfile[], onInvite = vi.fn(), asked: SessionInvite[] 
     />
   )
   return onInvite
+}
+
+const dev: SessionMember = { uid: "u2", name: "Kaylee", email: "kaylee.w@example.test" }
+
+const shared = {
+  ...session,
+  memberUids: ["u1", "u2"],
+  members: [me, dev],
+} as unknown as PlanningSession
+
+/** The members list, from the point of view of whoever is looking at it. */
+const showMembers = ({ iOwnThis = true, isBusy = false } = {}) => {
+  const onRemove = vi.fn()
+  render(
+    <SessionSheet
+      open
+      onClose={vi.fn()}
+      sessions={[shared]}
+      current={shared}
+      me={iOwnThis ? me : dev}
+      people={[]}
+      asked={[]}
+      onPick={vi.fn()}
+      onStart={vi.fn()}
+      onInvite={vi.fn()}
+      onRemove={onRemove}
+      onLeave={vi.fn()}
+      onDelete={vi.fn()}
+      iOwnThis={iOwnThis}
+      plannedCount={0}
+      itemCount={0}
+      isBusy={isBusy}
+    />
+  )
+  return onRemove
 }
 
 const search = () => screen.getByLabelText(/search people/i)
@@ -195,5 +231,70 @@ describe("asks already sent", () => {
     await userEvent.type(search(), "ryan")
 
     expect(screen.getByRole("button", { name: /ryan\.tarver21/ })).toBeInTheDocument()
+  })
+})
+
+/**
+ * A session is one person's invitation to a group, so withdrawing it belongs to
+ * whoever issued it. Everybody else's only exit is their own — which is what
+ * `firestore.rules` enforces, and what this sheet must not appear to offer.
+ */
+describe("taking somebody out", () => {
+  const removeButton = () => screen.getByRole("button", { name: /take kaylee out/i })
+
+  it("offers it on the other members, to the person who started it", () => {
+    showMembers()
+
+    expect(removeButton()).toBeInTheDocument()
+  })
+
+  it("never offers it on whoever started it", () => {
+    showMembers()
+
+    // Including to themselves: an owner who stepped out would leave a session
+    // standing that nobody can read and nobody can ever delete.
+    expect(screen.queryByRole("button", { name: /take brent out/i })).not.toBeInTheDocument()
+  })
+
+  it("does not offer it to a member who did not start the session", () => {
+    showMembers({ iOwnThis: false })
+
+    expect(screen.queryByRole("button", { name: /take .* out/i })).not.toBeInTheDocument()
+  })
+
+  it("asks before doing it, and does nothing on the first tap", async () => {
+    const onRemove = showMembers()
+    await userEvent.click(removeButton())
+
+    expect(onRemove).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: /confirm taking kaylee out/i })).toBeInTheDocument()
+  })
+
+  it("takes them out on the second tap, by uid", async () => {
+    const onRemove = showMembers()
+    await userEvent.click(removeButton())
+    await userEvent.click(screen.getByRole("button", { name: /confirm taking kaylee out/i }))
+
+    expect(onRemove).toHaveBeenCalledWith("u2")
+  })
+
+  // `fireEvent` rather than `userEvent`: the latter awaits real timers between
+  // its own steps, which never fire while they are faked.
+  it("disarms itself rather than sitting primed beside a name", () => {
+    vi.useFakeTimers()
+    try {
+      const onRemove = showMembers()
+      fireEvent.click(removeButton())
+      expect(screen.getByRole("button", { name: /confirm/i })).toBeInTheDocument()
+
+      act(() => {
+        vi.advanceTimersByTime(5000)
+      })
+
+      expect(removeButton()).toBeInTheDocument()
+      expect(onRemove).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

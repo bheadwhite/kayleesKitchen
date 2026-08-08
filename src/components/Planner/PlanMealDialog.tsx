@@ -17,6 +17,8 @@ interface PlanMealDialogProps {
   open: boolean
   onClose: () => void
   recipes: Recipe[]
+  /** Why `recipes` is empty, when it is empty for a reason rather than for real. */
+  recipesError?: Error | null
   /**
    * The slot being filled — set when this was opened from the agenda, so the
    * dialog asks which recipe. Null when it was opened from a recipe, and the
@@ -44,6 +46,7 @@ const PlanMealDialog = ({
   open,
   onClose,
   recipes,
+  recipesError = null,
   target,
   recipe,
   onPlan,
@@ -101,15 +104,25 @@ const PlanMealDialog = ({
 
   /* ------------------------------------------------------- which recipe */
 
+  /**
+   * Neither end supplied — there is no question to ask.
+   *
+   * This used to render the full recipe list under a "Plan a meal" heading,
+   * with every row's `onClick` guarded by `target != null` and therefore dead:
+   * a list of recipes you could tap all day for nothing, which is exactly what
+   * "I clicked a recipe and nothing happened" looks like. `open` is currently
+   * driven by `target != null`, so it is unreachable from `<Planner>` — but a
+   * silent dead end is not something to leave lying in the one component both
+   * ways into planning go through. Refusing to draw it means a second caller
+   * that forgets a target gets an obvious bug instead of an invisible one.
+   */
+  if (target == null) return null
+
   return (
     <Dialog
       open={open}
       onClose={close}
-      title={
-        target == null
-          ? "Plan a meal"
-          : `What's for ${target.slot} ${relativeDayLabel(target.date, today).toLowerCase()}?`
-      }>
+      title={`What's for ${target.slot} ${relativeDayLabel(target.date, today).toLowerCase()}?`}>
       <div className='relative'>
         <SearchIcon className='pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-steel' />
         <input
@@ -124,16 +137,27 @@ const PlanMealDialog = ({
       </div>
 
       {listed.length === 0 ? (
-        <p className='py-8 text-center text-muted'>
-          {recipes.length === 0 ? "No recipes yet." : `Nothing matches "${filter.trim()}".`}
-        </p>
+        // "No recipes yet" is a claim about the recipe box, and a listener that
+        // failed is in no position to make it — that reads as "this household
+        // has written nothing down" when the truth is "I could not look".
+        recipesError != null ? (
+          <p className='my-2 border border-danger/40 bg-danger-100 px-3 py-2 text-[13px] leading-snug text-danger'>
+            <strong className='font-heading'>Can't read the recipes.</strong> Nothing can be
+            planned until this clears.{" "}
+            <span className='font-mono text-[12px] break-words'>{recipesError.message}</span>
+          </p>
+        ) : (
+          <p className='py-8 text-center text-muted'>
+            {recipes.length === 0 ? "No recipes yet." : `Nothing matches "${filter.trim()}".`}
+          </p>
+        )
       ) : (
         <ul className='-mx-1 mt-2 max-h-[50vh] overflow-y-auto'>
           {listed.map((entry) => (
             <li key={entry.id} className='border-b border-divider last:border-b-0'>
               <button
                 type='button'
-                onClick={() => target != null && plan(target.date, target.slot, entry)}
+                onClick={() => plan(target.date, target.slot, entry)}
                 className='w-full cursor-pointer touch-manipulation px-1 py-2.5 text-left hover:bg-steel-100'>
                 <span className='block truncate text-[15px]'>{entry.title}</span>
                 {entry.contributor && (

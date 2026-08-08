@@ -51,6 +51,13 @@ export const useCurrentSession = () => {
 export const usePlannerLoadError = () =>
   useSignalValue(usePlannerPresenter().loadErrorBroadcast)
 
+/**
+ * Why the open session's week and list are empty, when they are empty for a
+ * reason. The other half of `usePlannerLoadError`: that one covers "which
+ * sessions am I in", this one covers "what is in this one".
+ */
+export const useWeekError = () => useSignalValue(usePlannerPresenter().weekErrorBroadcast)
+
 /** Asks waiting on you. Shown on your own tab, never inside a session. */
 export const useSessionInvites = () => useSignalValue(usePlannerPresenter().invitesBroadcast)
 

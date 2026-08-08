@@ -2,9 +2,10 @@ rules_version = '2';
 
 // Kitchen Help — Firestore security rules.
 //
-// This file is NOT deployed by `firebase deploy` (firebase.json has no
-// `firestore` section). It is the reviewed copy of what should be pasted into
-// Firebase console → Firestore → Rules. Keep the two in step by hand.
+// **This file IS deployed**: `firebase.json` has a `firestore` section pointing
+// at it, so `firebase deploy` ships it and the repo is the source of truth. The
+// console is downstream, and there is no clipboard step. `npm run rules:diff`
+// says whether the live ruleset matches what is here.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -88,6 +89,12 @@ service cloud.firestore {
     }
 
     match /sessions/{sid} {
+      // Whoever this update takes out of the session — an empty list for an
+      // update that leaves the roster alone, which is most of them.
+      function leaving() {
+        return resource.data.memberUids.removeAll(request.resource.data.memberUids);
+      }
+
       allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
 
       // Starting one puts you in it and nobody else. Adding the others is the
@@ -97,7 +104,24 @@ service cloud.firestore {
         && request.resource.data.memberUids == [request.auth.uid];
 
       // A member may change the session — its name, how many it cooks for, or
-      // the member list (asking someone in, or stepping out).
+      // the member list (asking someone in, stepping out, or — if you started
+      // it — taking somebody out).
+      //
+      // **Who may take whom out** is what the first clause spends its words on,
+      // and it is three separate decisions:
+      //
+      //  * Anybody may take *themselves* out. That is Leave, and it needs
+      //    nobody's permission.
+      //  * **Whoever started it may take anybody out.** A session is one
+      //    person's invitation to a group, and the person who issued it is the
+      //    one who can withdraw it. Everybody else may only leave — a member
+      //    quietly removing the member who asked them in is not a thing a
+      //    shared week should allow.
+      //  * **Nobody may take the owner out, including the owner.** Not
+      //    tidiness: reading a session needs membership and deleting one needs
+      //    to be the owner, so an owner who stepped out would leave a session
+      //    standing that nobody can read and nobody can ever delete. The
+      //    owner's way out is `delete`, below.
       //
       // The second clause is how somebody who is *not* yet a member joins one,
       // with no Cloud Function in the middle. It is deliberately narrow: the
@@ -107,7 +131,12 @@ service cloud.firestore {
       // `{toUid}_{sessionId}` — derivable from what the rule already knows,
       // rather than something the client would otherwise have to be trusted to
       // name. (A caller who lies about the id simply fails `exists`.)
-      allow update: if inSession(sid)
+      allow update: if (
+             inSession(sid)
+             && !(resource.data.ownerUid in leaving())
+             && (leaving().hasOnly([request.auth.uid])
+                 || resource.data.ownerUid == request.auth.uid)
+           )
         || (
              signedIn()
              && !(request.auth.uid in resource.data.memberUids)

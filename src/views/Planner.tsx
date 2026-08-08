@@ -26,6 +26,7 @@ import {
   useSessionStatus,
   useShopDays,
   useShoppingItems,
+  useWeekError,
   useWeekOffset,
 } from "contexts/PlannerProvider"
 import { onRecipesSnapshot } from "fire/services"
@@ -98,10 +99,24 @@ const Planner = () => {
   const { isBusy } = useSessionStatus()
   const lastBuild = useLastBuild()
   const loadError = usePlannerLoadError()
+  const weekError = useWeekError()
   const everyone = useEveryone()
 
   const [recipes, setRecipes] = useState<Recipe[]>([])
-  useEffect(() => onRecipesSnapshot(setRecipes), [])
+  // Told apart from "no recipes yet", which is what the picker would otherwise
+  // claim on a listener that never fired — see `PlanMealDialog`'s empty state.
+  const [recipesError, setRecipesError] = useState<Error | null>(null)
+  useEffect(
+    () =>
+      onRecipesSnapshot(
+        (loaded) => {
+          setRecipesError(null)
+          setRecipes(loaded)
+        },
+        (error) => setRecipesError(error)
+      ),
+    []
+  )
 
   const [searchParams] = useSearchParams()
   const initialTab = useRef<Tab>(searchParams.get("tab") === "list" ? "list" : "agenda").current
@@ -199,6 +214,7 @@ const Planner = () => {
             guard(planner.startSession(name, covers), "Could not start that session.")
           }
           onInvite={(email) => guard(planner.invite(email), "Could not send that ask.")}
+          onRemove={(uid) => guard(planner.removeMember(uid), "Could not take them out.")}
           onLeave={() => guard(planner.leaveSession(), "Could not leave that session.")}
           onDelete={() => guard(planner.deleteSession(), "Could not delete that session.")}
           iOwnThis={false}
@@ -264,6 +280,19 @@ const Planner = () => {
           Shopping list
         </Segment>
       </div>
+
+      {/* An empty week and an unreadable one look identical, and the second one
+       *  makes everything you do next look broken: the meal is written, the
+       *  listener that would show it never fires, and planning appears to do
+       *  nothing. Said outright, above both tabs, because it applies to the
+       *  list as much as to the agenda. */}
+      {weekError != null && (
+        <p className='mb-3 border border-danger/40 bg-danger-100 px-3 py-2 text-[13px] leading-snug text-danger'>
+          <strong className='font-heading'>Can't read this session.</strong> Anything you
+          plan is saved, but it won't show up here until this clears.{" "}
+          <span className='font-mono text-[12px] break-words'>{weekError.message}</span>
+        </p>
+      )}
 
       {tab === "agenda" ? (
         <Agenda
@@ -348,6 +377,7 @@ const Planner = () => {
         open={target != null}
         onClose={() => setTarget(null)}
         recipes={recipes}
+        recipesError={recipesError}
         target={target}
         recipe={null}
         onPlan={(date: string, slot: MealSlot, recipe: Recipe) =>
@@ -368,6 +398,7 @@ const Planner = () => {
           guard(planner.startSession(name, covers), "Could not start that session.")
         }
         onInvite={(email) => guard(planner.invite(email), "Could not send that ask.")}
+        onRemove={(uid) => guard(planner.removeMember(uid), "Could not take them out.")}
         onLeave={() => guard(planner.leaveSession(), "Could not leave that session.")}
         onDelete={() => guard(planner.deleteSession(), "Could not delete that session.")}
         iOwnThis={session.ownerUid === me?.uid}

@@ -228,7 +228,18 @@ const Recipes = () => {
                 () => toast.success(`${recipe.title} is on the plan.`),
                 (error: unknown) => {
                   console.error("Could not plan that meal", error)
-                  toast.error("Could not plan that meal.")
+                  // Carrying the reason matters more here than on the Plan tab:
+                  // this button is reachable with no session open at all, and
+                  // "could not plan that meal" gives no hint that the answer is
+                  // to go and start one. Planning used to resolve quietly in
+                  // that case, so this said *"is on the plan"* for a meal that
+                  // had gone nowhere.
+                  const detail = error instanceof Error ? error.message : ""
+                  toast.error(
+                    detail === ""
+                      ? "Could not plan that meal."
+                      : `Could not plan that meal — ${detail}`
+                  )
                 }
               )
             }}

@@ -67,6 +67,38 @@ export const isUpdateAvailable = async (): Promise<boolean> => {
 }
 
 /**
+ * Workbox's runtime cache for Storage photos. **Must match `cacheName` in the
+ * `runtimeCaching` block of `vite.config.ts`** — the worker is generated, so
+ * there is nothing to import and the two are kept in step by hand.
+ */
+export const RECIPE_IMAGE_CACHE = "recipe-images"
+
+/**
+ * Drops one image from that cache.
+ *
+ * The photos are fetched by `<img>`, cross-origin and `no-cors`, so every
+ * response the worker sees is **opaque** — a 403 and a 200 are the same object
+ * to it, and `CacheFirst` will happily store a failure and serve it back for
+ * thirty days. Nothing in the worker can tell the difference; the *page* can,
+ * because a stored failure is an image that will not decode. This is how it
+ * says so, and it is why `vite.config.ts` can go on caching opaque responses
+ * rather than giving up offline photos to be rid of the hazard.
+ *
+ * Best-effort by design: no Cache Storage (Safari private browsing), no worker
+ * registered, or a name that has moved all mean the same thing here — there was
+ * nothing to evict, and the retry that follows is no worse off for it.
+ */
+export const forgetCachedImage = async (url: string): Promise<boolean> => {
+  try {
+    if (typeof caches === "undefined") return false
+    const cache = await caches.open(RECIPE_IMAGE_CACHE)
+    return await cache.delete(url)
+  } catch {
+    return false
+  }
+}
+
+/**
  * Swaps in the new build. Nudges the worker first so the reload is served the
  * newest assets rather than whatever is currently cached, then reloads.
  */

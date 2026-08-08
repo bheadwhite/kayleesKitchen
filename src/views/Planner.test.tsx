@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Auth } from "firebase/auth"
 
+import { toast } from "react-toastify"
+
 import Planner from "./Planner"
 import AuthProvider from "contexts/AuthProvider"
 import PlannerProvider from "contexts/PlannerProvider"
@@ -20,6 +22,7 @@ import type {
 
 let emitAuthState: (user: unknown) => void = () => {}
 let emitRecipes: (recipes: Recipe[]) => void = () => {}
+let failRecipes: (error: Error) => void = () => {}
 
 vi.mock("fire/firebase", () => ({ auth: {}, functions: {} }))
 
@@ -33,14 +36,22 @@ vi.mock("firebase/auth", () => ({
   signOut: vi.fn(),
 }))
 
+vi.mock("react-toastify", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}))
+
 vi.mock("fire/services", () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
   loginWithGoogle: vi.fn(),
   recordLogin: vi.fn(),
   linkGoogleToExistingAccount: vi.fn(),
   ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL: "auth/account-exists-with-different-credential",
-  onRecipesSnapshot: (callback: (recipes: Recipe[]) => void) => {
+  onRecipesSnapshot: (
+    callback: (recipes: Recipe[]) => void,
+    onError?: (error: Error) => void
+  ) => {
     emitRecipes = callback
+    failRecipes = onError ?? (() => {})
     return () => {}
   },
   onUsersSnapshot: (callback: (people: unknown[]) => void) => {
@@ -96,6 +107,7 @@ const item = (partial: Partial<ShoppingItem> & { id: string; name: string }): Sh
 const fakeStore = () => {
   let emitSessions: (s: PlanningSession[]) => void = () => {}
   let emitMeals: (m: PlannedMeal[]) => void = () => {}
+  let failMeals: (e: Error) => void = () => {}
   let emitItems: (i: ShoppingItem[]) => void = () => {}
 
   return {
@@ -105,10 +117,18 @@ const fakeStore = () => {
     }),
     watchInvites: vi.fn((_email: string, _cb: (i: SessionInvite[]) => void) => () => {}),
     watchSessionInvites: vi.fn((_id: string, _cb: (i: SessionInvite[]) => void) => () => {}),
-    watchMeals: vi.fn((_id: string, _from: string, cb: (m: PlannedMeal[]) => void) => {
-      emitMeals = cb
-      return () => {}
-    }),
+    watchMeals: vi.fn(
+      (
+        _id: string,
+        _from: string,
+        cb: (m: PlannedMeal[]) => void,
+        onError: (e: Error) => void
+      ) => {
+        emitMeals = cb
+        failMeals = onError
+        return () => {}
+      }
+    ),
     watchShopping: vi.fn((_id: string, cb: (i: ShoppingItem[]) => void) => {
       emitItems = cb
       return () => {}
@@ -133,6 +153,7 @@ const fakeStore = () => {
     getScalingSpec: vi.fn().mockResolvedValue(null),
     sessions: (s: PlanningSession[]) => emitSessions(s),
     meals: (m: PlannedMeal[]) => emitMeals(m),
+    failMeals: (e: Error) => failMeals(e),
     items: (i: ShoppingItem[]) => emitItems(i),
   }
 }
@@ -242,6 +263,81 @@ describe("Planner", () => {
 
     auth.dispose()
     planner.dispose()
+  })
+
+  /**
+   * The reported bug: press "Plan something", pick a recipe, and nothing
+   * appears. Every step of that path could fail without saying a word — the
+   * write lands, the listener that would show it is dead, and the screen looks
+   * exactly like a week nobody has planned.
+   */
+  describe("when planning appears to do nothing", () => {
+    it("says the week is unreadable rather than looking empty", async () => {
+      const { auth, planner, store } = await renderPlanner()
+
+      act(() => store.failMeals(new Error("Missing or insufficient permissions.")))
+
+      expect(await screen.findByText(/can't read this session/i)).toBeInTheDocument()
+      // The distinction that matters to someone who just planned a meal.
+      expect(screen.getByText(/anything you plan is saved/i)).toBeInTheDocument()
+      expect(screen.getByText(/insufficient permissions/i)).toBeInTheDocument()
+
+      auth.dispose()
+      planner.dispose()
+    })
+
+    it("clears that the moment the week reads", async () => {
+      const { auth, planner, store, meals } = await renderPlanner()
+
+      act(() => store.failMeals(new Error("Missing or insufficient permissions.")))
+      expect(await screen.findByText(/can't read this session/i)).toBeInTheDocument()
+
+      meals([PLANNED])
+      await waitFor(() =>
+        expect(screen.queryByText(/can't read this session/i)).not.toBeInTheDocument()
+      )
+
+      auth.dispose()
+      planner.dispose()
+    })
+
+    it("does not claim there are no recipes when it could not read them", async () => {
+      const user = userEvent.setup()
+      const { auth, planner } = await renderPlanner()
+
+      act(() => failRecipes(new Error("Missing or insufficient permissions.")))
+      await user.click(
+        screen.getByRole("button", { name: `Plan dinner for ${dayLabel(TODAY)}` })
+      )
+
+      // "No recipes yet" is a claim about the recipe box, and a listener that
+      // failed is in no position to make it.
+      expect(await screen.findByText(/can't read the recipes/i)).toBeInTheDocument()
+      expect(screen.queryByText("No recipes yet.")).not.toBeInTheDocument()
+
+      auth.dispose()
+      planner.dispose()
+    })
+
+    it("says why when the recipe cannot be planned", async () => {
+      const user = userEvent.setup()
+      const { auth, planner, recipes } = await renderPlanner()
+      // A recipe with no document id cannot be planned — and used to be
+      // declined in silence, which is indistinguishable from a dead button.
+      recipes([{ ...PANCAKES, id: undefined }])
+
+      await user.click(
+        screen.getByRole("button", { name: `Plan dinner for ${dayLabel(TODAY)}` })
+      )
+      await user.click(await screen.findByRole("button", { name: /Pancakes/ }))
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/could not plan that meal/i))
+      )
+
+      auth.dispose()
+      planner.dispose()
+    })
   })
 
   it("shows a planned meal at the session's number until it is given its own", async () => {

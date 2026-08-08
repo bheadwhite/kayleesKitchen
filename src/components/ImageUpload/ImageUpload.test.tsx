@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Form } from "react-final-form"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -23,6 +23,11 @@ vi.mock("fire/services", () => ({
 const generateRecipeImage = vi.fn()
 vi.mock("@/ai/recipeImage", () => ({
   generateRecipeImage: (...args: unknown[]) => generateRecipeImage(...args),
+}))
+
+const forgetCachedImage = vi.fn().mockResolvedValue(true)
+vi.mock("@/pwa", () => ({
+  forgetCachedImage: (...args: unknown[]) => forgetCachedImage(...args),
 }))
 
 const setup = (seed?: (presenter: RecipePresenter) => void) => {
@@ -193,6 +198,97 @@ describe("ImageUpload — generate", () => {
     expect(presenter.getImageUrl()).toBe("https://example.test/picked.png")
     expect(presenter.getImageFile()).toBe(picked)
     expect(uploadRecipeEditorImage).toHaveBeenCalledTimes(1)
+
+    presenter.dispose()
+  })
+})
+
+/**
+ * The last hop, and the one that used to fail in silence: the callable
+ * succeeded, the upload succeeded, and then the picture either would not decode
+ * or never resolved at all — and the editor showed an empty plate with no
+ * message, or a spinner that never stopped.
+ */
+describe("ImageUpload — the preview itself", () => {
+  const STAGED = "https://example.test/staged.png?staged=1"
+
+  beforeEach(() => vi.clearAllMocks())
+
+  const withImage = () =>
+    setup((p) => {
+      p.setImageUrl(STAGED)
+      p.setRecipeImageIsLoading(true)
+    })
+
+  const preview = () => screen.getByAltText("recipe preview")
+
+  it("evicts the cached copy and asks again when it will not decode", async () => {
+    const presenter = withImage()
+
+    fireEvent.error(preview())
+
+    // A cached *opaque* 403 is indistinguishable from a picture to the worker,
+    // so the page is the only thing that can tell it the copy is no good.
+    expect(forgetCachedImage).toHaveBeenCalledWith(STAGED)
+    await waitFor(() =>
+      expect(preview()).toHaveAttribute("src", expect.stringContaining("retry=1"))
+    )
+    // The staged URL itself is untouched — an update writes that string.
+    expect(presenter.getImageUrl()).toBe(STAGED)
+
+    presenter.dispose()
+  })
+
+  it("says so, and keeps the photo, once the retry fails too", async () => {
+    const file = new File(["png"], "generated-recipe.png", { type: "image/png" })
+    const presenter = withImage()
+    presenter.setImageFile(file)
+
+    fireEvent.error(preview())
+    await waitFor(() => expect(preview()).toHaveAttribute("src", expect.stringContaining("retry")))
+    fireEvent.error(preview())
+
+    expect(await screen.findByText(/preview didn't load/i)).toBeInTheDocument()
+    expect(screen.getByText(/saving keeps it/i)).toBeInTheDocument()
+    // Both of these used to go: the spinner stayed up, or the URL was nulled and
+    // an update wrote `image: null` over a picture that was fine.
+    expect(presenter.getImageUrl()).toBe(STAGED)
+    expect(presenter.getImageFile()).toBe(file)
+    expect(screen.queryByAltText("recipe preview")).not.toBeInTheDocument()
+
+    presenter.dispose()
+  })
+
+  it("gives up on a request that never resolves either way", () => {
+    vi.useFakeTimers()
+    try {
+      const presenter = withImage()
+
+      // Only `onLoad` clears the spinner, so without a deadline a stalled
+      // fetch spins until the editor is abandoned.
+      act(() => {
+        vi.advanceTimersByTime(31_000)
+      })
+      expect(preview()).toHaveAttribute("src", expect.stringContaining("retry=1"))
+
+      act(() => {
+        vi.advanceTimersByTime(31_000)
+      })
+      expect(screen.getByText(/preview didn't load/i)).toBeInTheDocument()
+
+      presenter.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("stops the spinner and says nothing at all when it does load", async () => {
+    const presenter = withImage()
+
+    fireEvent.load(preview())
+
+    expect(await screen.findByRole("button", { name: "Delete image" })).toBeInTheDocument()
+    expect(screen.queryByText(/preview didn't load/i)).not.toBeInTheDocument()
 
     presenter.dispose()
   })

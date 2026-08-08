@@ -47,13 +47,20 @@ export interface PlannerStore {
   watchMeals: (
     sessionId: string,
     from: string,
-    callback: (meals: PlannedMeal[]) => void
+    callback: (meals: PlannedMeal[]) => void,
+    onError: (error: Error) => void
   ) => () => void
-  watchShopping: (sessionId: string, callback: (items: ShoppingItem[]) => void) => () => void
+  watchShopping: (
+    sessionId: string,
+    callback: (items: ShoppingItem[]) => void,
+    onError: (error: Error) => void
+  ) => () => void
   watchPantry: (callback: (sections: Record<string, string>) => void) => () => void
   createSession: (owner: SessionMember, name: string, covers: number) => Promise<string>
   setCovers: (sessionId: string, covers: number) => Promise<unknown>
   leaveSession: (session: PlanningSession, uid: string) => Promise<unknown>
+  /** Somebody *else* out — owner only, which the rules enforce. */
+  removeMember: (session: PlanningSession, uid: string) => Promise<unknown>
   deleteSession: (sessionId: string) => Promise<unknown>
   invite: (session: PlanningSession, from: SessionMember, toEmail: string) => Promise<unknown>
   acceptInvite: (invite: SessionInvite, me: SessionMember) => Promise<unknown>
@@ -97,12 +104,15 @@ const FIRESTORE_PLANNER_STORE: PlannerStore = {
   watchSessions: (uid, cb, onError) => services.onMySessionsSnapshot(uid, cb, onError),
   watchInvites: (email, cb) => services.onMyInvitesSnapshot(email, cb),
   watchSessionInvites: (sessionId, cb) => services.onSessionInvitesSnapshot(sessionId, cb),
-  watchMeals: (sessionId, from, cb) => services.onSessionMealsSnapshot(sessionId, from, cb),
-  watchShopping: (sessionId, cb) => services.onSessionShoppingSnapshot(sessionId, cb),
+  watchMeals: (sessionId, from, cb, onError) =>
+    services.onSessionMealsSnapshot(sessionId, from, cb, onError),
+  watchShopping: (sessionId, cb, onError) =>
+    services.onSessionShoppingSnapshot(sessionId, cb, onError),
   watchPantry: (cb) => services.onPantrySnapshot(cb),
   createSession: (owner, name, covers) => services.createSession(owner, name, covers),
   setCovers: (sessionId, covers) => services.setSessionCovers(sessionId, covers),
   leaveSession: (session, uid) => services.leaveSession(session, uid),
+  removeMember: (session, uid) => services.removeFromSession(session, uid),
   deleteSession: (sessionId) => services.deleteSession(sessionId),
   invite: (session, from, toEmail) => services.inviteToSession(session, from, toEmail),
   acceptInvite: (invite, me) => services.acceptInvite(invite, me),
@@ -180,6 +190,15 @@ export class PlannerPresenter {
   private readonly _shopDays = new Signal<string[]>([])
   /** Why the session list is empty, when it is empty for a reason. */
   private readonly _loadError = new Signal<Error | null>(null)
+  /**
+   * Why *this session's* week and list are empty, when they are empty for a
+   * reason. The other half of `_loadError`, and it had to exist for the same
+   * argument: a denied or malformed listener hands back nothing, which renders
+   * exactly like a week nobody has planned yet. That is how planning a meal
+   * could appear to do nothing at all — the write landed, and the listener that
+   * was supposed to show it had failed silently at subscribe time.
+   */
+  private readonly _weekError = new Signal<Error | null>(null)
   private readonly _lastBuild = new Signal<BuildSummary | null>(null)
   private readonly _buildRunner = new Runner<void>(undefined)
   private readonly _sessionRunner = new Runner<void>(undefined)
@@ -235,6 +254,10 @@ export class PlannerPresenter {
     return this._loadError.broadcast
   }
 
+  get weekErrorBroadcast() {
+    return this._weekError.broadcast
+  }
+
   get lastBuildBroadcast() {
     return this._lastBuild.broadcast
   }
@@ -286,6 +309,10 @@ export class PlannerPresenter {
 
   getLoadError() {
     return this._loadError.get()
+  }
+
+  getWeekError() {
+    return this._weekError.get()
   }
 
   /** How many the session cooks for, or the default before there is one. */
@@ -389,6 +416,7 @@ export class PlannerPresenter {
     this.stopWatchingSession = []
 
     const id = this._sessionId.get()
+    this._weekError.set(null)
     if (id == null) {
       this.watchingSession = null
       this._asked.set([])
@@ -400,8 +428,28 @@ export class PlannerPresenter {
     const from = this.weekStart()
     this.watchingSession = { id, from }
     this.stopWatchingSession = [
-      this.store.watchMeals(id, from, (meals) => this._meals.set(meals)),
-      this.store.watchShopping(id, (items) => this._items.set(items)),
+      // Both report their failures, for the reason `watchSessions` already
+      // does: nothing hands back an error and a value, so a listener that never
+      // fires is indistinguishable from a week nobody has planned — and the
+      // thing that then looks broken is whatever you did last, which is
+      // usually planning a meal.
+      this.store.watchMeals(
+        id,
+        from,
+        (meals) => {
+          this._weekError.set(null)
+          this._meals.set(meals)
+        },
+        (error) => this._weekError.set(error)
+      ),
+      this.store.watchShopping(
+        id,
+        (items) => {
+          this._weekError.set(null)
+          this._items.set(items)
+        },
+        (error) => this._weekError.set(error)
+      ),
       // Who has been asked and not answered. Scoped to the session rather than
       // to the viewer — `_invites` is the other direction, the asks waiting on
       // *you*, and the two must not be confused.
@@ -485,6 +533,35 @@ export class PlannerPresenter {
   }
 
   /**
+   * Takes somebody else out of the session.
+   *
+   * **Whoever started it, and nobody else.** A session is one person's
+   * invitation to a group, so withdrawing it belongs to the person who issued
+   * it; everybody else's only exit is their own. Checked here so the sheet
+   * cannot offer a button that would be denied, and again in `firestore.rules`,
+   * which is what actually decides it.
+   *
+   * The owner is not somebody the owner can remove — that would leave a session
+   * standing that nobody can read and nobody can ever delete. Their way out is
+   * `deleteSession`.
+   *
+   * Nothing they planned leaves with them: the week and the list belong to the
+   * session. On their own device the session simply stops coming back from
+   * `watchSessions`, and `settleSelection` moves them off it.
+   */
+  removeMember(uid: string) {
+    const session = this.getSession()
+    if (session == null || !this.iOwnThis()) return Promise.resolve()
+    if (uid === session.ownerUid || !session.memberUids.includes(uid)) {
+      return Promise.resolve()
+    }
+
+    return this._sessionRunner.execute(async () => {
+      await this.store.removeMember(session, uid)
+    })
+  }
+
+  /**
    * Deletes the session and everything in it. Owner only — everybody else
    * leaves, which takes them out without taking the week away from whoever is
    * still cooking it.
@@ -527,10 +604,31 @@ export class PlannerPresenter {
     return meal.serves ?? this.getCovers()
   }
 
+  /**
+   * Puts a recipe on a day.
+   *
+   * **Every way this can decline says so**, rather than resolving quietly. All
+   * three used to be a bare `Promise.resolve()`, which meant the one path a
+   * person takes most — press "Plan something", pick a recipe — could do
+   * absolutely nothing and report absolutely nothing. None of the three is a
+   * "nothing to do" case: the recipe was picked out of a list, so if it cannot
+   * be placed, something is wrong and the caller's `guard` should say what.
+   */
   planMeal(date: string, slot: MealSlot, recipe: Recipe) {
     const session = this.getSession()
     const me = this.me
-    if (session == null || me == null || recipe.id == null) return Promise.resolve()
+    if (session == null) {
+      return Promise.reject(new Error("no session is open — open one from the session bar"))
+    }
+    if (me == null) {
+      return Promise.reject(new Error("you are not signed in"))
+    }
+    // A recipe read out of a snapshot always carries its document id, so this
+    // is a recipe from somewhere else — and planning it would write a meal that
+    // no shopping list could ever read ingredients off.
+    if (recipe.id == null) {
+      return Promise.reject(new Error(`"${recipe.title}" has no id and cannot be planned`))
+    }
 
     return this.store.planMeal(session.id, {
       date,
@@ -819,6 +917,7 @@ export class PlannerPresenter {
     this._invites.dispose()
     this._asked.dispose()
     this._loadError.dispose()
+    this._weekError.dispose()
     this._meals.dispose()
     this._items.dispose()
     this._pantry.dispose()

@@ -397,9 +397,26 @@ export const deleteRecipeById = (id: string) => deleteDoc(doc(db, "recipes", id)
 const mapSnapshot = (snapshot: QuerySnapshot): Recipe[] =>
   snapshot.docs.map((d) => toRecipe(d.id, d.data()))
 
-/** Live listener over every recipe. Returns the unsubscribe function. */
-export const onRecipesSnapshot = (callback: (recipes: Recipe[]) => void) =>
-  onSnapshot(recipesRef, (snapshot) => callback(mapSnapshot(snapshot)))
+/**
+ * Live listener over every recipe. Returns the unsubscribe function.
+ *
+ * `onError` is optional because most callers render a list, and an empty list
+ * is an honest thing for a failed one to look like. It matters where the empty
+ * state makes a *claim* — the meal planner's picker says "No recipes yet",
+ * which is a statement about the recipe box rather than about this listener.
+ */
+export const onRecipesSnapshot = (
+  callback: (recipes: Recipe[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    recipesRef,
+    (snapshot) => callback(mapSnapshot(snapshot)),
+    (error) => {
+      console.error("Could not read the recipes", error)
+      onError?.(error)
+    }
+  )
 
 /** Live listener over one user's recipes. Returns the unsubscribe function. */
 export const onRecipesByEmailSnapshot = (
@@ -581,15 +598,47 @@ export const setSessionCovers = (sessionId: string, covers: number) =>
   updateDoc(doc(db, "sessions", sessionId), { covers })
 
 /**
+ * One person out of a session, in both the access list and the roster.
+ *
+ * The same write whichever end it is asked from — stepping out yourself and
+ * being taken out by whoever started it are one member less either way. What
+ * differs is who is *allowed* to ask, and that is decided in `firestore.rules`:
+ * you may always take yourself out, the owner may take anybody out, and nobody
+ * may take the owner out. Two exports rather than one so the call sites say
+ * which act they are, the way `_invites` and `_asked` do.
+ *
+ * **Both arrays are rewritten from the snapshot** rather than picked at with
+ * `arrayRemove`, which keeps `members` and `memberUids` describing the same
+ * people. The cost is that a write built on a stale roster would drop whoever
+ * joined in the meantime — and that is now *rejected* rather than silently
+ * applied, because the rule compares who this write takes out against who is
+ * allowed to be taken out. A failed leave the user can press again beats a
+ * quietly evicted new member.
+ */
+const withoutMember = (session: PlanningSession, uid: string) =>
+  updateDoc(doc(db, "sessions", session.id), {
+    memberUids: session.memberUids.filter((member) => member !== uid),
+    members: session.members.filter((member) => member.uid !== uid),
+  })
+
+/**
  * Steps out of a session, leaving it standing for everybody else.
  *
  * What a member does. The owner gets `deleteSession` instead — see below.
  */
 export const leaveSession = (session: PlanningSession, uid: string) =>
-  updateDoc(doc(db, "sessions", session.id), {
-    memberUids: session.memberUids.filter((member) => member !== uid),
-    members: session.members.filter((member) => member.uid !== uid),
-  })
+  withoutMember(session, uid)
+
+/**
+ * Takes somebody else out. **Whoever started the session, and nobody else** —
+ * the rules are what enforce that, not the sheet that draws the button.
+ *
+ * Nothing they planned goes with them: the week and the list belong to the
+ * session, not to whoever added a line to them. Asking them back in is an
+ * ordinary invite, so this is undoable at the cost of one ask.
+ */
+export const removeFromSession = (session: PlanningSession, uid: string) =>
+  withoutMember(session, uid)
 
 /** A batch caps at 500 writes; this leaves room and keeps the arithmetic obvious. */
 const BATCH_SIZE = 400

@@ -522,7 +522,7 @@ The generated file goes through `acceptImageFile()` — the same staging, upload
 form-wiring the file picker uses — so preview, "Delete image", and saving behave
 identically whether the image was picked or generated.
 
-Four things keep this from being flaky, and each one was a real failure:
+Five things keep this from being flaky, and each one was a real failure:
 
 - **`generationConfig.responseModalities: ["TEXT", "IMAGE"]` is required.** Left off, the
   modality is the endpoint's default and the model is free to answer "draw me dinner" with
@@ -545,6 +545,22 @@ Four things keep this from being flaky, and each one was a real failure:
   replace it. The guard runs on entry to `acceptImageFile` as well as after the upload,
   because `setImageFile` is what "Save recipe" uploads — a stale write there saves a
   picture the editor is not showing.
+- **The last hop says something when it fails.** Everything above reports its failures;
+  drawing the picture did not. The callable would succeed, the upload would succeed, and
+  then the `<img>` either failed to decode — `onError` cleared the URL, so the frame went
+  back to the empty "photo · finished dish" plate with no message and no log — or never
+  resolved at all, leaving a spinner up forever because only `onLoad` clears it. Both read
+  to the cook as "I pressed Generate and nothing appeared", and neither left a trace: the
+  function logs showed clean first-attempt successes throughout.
+
+  So `ImageUpload` now treats a preview that will not draw as an event. It **evicts the URL
+  from the worker's image cache** (`forgetCachedImage` in `src/pwa.ts`) and retries once
+  behind a `retry=` parameter, which steps past the browser's image cache too;
+  `PREVIEW_TIMEOUT_MS` catches the request that resolves neither way. When the retry fails
+  as well, the frame says *"Preview didn't load"* and **the photo is kept** — the staged
+  file stays on the presenter so saving still writes it, and `imageUrl` stays put so an
+  update cannot write `image: null` over a picture that was fine. Clearing it was the old
+  behaviour and was the more expensive half of the bug.
 
 **Regenerating is a first-class action** — the model gives a different picture every run,
 so the button reads "Regenerate" once an image exists. Making it *work* took a
@@ -757,6 +773,69 @@ can be called the same thing and both belong in the list. An invite sent to the 
 two identical rows reaches a real person who is not the one meant — and the address is what
 the ask is addressed to, so showing it is showing what the button will do. It rides in the
 `aria-label` for the same reason.
+
+#### Three ways out, and only one of them is anybody's
+
+**Leave** takes you out. **Delete** ends the session for everybody, and is the owner's alone.
+**Remove** takes somebody *else* out, and is the owner's alone for the same reason: a session
+is one person's invitation to a group, so withdrawing it belongs to whoever issued it. A
+member quietly removing the member who asked them in is not something a shared week should
+allow.
+
+All three are the same two writes or one — `leaveSession` and `removeFromSession` are one
+function (`withoutMember`) behind two names, because stepping out and being taken out are one
+member less either way. What differs is who may ask, and **`firestore.rules` is what decides
+it**, not the sheet that draws the button. The update rule computes `leaving()` —
+`resource.data.memberUids.removeAll(request.resource.data.memberUids)` — and allows the write
+only if that list holds nobody but you, or you started the session.
+
+**Nobody may take the owner out, including the owner**, and that clause is load-bearing rather
+than tidy: reading a session needs membership and deleting one needs to be the owner, so an
+owner who stepped out would leave a session standing that nobody can read and nobody can ever
+delete. Before this rule existed, `allow update: if inSession(sid)` let any member do either.
+
+Nothing a removed person planned leaves with them — the week and the list belong to the
+session. On their own device it simply stops coming back from `watchSessions`, and
+`settleSelection` moves them off it, the same path a session deleted elsewhere already took.
+Asking them back is an ordinary invite, which is why removal is two taps in place
+(`RemovePerson`, the `<ChangeMark>` gesture) rather than the sheet's heavier delete panel: one
+costs an ask to undo, the other destroys a week.
+
+#### Planning a meal, and why it must never fail quietly
+
+`<PlanMealDialog>` is one component asked from both ends — the agenda has a day and
+wants a recipe, a recipe page has a recipe and wants a day. **One decision, one
+implementation**, so a change to what planning writes cannot apply to only one way in.
+
+The whole path is now built so that **no step can decline in silence**, because the
+symptom of any one of them doing so is identical and unreadable: *"I pressed Plan
+something, tapped a recipe, and nothing appeared."* It reported that for four different
+reasons, none of which said anything:
+
+- **A dead recipe row.** The picker's rows were guarded by `target != null`, so with no
+  target it rendered a full list of recipes that did nothing when tapped — under a
+  cheerful "Plan a meal" heading. It refuses to draw at all now: `open` is driven by
+  `target != null` today, but a silent dead end has no business in the component both
+  ways into planning go through.
+- **`planMeal` resolving with nothing done.** No session, no signed-in user, or a recipe
+  with no document id were all a bare `Promise.resolve()`. None of them is a "nothing to
+  do" case — the recipe came out of a list, so if it will not go on the week, the caller's
+  `guard` has to be able to say why. They reject with a reason now. On the *recipe page*
+  this was the worse half: that path toasted **"X is on the plan"** on the silent resolve,
+  so a meal that went nowhere reported success.
+- **A week that could not be read.** `onSessionMealsSnapshot` and
+  `onSessionShoppingSnapshot` both take an `onError`, and `PlannerStore` dropped it. A
+  denied listener hands back nothing, which renders exactly like a week nobody has planned
+  — and then the meal *is* written, never appears, and planning looks broken. This is the
+  same argument `watchSessions` and `_loadError` already made, simply not applied to the
+  session's own contents; `_weekError` is the other half, and the banner says the plan is
+  still being saved.
+- **A recipe list that could not be read.** The picker said "No recipes yet", which is a
+  claim about the recipe box that a failed listener is in no position to make.
+
+The general rule this path is now held to: **an empty state may only describe the world,
+never the reader's failure to see it.** Every listener that feeds a screen saying "there
+is nothing here" needs an error channel, and there are three in the planner alone.
 
 #### Scaling is a cached *rule*, not a cached answer
 
@@ -1211,6 +1290,22 @@ there with no conditional styling.
 Firestore and Auth are never cached; Storage recipe images are (`CacheFirst`, 30 days).
 `devOptions.enabled` is `false` — a worker in `npm run dev` serves stale modules and
 makes HMR look broken.
+
+**That image cache stores opaque responses, and it has to.** An `<img>` fetches
+cross-origin with `no-cors`, so what reaches the worker is status 0 — and an opaque
+response cannot say whether the request worked: a 403 and a 200 are the same object to it.
+`cacheableResponse.statuses` therefore lists `0`, which means **`CacheFirst` can store a
+failure and serve it back for thirty days**, and did. Dropping the `0` is the tidy fix and
+the wrong one: opaque is *all* these responses ever are, so it would mean caching no recipe
+photo at all — and photos on a phone with no signal in a kitchen are the reason the rule
+exists.
+
+The repair is on the page instead, which is the only place that can tell: an image that
+will not decode gets its URL evicted by `forgetCachedImage` (`src/pwa.ts`, whose
+`RECIPE_IMAGE_CACHE` must match `cacheName` in `vite.config.ts` — the worker is generated,
+so nothing links the two but hand). The real fix is a CORS configuration on the bucket,
+making these ordinary 200s the worker can judge for itself; `gsutil cors get` currently
+reports none.
 
 **Getting a new build onto a device is its own problem, and the service worker cannot be
 the one to solve it.** `registerType: "autoUpdate"` activates a new worker but never tells
