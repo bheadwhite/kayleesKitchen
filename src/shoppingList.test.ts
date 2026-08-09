@@ -5,6 +5,7 @@ import {
   consolidateVerbatim,
   mergePlan,
   sectionKey,
+  sourcesOf,
   type ProposedItem,
 } from "./shoppingList"
 import type { ShoppingItem } from "@/types"
@@ -127,7 +128,7 @@ describe("mergePlan", () => {
       ]
     )
 
-    expect(updates).toEqual([{ id: "b", amount: "1 cup + 2 tbsp", from: [] }])
+    expect(updates).toEqual([{ id: "b", amount: "1 cup + 2 tbsp", from: [], fromIds: [] }])
     expect(additions).toHaveLength(1)
     expect(additions[0]).toMatchObject({ name: "vanilla", section: "pantry", checked: false })
   })
@@ -138,7 +139,7 @@ describe("mergePlan", () => {
       [proposed({ name: "butter", amount: "2 tbsp" })]
     )
 
-    expect(updates).toEqual([{ id: "b", amount: "2 tbsp", from: [] }])
+    expect(updates).toEqual([{ id: "b", amount: "2 tbsp", from: [], fromIds: [] }])
   })
 
   it("takes mergesWith over the name, for a synonym", () => {
@@ -147,7 +148,7 @@ describe("mergePlan", () => {
       [proposed({ name: "scallions", amount: "1 bunch", mergesWith: "g" })]
     )
 
-    expect(updates).toEqual([{ id: "g", amount: "1 bunch", from: [] }])
+    expect(updates).toEqual([{ id: "g", amount: "1 bunch", from: [], fromIds: [] }])
     expect(additions).toEqual([])
   })
 
@@ -216,6 +217,85 @@ describe("mergePlan", () => {
     const { additions } = mergePlan([], [proposed({ name: "kimchi", section: "fermented" })])
     expect(additions[0].section).toBe("other")
   })
+
+  it("records the ids behind the titles the chef credited", () => {
+    const { additions } = mergePlan([], [proposed({ name: "butter", from: ["Pancakes"] })], {
+      idOf: (title) => (title === "Pancakes" ? "r-pancakes" : undefined),
+    })
+
+    // Titles are all the chef produces, and a title is not an identity.
+    expect(additions[0].fromIds).toEqual(["r-pancakes"])
+  })
+
+  /**
+   * Without `covered` a build can only ever add, which is how the list grew
+   * forever and how a recipe nobody is cooking any more kept its ingredients.
+   */
+  describe("taking lines off", () => {
+    const covered = { built: ["Pancakes"], dropped: ["Cookies"] }
+
+    it("removes nothing at all when the caller cannot say what it accounted for", () => {
+      const { removals } = mergePlan(
+        [item({ id: "v", name: "vanilla", from: ["Cookies"] })],
+        [proposed({ name: "butter", from: ["Pancakes"] })]
+      )
+
+      expect(removals).toEqual([])
+    })
+
+    it("takes off a line whose only recipe was dropped", () => {
+      const { removals } = mergePlan(
+        [item({ id: "v", name: "vanilla", from: ["Cookies"] })],
+        [proposed({ name: "butter", from: ["Pancakes"] })],
+        { covered }
+      )
+
+      expect(removals).toEqual(["v"])
+    })
+
+    it("keeps a line the build restated", () => {
+      const { removals, updates } = mergePlan(
+        [item({ id: "b", name: "butter", from: ["Pancakes"] })],
+        [proposed({ name: "butter", amount: "1 cup", from: ["Pancakes"] })],
+        { covered }
+      )
+
+      expect(removals).toEqual([])
+      expect(updates).toHaveLength(1)
+    })
+
+    it("leaves a ticked line alone — it is in the trolley", () => {
+      const { removals } = mergePlan(
+        [item({ id: "v", name: "vanilla", from: ["Cookies"], checked: true })],
+        [],
+        { covered }
+      )
+
+      expect(removals).toEqual([])
+    })
+
+    it("leaves a hand-typed line alone", () => {
+      const { removals } = mergePlan(
+        [item({ id: "f", name: "foil", from: [], manual: true })],
+        [],
+        { covered }
+      )
+
+      expect(removals).toEqual([])
+    })
+
+    it("leaves a line crediting a recipe this build knows nothing about", () => {
+      const { removals } = mergePlan(
+        [item({ id: "s", name: "stock", from: ["Cookies", "Soup"] })],
+        [],
+        { covered }
+      )
+
+      // "Soup" was neither built nor dropped, so this build has no standing to
+      // decide — its share of that amount is nothing it can see.
+      expect(removals).toEqual([])
+    })
+  })
 })
 
 describe("bySection", () => {
@@ -235,5 +315,51 @@ describe("bySection", () => {
     ])
 
     expect(produce.items.map((row) => row.name)).toEqual(["pears", "apples"])
+  })
+})
+
+/**
+ * The list outlives the plan it was built from, deliberately — so "what is this
+ * list for" is a question only the list itself can answer.
+ */
+describe("sourcesOf", () => {
+  it("names each recipe once, in the order it first appears", () => {
+    const sources = sourcesOf([
+      item({ id: "1", name: "butter", from: ["Pancakes", "Cookies"] }),
+      item({ id: "2", name: "flour", from: ["Pancakes"] }),
+    ])
+
+    expect(sources.map((source) => source.title)).toEqual(["Pancakes", "Cookies"])
+    expect(sources[0]).toMatchObject({ lines: 2, only: 1 })
+    // Butter is shared, so dropping Cookies would take no line off by itself.
+    expect(sources[1]).toMatchObject({ lines: 1, only: 0 })
+  })
+
+  it("pairs each title with the id written alongside it", () => {
+    const [pancakes, cookies] = sourcesOf([
+      item({
+        id: "1",
+        name: "butter",
+        from: ["Pancakes", "Cookies"],
+        fromIds: ["r-pan", "r-cook"],
+      }),
+    ])
+
+    expect(pancakes.id).toBe("r-pan")
+    expect(cookies.id).toBe("r-cook")
+  })
+
+  it("leaves a line written before ids unidentified rather than guessing", () => {
+    const [only] = sourcesOf([item({ id: "1", name: "butter", from: ["Pancakes"] })])
+    expect(only.id).toBeNull()
+  })
+
+  it("ignores ticked lines and hand-typed ones", () => {
+    expect(
+      sourcesOf([
+        item({ id: "1", name: "butter", from: ["Pancakes"], checked: true }),
+        item({ id: "2", name: "foil", from: [], manual: true }),
+      ])
+    ).toEqual([])
   })
 })

@@ -58,6 +58,22 @@ export const usePlannerLoadError = () =>
  */
 export const useWeekError = () => useSignalValue(usePlannerPresenter().weekErrorBroadcast)
 
+/**
+ * What the shopping list is currently built from, and which of those the cook
+ * has dropped.
+ *
+ * Recomputed from the items and the dropped set rather than held as its own
+ * signal — it is a view of those two, and a third copy would be a third thing
+ * to keep in step.
+ */
+export const useListSources = () => {
+  const presenter = usePlannerPresenter()
+  useSignalValue(presenter.itemsBroadcast)
+  useSignalValue(presenter.droppedBroadcast)
+  useSignalValue(presenter.mealsBroadcast)
+  return presenter.getSources()
+}
+
 /** Asks waiting on you. Shown on your own tab, never inside a session. */
 export const useSessionInvites = () => useSignalValue(usePlannerPresenter().invitesBroadcast)
 

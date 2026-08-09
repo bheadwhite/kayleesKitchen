@@ -68,13 +68,39 @@ export interface ProposedItem {
   mergesWith?: string | null
 }
 
-/** What {@link mergePlan} resolves to: exactly the two writes a build makes. */
+/** What {@link mergePlan} resolves to: exactly the writes a build makes. */
 export interface ListPlan {
-  updates: Array<{ id: string; amount: string; from: string[] }>
+  updates: Array<{ id: string; amount: string; from: string[]; fromIds: string[] }>
   additions: Array<Omit<ShoppingItem, "id" | "addedAt">>
+  /**
+   * Lines this build takes off, by id — a recipe the cook dropped, or a meal no
+   * longer in the window. Empty unless the caller says what the build covered;
+   * see the `covered` argument to {@link mergePlan}.
+   */
+  removals: string[]
+}
+
+/**
+ * What the build accounted for: the recipes it read, and the ones it
+ * deliberately left out.
+ *
+ * This is what makes removal safe. A build restates the whole of the list that
+ * comes from these recipes, so a line crediting only them, which no proposal
+ * mentions, is a line they no longer want — whereas a line crediting a recipe
+ * outside this set is nothing to do with this build and is never touched.
+ * Matched on **titles**, because that is what every line written before ids
+ * existed has to go on.
+ */
+export interface Covered {
+  /** Titles read into this build. */
+  built: string[]
+  /** Titles deliberately dropped, whose lines should go. */
+  dropped: string[]
 }
 
 const joinAmounts = (parts: string[]) => parts.filter((part) => part.trim() !== "").join(" + ")
+
+const isId = (id: string | undefined): id is string => id != null && id !== ""
 
 const describeAmount = (ingredient: Ingredient) => {
   const amount = ingredient.amount?.trim() ?? ""
@@ -142,7 +168,7 @@ export const consolidateVerbatim = (
 }
 
 /**
- * Turns a proposal into the two writes a build makes.
+ * Turns a proposal into the writes a build makes.
  *
  * The rule this enforces, and the reason it is enforced here rather than only
  * asked for in the prompt: **a ticked row is never merged into.** The model is
@@ -155,8 +181,28 @@ export const consolidateVerbatim = (
  * differ. That way a proposal that forgets the field is still tidy, which is the
  * failure worth being robust to — the model dropping an optional id is far more
  * likely than it inventing a synonym.
+ *
+ * **`covered` is what turns a build from an addition into a statement.** Given
+ * it, a build says what the list should now read for those recipes, so a line
+ * crediting only them that nothing proposed is a line they no longer want, and
+ * it comes off. Omit it and nothing is ever removed, which is what every caller
+ * did before recipes could be dropped — and is still the right behaviour for a
+ * caller that cannot say what it accounted for.
+ *
+ * Three things are never removed, whatever `covered` says:
+ *
+ * - **A ticked row.** It is in the trolley. The build cannot see it and has no
+ *   business taking it back out.
+ * - **A row typed in by hand**, which no recipe ever claimed.
+ * - **A row crediting anything outside `covered`** — another recipe, or a
+ *   recipe deleted so long ago that nothing can look it up. This build did not
+ *   account for it, so it does not get to decide.
  */
-export const mergePlan = (existing: ShoppingItem[], proposed: ProposedItem[]): ListPlan => {
+export const mergePlan = (
+  existing: ShoppingItem[],
+  proposed: ProposedItem[],
+  { covered, idOf }: { covered?: Covered; idOf?: (title: string) => string | undefined } = {}
+): ListPlan => {
   const open = existing.filter((item) => !item.checked)
   const byId = new Map(open.map((item) => [item.id, item]))
   const byName = new Map(open.map((item) => [normaliseItemName(item.name), item]))
@@ -181,11 +227,14 @@ export const mergePlan = (existing: ShoppingItem[], proposed: ProposedItem[]): L
 
     const section = sectionKey(item.section)
     const from = [...new Set(item.from ?? [])]
+    // Titles are all the chef produces; the ids are the caller's, matched back
+    // from the meals it actually sent, so a rename cannot orphan the line.
+    const fromIds = [...new Set(from.map((title) => idOf?.(title)).filter(isId))]
 
     const target = (item.mergesWith ? byId.get(item.mergesWith) : undefined) ?? byName.get(name)
     if (target != null && !claimed.has(target.id)) {
       claimed.add(target.id)
-      updates.push({ id: target.id, amount: item.amount, from })
+      updates.push({ id: target.id, amount: item.amount, from, fromIds })
       return
     }
 
@@ -193,18 +242,43 @@ export const mergePlan = (existing: ShoppingItem[], proposed: ProposedItem[]): L
     if (twin != null) {
       twin.amount = joinAmounts([twin.amount, item.amount])
       twin.from = [...new Set([...twin.from, ...from])]
+      twin.fromIds = [...new Set([...(twin.fromIds ?? []), ...fromIds])]
       return
     }
 
     const sort = (tail.get(section) ?? 0) + 1
     tail.set(section, sort)
 
-    const addition = { name, amount: item.amount ?? "", section, from, checked: false, sort }
+    const addition = {
+      name,
+      amount: item.amount ?? "",
+      section,
+      from,
+      fromIds,
+      checked: false,
+      sort,
+    }
     added.set(name, addition)
     additions.push(addition)
   })
 
-  return { updates, additions }
+  const removals =
+    covered == null
+      ? []
+      : (() => {
+          const accounted = new Set([...covered.built, ...covered.dropped])
+          return open
+            .filter(
+              (item) =>
+                !claimed.has(item.id) &&
+                item.manual !== true &&
+                item.from.length > 0 &&
+                item.from.every((title) => accounted.has(title))
+            )
+            .map((item) => item.id)
+        })()
+
+  return { updates, additions, removals }
 }
 
 /** One rendered section: its label and the rows under it. */
@@ -228,3 +302,61 @@ export const bySection = (items: ShoppingItem[]): ListSection[] =>
       .filter((item) => sectionKey(item.section) === key)
       .sort((a, b) => Number(a.checked) - Number(b.checked) || a.sort - b.sort),
   })).filter((section) => section.items.length > 0)
+
+/**
+ * One recipe the list currently carries lines for.
+ *
+ * `id` is null for lines written before ids were recorded, and for any recipe
+ * whose title is all that survives. Those still show — the cook can see what
+ * the list covers — but nothing can be looked up, rebuilt, or scaled for them,
+ * so `<ListSources>` offers no switch and a build leaves them alone.
+ */
+export interface ListSource {
+  id: string | null
+  title: string
+  /** Unticked lines crediting it. Ticked ones are in the trolley already. */
+  lines: number
+  /** Lines crediting it and nothing else — what dropping it would take off. */
+  only: number
+}
+
+/**
+ * What the list is currently built from, in the order the recipes first appear.
+ *
+ * Read off the lines themselves rather than off the week, and that is the
+ * point: the list is a persistent thing that outlives the plan it came from, so
+ * "what is this list for" is a question only the list can answer. A meal
+ * unplanned yesterday is still on it, still credited, and still showing here —
+ * which is exactly how somebody notices and drops it.
+ */
+export const sourcesOf = (items: ShoppingItem[]): ListSource[] => {
+  const order: string[] = []
+  const found = new Map<string, ListSource>()
+
+  items
+    .filter((item) => !item.checked && item.from.length > 0)
+    .forEach((item) => {
+      item.from.forEach((title, index) => {
+        const source = found.get(title)
+        if (source == null) {
+          order.push(title)
+          found.set(title, {
+            // Positional, because `fromIds` is a set of the ids behind `from`
+            // and the two are written together by `mergePlan`. A line whose ids
+            // are short — an older line, or one the caller could not map — just
+            // leaves the tail unidentified rather than mispairing.
+            id: item.fromIds?.[index] ?? null,
+            title,
+            lines: 1,
+            only: item.from.length === 1 ? 1 : 0,
+          })
+          return
+        }
+        source.lines += 1
+        if (item.from.length === 1) source.only += 1
+        source.id ??= item.fromIds?.[index] ?? null
+      })
+    })
+
+  return order.map((title) => found.get(title) as ListSource)
+}

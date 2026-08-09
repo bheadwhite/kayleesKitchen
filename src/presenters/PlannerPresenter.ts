@@ -10,6 +10,7 @@ import { applyScale, isUsableSpec, type ScalingSpec } from "@/scaling"
 import {
   consolidateVerbatim,
   mergePlan,
+  sourcesOf,
   normaliseItemName,
   OTHER,
   sectionKey,
@@ -87,8 +88,9 @@ export interface PlannerStore {
   removeItem: (sessionId: string, itemId: string) => Promise<unknown>
   apply: (
     sessionId: string,
-    updates: Array<{ id: string; amount: string; from: string[] }>,
-    additions: Array<Omit<ShoppingItem, "id" | "addedAt">>
+    updates: Array<{ id: string; amount: string; from: string[]; fromIds: string[] }>,
+    additions: Array<Omit<ShoppingItem, "id" | "addedAt">>,
+    removals: string[]
   ) => Promise<unknown>
   clearChecked: (sessionId: string) => Promise<unknown>
   getScalingSpec: (recipeId: string, fingerprint: string) => Promise<ScalingSpec | null>
@@ -126,8 +128,8 @@ const FIRESTORE_PLANNER_STORE: PlannerStore = {
     services.setShoppingItemChecked(sessionId, itemId, checked, uid),
   addItem: (sessionId, item) => services.addShoppingItem(sessionId, item),
   removeItem: (sessionId, itemId) => services.deleteShoppingItem(sessionId, itemId),
-  apply: (sessionId, updates, additions) =>
-    services.applyShoppingItems(sessionId, updates, additions),
+  apply: (sessionId, updates, additions, removals) =>
+    services.applyShoppingItems(sessionId, updates, additions, removals),
   clearChecked: (sessionId) => services.clearCheckedShoppingItems(sessionId),
   getScalingSpec: (recipeId, fingerprint) => services.getScalingSpec(recipeId, fingerprint),
 }
@@ -148,6 +150,8 @@ const LAST_SESSION_KEY = "planner:session"
 export interface BuildSummary {
   merged: number
   added: number
+  /** Lines taken off because their recipe is no longer part of the list. */
+  removed: number
   /** Planned meals whose recipe is no longer filed — nothing to read off. */
   skipped: number
   /**
@@ -184,6 +188,17 @@ export class PlannerPresenter {
   private readonly _items = new Signal<ShoppingItem[]>([])
   /** Ingredient name → aisle, from the shared pantry. Free to read, always. */
   private readonly _pantry = new Signal<Record<string, string>>({})
+  /**
+   * Recipes the cook has taken off the list, by id.
+   *
+   * Without this, dropping a recipe whose meal is still in the shop window is
+   * undone by the very next Build — the two controls would sit next to each
+   * other disagreeing. Held per session and **per device**: it is a statement
+   * about the list you are about to build rather than about the plan, and
+   * writing it to the session document would have one person's tidy-up quietly
+   * decide what everybody else's next build contains.
+   */
+  private readonly _dropped = new Signal<string[]>([])
   /** Which week the agenda is showing, in weeks from this one. */
   private readonly _weekOffset = new Signal<number>(0)
   /** The days the next build covers. Picked, not a rolling window. */
@@ -256,6 +271,10 @@ export class PlannerPresenter {
 
   get weekErrorBroadcast() {
     return this._weekError.broadcast
+  }
+
+  get droppedBroadcast() {
+    return this._dropped.broadcast
   }
 
   get lastBuildBroadcast() {
@@ -407,6 +426,10 @@ export class PlannerPresenter {
     this._lastBuild.set(null)
     this._weekOffset.set(0)
     this._shopDays.set(defaultShopDays())
+    // Dropped recipes belong to a list, and a different session is a different
+    // list. Read back rather than cleared, so switching away and back does not
+    // quietly re-admit everything that was taken off.
+    this._dropped.set(sessionId == null ? [] : readDropped(sessionId))
     if (remember) writeLastSession(sessionId)
     this.watchSession()
   }
@@ -714,6 +737,96 @@ export class PlannerPresenter {
     return session == null ? Promise.resolve() : this.store.removeItem(session.id, itemId)
   }
 
+  /* ------------------------------------------------- what the list covers */
+
+  /**
+   * The recipes the list currently carries lines for, each marked with whether
+   * the cook has dropped it.
+   *
+   * Read off the list rather than off the week: the list outlives the plan it
+   * came from, so a meal unplanned yesterday is still on it and still shown
+   * here — which is how anybody notices. A dropped recipe keeps its place in
+   * the row for as long as the window still plans it, because that is the one
+   * you can put back; once nothing plans it and nothing credits it, it is gone
+   * and there is nothing to show.
+   */
+  getSources() {
+    const dropped = new Set(this._dropped.get())
+    const listed = sourcesOf(this._items.get())
+    const known = new Set(listed.map((source) => source.title))
+
+    // A dropped recipe still planned in the window would otherwise vanish from
+    // the row the moment its lines went, leaving no way back but un-dropping
+    // something invisible.
+    const alsoPlanned = this.mealsInWindow()
+      .filter((meal) => dropped.has(meal.recipeId) && !known.has(meal.title))
+      .map((meal) => ({ id: meal.recipeId, title: meal.title, lines: 0, only: 0 }))
+
+    return [...listed, ...alsoPlanned].map((source) => ({
+      ...source,
+      dropped: source.id != null && dropped.has(source.id),
+    }))
+  }
+
+  /**
+   * Takes a recipe off the list.
+   *
+   * **Its own lines go immediately**, because that costs nothing: a line
+   * crediting only this recipe is entirely its doing. A line it *shares* keeps
+   * its amount and merely loses the credit — there is no subtracting "1 cup"
+   * from "3 cups" when both are text, and inventing an answer to that is how a
+   * list starts lying about quantities. The next Build restates those exactly,
+   * for free, because a build now states totals.
+   *
+   * Ticked rows and hand-typed rows are never touched, the same three
+   * exclusions `mergePlan` makes.
+   */
+  dropSource(source: { id: string | null; title: string }) {
+    const session = this.getSession()
+    if (session == null) return Promise.resolve()
+
+    // Recorded before the write, so a Build racing this cannot re-add it.
+    if (source.id != null && !this._dropped.get().includes(source.id)) {
+      this._dropped.transform((ids) => [...ids, source.id as string])
+      this.rememberDropped()
+    }
+
+    const affected = this._items
+      .get()
+      .filter(
+        (item) => !item.checked && item.manual !== true && item.from.includes(source.title)
+      )
+
+    const removals = affected.filter((item) => item.from.length === 1).map((item) => item.id)
+    const updates = affected
+      .filter((item) => item.from.length > 1)
+      .map((item) => ({
+        id: item.id,
+        // Left as it reads. See above: the share cannot be worked out here.
+        amount: item.amount,
+        from: item.from.filter((title) => title !== source.title),
+        fromIds: (item.fromIds ?? []).filter((id) => id !== source.id),
+      }))
+
+    if (removals.length === 0 && updates.length === 0) return Promise.resolve()
+    return this.store.apply(session.id, updates, [], removals)
+  }
+
+  /**
+   * Puts a dropped recipe back in the running. Adding its lines is a Build —
+   * that is a model call, and a switch that silently spends one is a switch
+   * people learn not to touch.
+   */
+  restoreSource(recipeId: string) {
+    this._dropped.transform((ids) => ids.filter((id) => id !== recipeId))
+    this.rememberDropped()
+  }
+
+  private rememberDropped() {
+    const id = this._sessionId.get()
+    if (id != null) writeDropped(id, this._dropped.get())
+  }
+
   clearChecked() {
     const session = this.getSession()
     return session == null ? Promise.resolve() : this.store.clearChecked(session.id)
@@ -765,10 +878,35 @@ export class PlannerPresenter {
     if (session == null) return Promise.resolve()
 
     return this._buildRunner.execute(async () => {
-      const planned = this.mealsInWindow()
       const byId = new Map(recipes.map((recipe) => [recipe.id, recipe]))
+      const existing = this._items.get()
+      const dropped = new Set(this._dropped.get())
+
+      const planned = this.mealsInWindow().filter((meal) => !dropped.has(meal.recipeId))
+
+      /**
+       * Recipes the list already carries lines for that this window does not
+       * cover — a meal shopped for last week, or one since unplanned.
+       *
+       * **They have to be read in even though nothing new is being planned for
+       * them**, because the chef is now asked for the total a line should read
+       * rather than an amount to add. A recipe it cannot see is a recipe whose
+       * share of a shared line it cannot preserve, and leaving it out would
+       * quietly shrink "3 cups butter" to the one cup this window wants.
+       *
+       * Scaled to the session's covers: there is no planned meal left to take a
+       * number from, and the session's own is the honest default.
+       */
+      const carried = sourcesOf(existing).filter(
+        (source) =>
+          source.id != null &&
+          !dropped.has(source.id) &&
+          !planned.some((meal) => meal.recipeId === source.id)
+      )
 
       const meals: MealIngredients[] = []
+      /** Title → recipe id, for the lines `mergePlan` is about to write. */
+      const ids = new Map<string, string>()
       let skipped = 0
       let unscaled = 0
       let analysed = 0
@@ -778,6 +916,26 @@ export class PlannerPresenter {
       // out the same scaling rules twice — the second read racing the write the
       // first one triggered — and bills for both.
       const specs = new Map<string, ScalingSpec | null>()
+
+      const read = async (recipe: Recipe, serves: number) => {
+        const fingerprint = ingredientsFingerprint(recipe)
+        const key = `${recipe.id}:${fingerprint}`
+        if (!specs.has(key)) {
+          const found = await this.specFor(recipe, fingerprint)
+          if (found.freshlyAnalysed) analysed += 1
+          specs.set(key, found.spec)
+        }
+
+        if (recipe.id != null) ids.set(recipe.title, recipe.id)
+
+        const spec = specs.get(key) ?? null
+        if (spec == null) {
+          unscaled += 1
+          meals.push({ title: recipe.title, ingredients: recipe.ingredients ?? [] })
+          return
+        }
+        meals.push({ title: recipe.title, ingredients: applyScale(spec, serves).ingredients })
+      }
 
       for (const meal of planned) {
         const recipe = byId.get(meal.recipeId)
@@ -789,32 +947,39 @@ export class PlannerPresenter {
           skipped += 1
           continue
         }
-
-        const fingerprint = ingredientsFingerprint(recipe)
-        const key = `${recipe.id}:${fingerprint}`
-        if (!specs.has(key)) {
-          const found = await this.specFor(recipe, fingerprint)
-          if (found.freshlyAnalysed) analysed += 1
-          specs.set(key, found.spec)
-        }
-
-        const spec = specs.get(key) ?? null
-        if (spec == null) {
-          unscaled += 1
-          meals.push({ title: recipe.title, ingredients: recipe.ingredients ?? [] })
-          continue
-        }
-
-        meals.push({
-          title: recipe.title,
-          ingredients: applyScale(spec, this.servesFor(meal)).ingredients,
-        })
+        await read(recipe, this.servesFor(meal))
       }
 
+      for (const source of carried) {
+        const recipe = byId.get(source.id as string)
+        // Its lines stay: nothing here accounted for it, so `covered` will not
+        // name it and `mergePlan` will not take it off.
+        if (recipe == null) continue
+        await read(recipe, this.getCovers())
+      }
+
+      /**
+       * What this build accounted for — everything it read, plus everything the
+       * cook dropped. That is what licenses a removal: see {@link mergePlan}.
+       */
+      const covered = {
+        built: meals.map((meal) => meal.title),
+        dropped: sourcesOf(existing)
+          .filter((source) => source.id != null && dropped.has(source.id))
+          .map((source) => source.title),
+      }
+      const idOf = (title: string) => ids.get(title)
+
+      // Nothing left to read, but there may still be lines to take off — which
+      // is exactly the state after dropping the last recipe on the list. The
+      // chef is not asked, because there is nothing to ask about.
       if (meals.length === 0) {
+        const { removals } = mergePlan(existing, [], { covered, idOf })
+        if (removals.length > 0) await this.store.apply(session.id, [], [], removals)
         this._lastBuild.set({
           merged: 0,
           added: 0,
+          removed: removals.length,
           skipped,
           unscaled: 0,
           analysed: 0,
@@ -824,12 +989,13 @@ export class PlannerPresenter {
         return
       }
 
-      const existing = this._items.get()
       // Only the unticked rows are shown to the chef — a row it cannot see is a
-      // row it cannot merge into. See `ShoppingRequest`.
+      // row it cannot merge into. See `ShoppingRequest`. `from` rides along so
+      // it can tell its own earlier work from a line it has never seen, which
+      // is what stops a second press of Build doubling every amount.
       const open = existing
         .filter((item) => !item.checked)
-        .map(({ id, name, amount, section }) => ({ id, name, amount, section }))
+        .map(({ id, name, amount, section, from }) => ({ id, name, amount, section, from }))
 
       let proposed
       let note = ""
@@ -850,12 +1016,20 @@ export class PlannerPresenter {
         usedFallback = true
       }
 
-      const { updates, additions } = mergePlan(existing, proposed)
-      await this.store.apply(session.id, updates, additions)
+      // **No removals on the fallback path.** `consolidateVerbatim` merges what
+      // it was given and nothing else; treating its silence about a line as
+      // "drop it" would let an outage empty the list.
+      const { updates, additions, removals } = mergePlan(
+        existing,
+        proposed,
+        usedFallback ? { idOf } : { covered, idOf }
+      )
+      await this.store.apply(session.id, updates, additions, removals)
 
       this._lastBuild.set({
         merged: updates.length,
         added: additions.length,
+        removed: removals.length,
         skipped,
         unscaled,
         analysed,
@@ -918,6 +1092,7 @@ export class PlannerPresenter {
     this._asked.dispose()
     this._loadError.dispose()
     this._weekError.dispose()
+    this._dropped.dispose()
     this._meals.dispose()
     this._items.dispose()
     this._pantry.dispose()
@@ -947,6 +1122,32 @@ const readLastSession = () => {
     return sessionStorage.getItem(LAST_SESSION_KEY)
   } catch {
     return null
+  }
+}
+
+/**
+ * Recipes taken off this session's list. `sessionStorage`, like the last
+ * session and the chef's fork: it survives the reload an installed PWA does on
+ * its own, and goes no further, which is the whole intent — see `_dropped`.
+ */
+const droppedKey = (sessionId: string) => `planner:dropped:${sessionId}`
+
+const readDropped = (sessionId: string): string[] => {
+  try {
+    const raw = sessionStorage.getItem(droppedKey(sessionId))
+    const parsed: unknown = raw == null ? null : JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : []
+  } catch {
+    return []
+  }
+}
+
+const writeDropped = (sessionId: string, ids: string[]) => {
+  try {
+    if (ids.length === 0) sessionStorage.removeItem(droppedKey(sessionId))
+    else sessionStorage.setItem(droppedKey(sessionId), JSON.stringify(ids))
+  } catch {
+    // Storage can be off entirely. The switch still works for this visit.
   }
 }
 

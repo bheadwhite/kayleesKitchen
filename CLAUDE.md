@@ -920,6 +920,63 @@ down as data.
 unticked rows, so the chef cannot merge into something already bought, and
 `mergePlan` re-checks because "should not" is not "cannot".
 
+#### A build states a total; it does not add one
+
+**This is what makes the list rebuildable, and it was wrong for a long time.**
+`ShoppingKnown` carried `{id, name, amount, section}` and no provenance, so the chef
+could not tell its own earlier work from a line the cook had added — and the prompt told
+it to fold its line in and give the *combined* amount. Two presses of Build turned 2 lb of
+beef into 4 lb, unreliably enough that some weeks it looked fine.
+
+The fix is `from` on every existing line, plus a prompt that asks for **the total the line
+should now read**. Which then requires the other half: **every recipe credited anywhere on
+the list is read into the request**, not just the meals in the shop window. A recipe the
+chef cannot see is a recipe whose share of a shared line it cannot preserve, so leaving
+one out would quietly shrink "3 cups butter" to the cup this window happens to want.
+`buildList` gathers the window's meals plus those `carried` ones, scaling the latter to
+the session's covers because there is no planned meal left to take a number from.
+
+Once a build is a statement, removal follows for free. `mergePlan` takes a `covered` —
+what the build read and what it deliberately dropped — and a line crediting only those
+that no proposal mentions is a line they no longer want. **Three things are never
+removed**: a ticked row (it is in the trolley), a hand-typed row (no recipe claimed it),
+and a row crediting anything outside `covered` (this build did not account for it, so it
+does not get to decide). Omit `covered` entirely and nothing is removed, which is what the
+**fallback path does deliberately** — `consolidateVerbatim` merges what it was given and
+nothing else, so reading its silence as "drop it" would let an outage empty the list.
+
+#### What the list covers
+
+The list is persistent and outlives the plan it came from — that is the whole point, since
+it is read in a shop with the week changing underneath. The cost is that a meal unplanned
+yesterday is still on it, credited to a dinner nobody is cooking, and nothing ever said so.
+
+`<ListSources>` is that made visible: a row of chips above the list naming every recipe it
+carries lines for, read off `sourcesOf(items)` rather than off the week. It is the one
+place the plan and the list can be seen against each other.
+
+- **`ShoppingItem.fromIds` pairs each credit with a recipe id.** Titles are all the chef
+  ever produces, and a title is not an identity: two recipes may share one, and a rename
+  would orphan every line. The client fills the ids in from the meals it actually sent, so
+  the pairing is known rather than matched. Absent on every line written before it
+  existed — those still show and still merge, but cannot be looked up, so they are offered
+  no switch and a build leaves them alone.
+- **Dropping is immediate; adding is not.** Taking lines off costs nothing, so it happens
+  on the tap. Putting them back means asking the chef to work the amounts out again, so a
+  restored chip reads "build to add" rather than silently spending a call — a switch that
+  costs money without saying so is a switch people stop touching.
+- **A shared line keeps its amount and only loses the credit.** There is no subtracting
+  "1 cup" from "3 cups" when both are text, and inventing an answer is how a list starts
+  lying about quantities. The next build restates it exactly, which is now free.
+- **`_dropped` is remembered per session in `sessionStorage`**, because a recipe still
+  planned in the shop window would otherwise be put straight back by the next Build — two
+  controls side by side disagreeing. Per device on purpose: it is a statement about the
+  list you are about to build, and writing it to the session would let one person's
+  tidy-up decide what everybody else's build contains.
+- The chip says **"Drop X from this list"** where a row's own × says "Take foil off the
+  list". Two controls that sound the same to anyone not looking at the screen are two
+  chances to press the wrong one.
+
 #### The AI seam
 
 `functions/src/entitlement.ts` holds `assertCanSpend(caller, feature)`, which every

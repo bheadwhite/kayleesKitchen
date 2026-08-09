@@ -22,8 +22,11 @@ export const SHOPPING_SCHEMA = {
       type: "array",
       description:
         "Every line the list should now carry from these recipes: one per thing you " +
-        "would pick up. This REPLACES nothing — lines already on the list that these " +
-        "recipes do not touch are left alone, so do not repeat them here.",
+        "would pick up, with the amount it should read in total. Lines already on the " +
+        "list that these recipes do not touch — something typed in by hand — are left " +
+        "alone, so do not repeat them here. But anything one of these recipes wants " +
+        "MUST appear, even if a line for it already exists: a line you leave out is " +
+        "taken to mean this build no longer needs it, and it comes off the list.",
       items: {
         type: "object",
         properties: {
@@ -39,7 +42,9 @@ export const SHOPPING_SCHEMA = {
           amount: {
             type: "string",
             description:
-              "How much to buy, across every recipe that wanted it. Combine into ONE " +
+              "The TOTAL this line should now read, across every recipe in this request " +
+              "that wants it — never an addition to what an existing line says today, " +
+              "which is only what it read before. Combine into ONE " +
               "figure where the units allow it — 1 cup and 2 more cups is '3 cups'; 3 tsp " +
               "is 1 tbsp. Where they do not, write them side by side: '1 cup + 2 tbsp'. " +
               "Never turn a vague amount into a number: 'to taste', 'a pinch', and 'for " +
@@ -120,6 +125,12 @@ SCOPE
 You are consolidating, not cooking. Do not adjust quantities because you think the recipe is wrong, do not suggest substitutions, do not scale anything, and do not reorganise a recipe. If something is worth saying, say it in the note.
 
 ALREADY ON THE LIST
-You may be given lines the list already carries. Where one of your lines is the same thing, fold yours into it: give the COMBINED amount and set mergesWith to its id. Anything the cook has already ticked off is not shown to you at all, and that is deliberate — those are in the trolley already, and changing a quantity on something already bought is the one mistake here that costs someone a second trip.
+You may be given lines the list already carries, and each one says which recipes it already covers. **Every recipe credited on those lines is in this request**, so you can always work out what a line should read from scratch.
+
+State the TOTAL you want each line to read — never an addition to what it says now. This is the difference between a list that can be rebuilt and one that grows every time somebody presses the button. If a line reads "2 lb" and credits the only recipe that wants beef, and that recipe still wants 2 lb, the answer is "2 lb". It is not "4 lb". Where one of your lines is the same thing as an existing one, set mergesWith to its id.
+
+A recipe that was on the list and is NOT in this request has been dropped on purpose. Do not carry its ingredients over, and do not preserve a share of an amount on its behalf.
+
+Anything the cook has already ticked off is not shown to you at all, and that is deliberate — those are in the trolley already, and changing a quantity on something already bought is the one mistake here that costs someone a second trip.
 
 Call build_shopping_list exactly once with the whole list. Do not answer in prose.`

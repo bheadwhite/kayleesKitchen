@@ -737,5 +737,160 @@ describe("PlannerPresenter", () => {
       expect(presenter.getLastBuild()).toMatchObject({ added: 0, merged: 0 })
       presenter.dispose()
     })
+
+    /**
+     * The chef used to be shown a line's name and amount and nothing else, so
+     * it could not tell its own earlier work from something the cook added —
+     * and it was told to give the combined amount. A second press of Build
+     * turned two pounds of beef into four.
+     */
+    it("tells the chef which recipes a line already covers", async () => {
+      const { presenter, chef } = opened(store)
+      store.meals([meal({ id: "m1" })])
+      store.items([item({ id: "b", name: "ground beef", amount: "1 lb", from: ["Chilli"] })])
+
+      await presenter.buildList([CHILLI])
+
+      expect(chef.mock.calls[0][0].existing[0]).toMatchObject({
+        id: "b",
+        from: ["Chilli"],
+      })
+      presenter.dispose()
+    })
+
+    it("reads in a recipe the list carries that this window does not", async () => {
+      const { presenter, chef } = opened(store)
+      store.meals([meal({ id: "m1" })])
+      // Shopped for last week, or since unplanned. Left out of the request, the
+      // chef would state a total that quietly drops its share of a shared line.
+      store.items([item({ id: "b", name: "butter", from: ["Pancakes"], fromIds: ["pancakes"] })])
+
+      await presenter.buildList([CHILLI, PANCAKES])
+
+      expect(chef.mock.calls[0][0].meals.map((m: { title: string }) => m.title)).toEqual([
+        "Chilli",
+        "Pancakes",
+      ])
+      presenter.dispose()
+    })
+
+    it("never removes on the fallback path", async () => {
+      const chef = vi.fn().mockRejectedValue(new Error("unavailable"))
+      const { presenter } = opened(store, { chef })
+      store.meals([meal({ id: "m1" })])
+      store.items([item({ id: "v", name: "vanilla", from: ["Chilli"] })])
+
+      await presenter.buildList([CHILLI])
+
+      // `consolidateVerbatim` merges what it was given and nothing else, so its
+      // silence about a line must not be read as "drop it" — an outage would
+      // otherwise empty the list.
+      const [, , , removals] = store.apply.mock.calls[0]
+      expect(removals).toEqual([])
+      presenter.dispose()
+    })
+  })
+
+  /**
+   * The list is persistent and outlives the plan, so the only way a recipe ever
+   * leaves it is somebody saying so.
+   */
+  describe("what the list covers", () => {
+    const listed = () =>
+      store.items([
+        item({ id: "b", name: "ground beef", from: ["Chilli"], fromIds: ["chilli"] }),
+        item({
+          id: "s",
+          name: "salt",
+          amount: "2 tsp",
+          from: ["Chilli", "Pancakes"],
+          fromIds: ["chilli", "pancakes"],
+        }),
+        item({ id: "f", name: "foil", from: [], manual: true }),
+      ])
+
+    it("names the recipes the lines credit", () => {
+      const { presenter } = opened(store)
+      listed()
+
+      expect(presenter.getSources()).toEqual([
+        { id: "chilli", title: "Chilli", lines: 2, only: 1, dropped: false },
+        { id: "pancakes", title: "Pancakes", lines: 1, only: 0, dropped: false },
+      ])
+      presenter.dispose()
+    })
+
+    it("drops its own lines at once and only loosens the shared one", async () => {
+      const { presenter } = opened(store)
+      listed()
+
+      await presenter.dropSource({ id: "chilli", title: "Chilli" })
+
+      const [, updates, additions, removals] = store.apply.mock.calls[0]
+      expect(removals).toEqual(["b"])
+      expect(additions).toEqual([])
+      // The amount stays exactly as it read: there is no subtracting "1 tsp"
+      // from "2 tsp" when both are text. The next build restates it.
+      expect(updates).toEqual([
+        { id: "s", amount: "2 tsp", from: ["Pancakes"], fromIds: ["pancakes"] },
+      ])
+      presenter.dispose()
+    })
+
+    it("keeps a dropped recipe out of the next build", async () => {
+      const { presenter, chef } = opened(store)
+      listed()
+      store.meals([meal({ id: "m1" })])
+
+      await presenter.dropSource({ id: "chilli", title: "Chilli" })
+      await presenter.buildList([CHILLI])
+
+      // Chilli is still planned this window. Without the record, Build would
+      // put back what was just taken off, and the two controls would sit next
+      // to each other disagreeing.
+      expect(chef).not.toHaveBeenCalled()
+      presenter.dispose()
+    })
+
+    it("still shows a dropped recipe that the week still plans", async () => {
+      const { presenter } = opened(store)
+      listed()
+      store.meals([meal({ id: "m1" })])
+
+      await presenter.dropSource({ id: "chilli", title: "Chilli" })
+      store.items([item({ id: "s", name: "salt", from: ["Pancakes"], fromIds: ["pancakes"] })])
+
+      // Its lines have gone, so nothing credits it — but it is the one recipe
+      // here that can be put back, and a switch you cannot see is no switch.
+      expect(presenter.getSources()).toContainEqual(
+        expect.objectContaining({ id: "chilli", title: "Chilli", dropped: true })
+      )
+      presenter.dispose()
+    })
+
+    it("lets it back in, and says nothing was written", () => {
+      const { presenter } = opened(store)
+      listed()
+
+      void presenter.dropSource({ id: "chilli", title: "Chilli" })
+      store.apply.mockClear()
+      presenter.restoreSource("chilli")
+
+      // Putting the lines back is a Build — a model call, and a switch that
+      // silently spends one is a switch people learn not to touch.
+      expect(store.apply).not.toHaveBeenCalled()
+      presenter.dispose()
+    })
+
+    it("takes off a title-only line, which can never come back", async () => {
+      const { presenter } = opened(store)
+      store.items([item({ id: "old", name: "flour", from: ["Bread"] })])
+
+      await presenter.dropSource({ id: null, title: "Bread" })
+
+      const [, , , removals] = store.apply.mock.calls[0]
+      expect(removals).toEqual(["old"])
+      presenter.dispose()
+    })
   })
 })

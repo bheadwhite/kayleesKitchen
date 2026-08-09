@@ -252,6 +252,21 @@ export interface ShoppingItem {
   section: string
   /** Recipe titles this line came from. Empty for something typed in by hand. */
   from: string[]
+  /**
+   * The ids behind `from`, in no particular order.
+   *
+   * `from` is what a person reads, and titles are all the chef ever produces —
+   * but a title is not an identity: two recipes may share one, and renaming a
+   * recipe would otherwise orphan every line crediting it. The client fills
+   * this in from the meals it actually sent, so the pairing is known rather
+   * than matched.
+   *
+   * **Optional, and absent on every line written before it existed.** A line
+   * with no ids still shows its credits and still merges; what it cannot do is
+   * be attributed to a recipe on the list's cover chips, so it is left alone
+   * rather than guessed at.
+   */
+  fromIds?: string[]
   checked: boolean
   /** Order within the section, as the chef listed it. */
   sort: number

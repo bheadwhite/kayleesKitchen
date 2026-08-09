@@ -1,5 +1,6 @@
 export { default as Agenda, SLOTS } from "./Agenda"
 export { default as CoversStepper } from "./CoversStepper"
+export { default as ListSources, type ListSourceRow } from "./ListSources"
 export { default as PlanMealDialog, type PlanTarget } from "./PlanMealDialog"
 export { default as SessionInvites } from "./SessionInvites"
 export { default as SessionSheet } from "./SessionSheet"

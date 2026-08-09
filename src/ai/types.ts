@@ -83,6 +83,16 @@ export interface ShoppingKnown {
   name: string
   amount: string
   section: string
+  /**
+   * Which recipes this line already covers.
+   *
+   * **Without this the chef cannot tell its own work from anybody else's**, and
+   * the instruction it was given — fold your line into that one and give the
+   * combined amount — turned a second press of Build into four pounds of beef.
+   * A line that already credits a recipe in this request is a line this build
+   * is restating, not adding to.
+   */
+  from: string[]
 }
 
 /**

@@ -931,17 +931,24 @@ export const deleteShoppingItem = (sessionId: string, itemId: string) =>
  */
 export const applyShoppingItems = async (
   sessionId: string,
-  updates: Array<{ id: string; amount: string; from: string[] }>,
-  additions: Array<Omit<ShoppingItem, "id" | "addedAt">>
+  updates: Array<{ id: string; amount: string; from: string[]; fromIds: string[] }>,
+  additions: Array<Omit<ShoppingItem, "id" | "addedAt">>,
+  removals: string[] = []
 ) => {
-  if (updates.length === 0 && additions.length === 0) return
+  if (updates.length === 0 && additions.length === 0 && removals.length === 0) return
 
   const batch = writeBatch(db)
-  updates.forEach(({ id, amount, from }) => {
-    batch.update(doc(db, "sessions", sessionId, "shopping", id), { amount, from })
+  updates.forEach(({ id, amount, from, fromIds }) => {
+    batch.update(doc(db, "sessions", sessionId, "shopping", id), { amount, from, fromIds })
   })
   additions.forEach((item) => {
     batch.set(doc(sessionShoppingRef(sessionId)), { ...item, addedAt: serverTimestamp() })
+  })
+  // Lines whose recipe is no longer part of the list. One batch with the rest,
+  // so a build cannot land half-applied — a list showing the new amounts and
+  // still carrying the dropped recipe's lines is worse than either state.
+  removals.forEach((id) => {
+    batch.delete(doc(db, "sessions", sessionId, "shopping", id))
   })
   await batch.commit()
 }

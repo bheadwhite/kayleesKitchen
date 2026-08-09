@@ -7,6 +7,7 @@ import { Button, CartIcon, ChevronRightIcon, UsersIcon } from "components"
 import {
   Agenda,
   CoversStepper,
+  ListSources,
   PlanMealDialog,
   SessionSheet,
   ShopWindow,
@@ -19,6 +20,7 @@ import {
   useBuildStatus,
   useCurrentSession,
   useLastBuild,
+  useListSources,
   usePlannedMeals,
   usePlannerLoadError,
   usePlannerPresenter,
@@ -98,6 +100,7 @@ const Planner = () => {
   const { isBuilding } = useBuildStatus()
   const { isBusy } = useSessionStatus()
   const lastBuild = useLastBuild()
+  const sources = useListSources()
   const loadError = usePlannerLoadError()
   const weekError = useWeekError()
   const everyone = useEveryone()
@@ -328,9 +331,14 @@ const Planner = () => {
           {lastBuild != null && (
             <div className='mt-4 border border-divider bg-surface px-3 py-2 text-sm'>
               <p>
-                {lastBuild.added === 0 && lastBuild.merged === 0
+                {lastBuild.added === 0 && lastBuild.merged === 0 && lastBuild.removed === 0
                   ? "Nothing new — it was all on the list already."
                   : `Added ${lastBuild.added}, folded ${lastBuild.merged} into rows already here.`}
+                {/* Named rather than left to be noticed: a build that quietly
+                 *  shortens the list is the one thing here that could cost
+                 *  somebody an ingredient at the till. */}
+                {lastBuild.removed > 0 &&
+                  ` Took off ${lastBuild.removed} line${lastBuild.removed === 1 ? "" : "s"} for recipes the list no longer covers.`}
                 {lastBuild.analysed > 0 &&
                   ` Worked out how ${lastBuild.analysed} recipe${lastBuild.analysed === 1 ? "" : "s"} scale${lastBuild.analysed === 1 ? "s" : ""} — that part is now free forever.`}
               </p>
@@ -358,6 +366,21 @@ const Planner = () => {
           )}
 
           <div className='mt-5'>
+            {/* Above the list, not inside it: it says what the whole list is
+             *  for, and it is the only place the plan and the list — which
+             *  deliberately drift apart — can be seen against each other. */}
+            <ListSources
+              sources={sources}
+              onDrop={(source) =>
+                guard(
+                  planner.dropSource(source),
+                  `Could not take ${source.title} off the list.`
+                )
+              }
+              onRestore={(recipeId) => planner.restoreSource(recipeId)}
+              disabled={isBuilding}
+            />
+
             <ShoppingList
               items={items}
               onToggle={(item) => guard(planner.toggleItem(item), "Could not tick that off.")}

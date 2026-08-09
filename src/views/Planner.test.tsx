@@ -445,6 +445,67 @@ describe("Planner", () => {
     planner.dispose()
   })
 
+  /**
+   * A list read in a shop a week later says what to buy; until now it never
+   * said what it was *for*. The credits were on each line, scattered down forty
+   * rows, which never answers "is this still covering a meal we're cooking".
+   */
+  describe("what the list covers", () => {
+    const covered = () => [
+      item({
+        id: "i1",
+        name: "ground beef",
+        section: "meat",
+        from: ["Chilli"],
+        fromIds: ["chilli"],
+      }),
+      item({ id: "i2", name: "foil", section: "other", manual: true }),
+    ]
+
+    it("names each recipe the list carries lines for", async () => {
+      const { auth, planner, items } = await renderPlanner("/plan?tab=list")
+      items(covered())
+
+      expect(screen.getByText("What this list covers")).toBeInTheDocument()
+      expect(
+        screen.getByRole("button", { name: /drop chilli from this list/i })
+      ).toBeInTheDocument()
+      // Nothing typed in by hand is anybody's recipe, so it earns no chip —
+      // though its own row still carries a "Take foil off the list" ×, which is
+      // why the two controls are worded apart.
+      expect(
+        screen.queryByRole("button", { name: /drop foil from this list/i })
+      ).not.toBeInTheDocument()
+
+      auth.dispose()
+      planner.dispose()
+    })
+
+    it("takes its lines off the list when it is switched off", async () => {
+      const user = userEvent.setup()
+      const { auth, planner, store, items } = await renderPlanner("/plan?tab=list")
+      items(covered())
+
+      await user.click(screen.getByRole("button", { name: /drop chilli from this list/i }))
+
+      const [, , , removals] = store.apply.mock.calls[0]
+      expect(removals).toEqual(["i1"])
+
+      auth.dispose()
+      planner.dispose()
+    })
+
+    it("says nothing at all when the list has no recipes on it", async () => {
+      const { auth, planner, items } = await renderPlanner("/plan?tab=list")
+      items([item({ id: "i2", name: "foil", manual: true })])
+
+      expect(screen.queryByText("What this list covers")).not.toBeInTheDocument()
+
+      auth.dispose()
+      planner.dispose()
+    })
+  })
+
   it("lists the sessions you are in, and offers to start another", async () => {
     const user = userEvent.setup()
     const { auth, planner } = await renderPlanner()
