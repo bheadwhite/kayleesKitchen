@@ -14,6 +14,14 @@ import type { DirectionSection, Ingredient, Recipe } from "@/types"
  */
 interface EditorSnapshot {
   title: string
+  /**
+   * Carried like the title, and recorded like it too — which is to say never on
+   * its own. Both are fields typed into character by character, and an undo
+   * stack one keystroke deep is worse than none; being *in* the snapshot is
+   * what makes undoing anything else put them back.
+   */
+  serves: number | null
+  servingSize: string | null
   ingredients: Ingredient[]
   directions: DirectionSection[]
   tags: string[]
@@ -54,6 +62,8 @@ export class RecipePresenter {
    */
   private _baseline: RecipeBaseline | null = null
 
+  private readonly _serves = new Signal<number | null>(null)
+  private readonly _servingSize = new Signal<string | null>(null)
   private readonly _directions = new Signal<DirectionSection[]>([])
   private readonly _ingredients = new Signal<Ingredient[]>([])
   private readonly _tags = new Signal<string[]>([])
@@ -105,6 +115,8 @@ export class RecipePresenter {
   private _snapshot(): EditorSnapshot {
     return {
       title: this._title,
+      serves: this._serves.get(),
+      servingSize: this._servingSize.get(),
       ingredients: this._ingredients.get().map((ingredient) => ({ ...ingredient })),
       // `editStep` is deliberately dropped: which row happens to be open is not
       // an edit, and restoring it would reopen an editor nobody asked for.
@@ -139,6 +151,8 @@ export class RecipePresenter {
 
   private _restore(snapshot: EditorSnapshot) {
     this._title = snapshot.title
+    this._serves.set(snapshot.serves)
+    this._servingSize.set(snapshot.servingSize)
     this._ingredients.set(snapshot.ingredients)
     this._directions.set(snapshot.directions.map((section) => ({ ...section, editStep: null })))
     this._tags.set(snapshot.tags)
@@ -246,6 +260,8 @@ export class RecipePresenter {
     this._title = title
     this._baseline = {
       title,
+      serves: this._serves.get(),
+      servingSize: this._servingSize.get(),
       ingredients: this._ingredients.get().map((ingredient) => ({ ...ingredient })),
       directions: this._directions.get().map((section) => ({
         ...section,
@@ -258,6 +274,43 @@ export class RecipePresenter {
 
   getTitle() {
     return this._title
+  }
+
+  /* --------------------------------------------------------------- yield */
+
+  get servesBroadcast() {
+    return this._serves.broadcast
+  }
+
+  get servingSizeBroadcast() {
+    return this._servingSize.broadcast
+  }
+
+  getServes() {
+    return this._serves.get()
+  }
+
+  getServingSize() {
+    return this._servingSize.get()
+  }
+
+  /**
+   * How many the recipe feeds, as the recipe itself claims.
+   *
+   * Nothing is recorded on the undo stack, for the reason the title is not: it
+   * is typed a digit at a time. Zero and anything unreadable clear it — the
+   * absence of a figure is a real state, and "serves 0" is not.
+   */
+  setServes(serves: number | null) {
+    const clean = serves == null || !Number.isFinite(serves) || serves <= 0
+      ? null
+      : Math.round(serves)
+    this._serves.set(clean)
+  }
+
+  setServingSize(size: string | null) {
+    const clean = (size ?? "").trim()
+    this._servingSize.set(clean === "" ? null : clean)
   }
 
   setTitle(title: string) {
@@ -536,6 +589,8 @@ export class RecipePresenter {
 
     this._id = recipe.id ?? null
     this._title = recipe.title
+    this.setServes(recipe.serves ?? null)
+    this.setServingSize(recipe.servingSize ?? null)
     this._directions.set(
       (recipe.directions ?? []).map((section) => ({ ...section, editStep: null }))
     )
@@ -564,6 +619,8 @@ export class RecipePresenter {
     this._id = null
     this._title = ""
     this._baseline = null
+    this._serves.set(null)
+    this._servingSize.set(null)
     this._imageUrl.set(null)
     this._imageFile.set(null)
     this._directions.set([])
@@ -576,6 +633,8 @@ export class RecipePresenter {
   }
 
   dispose() {
+    this._serves.dispose()
+    this._servingSize.dispose()
     this._imageFile.dispose()
     this._imageUrl.dispose()
     this._ingredients.dispose()

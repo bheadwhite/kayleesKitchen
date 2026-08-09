@@ -28,6 +28,22 @@ export interface Recipe {
    */
   tags?: string[]
   /**
+   * How many the recipe as written feeds, and what one serving is —
+   * "2 cookies", "about 1½ cups".
+   *
+   * **Authored, and therefore not the same thing as the chef's estimate.**
+   * `recipes/{id}/chef/yield` holds a figure a model read off the ingredients
+   * and the method, stamped with a fingerprint so it invalidates itself; this
+   * is what the recipe itself claims, written by whoever typed it in or
+   * proposed by the chef and accepted. When both exist the authored one wins —
+   * an estimate is what you fall back on when the recipe does not say.
+   *
+   * Absent on every recipe written before the fields existed, which is most of
+   * them, and that is exactly the case the estimate cache goes on covering.
+   */
+  serves?: number | null
+  servingSize?: string | null
+  /**
    * The rating totals, kept on the recipe itself rather than derived from the
    * `ratings` collection — that collection is *not* readable by anyone but the
    * author of each rating, which is what makes ratings anonymous. Sum and count

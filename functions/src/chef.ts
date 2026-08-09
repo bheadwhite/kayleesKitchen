@@ -68,6 +68,19 @@ const describeState = (request: ChefRequest, cached: CachedYield | null) =>
     : "The working copy currently on screen. Later changes build on this, but any " +
       "rescaling is still computed from the recipe as filed:\n" +
       JSON.stringify(request.fork)) +
+  // **What the recipe itself says, which outranks any estimate.** A person
+  // wrote this down; the cache below is a model reading a number off the
+  // ingredients. Said first and said plainly, or the chip on the page and the
+  // chef in the drawer can disagree about the same recipe in the same breath.
+  (request.authored?.serves == null
+    ? ""
+    : `\n\nThe recipe itself states that it feeds ${request.authored.serves}` +
+      (request.authored.servingSize
+        ? `, a serving being ${request.authored.servingSize}`
+        : "") +
+      ". That is what the recipe says rather than anything worked out, so it is " +
+      "settled: do not contradict it, do not re-estimate it, and scale from it. " +
+      "There is no need to call estimate_servings for this recipe at all.") +
   // A yield already settled for *this* recipe. Given to the model rather than
   // used to skip the call, because the turn may not be about the yield at all —
   // what it prevents is the same recipe being told it feeds four today and five

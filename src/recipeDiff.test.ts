@@ -16,6 +16,8 @@ const SAVED: RecipeBaseline = {
     { sectionTitle: "Assembly", steps: ["Layer it up"] },
   ],
   tags: ["italian"],
+  serves: null,
+  servingSize: null,
   hasImage: true,
 }
 
@@ -147,6 +149,8 @@ describe("diffRecipe", () => {
       ingredients: [],
       directions: [],
       tags: [],
+      serves: null,
+      servingSize: null,
       hasImage: false,
     })
 
@@ -250,5 +254,43 @@ describe("describeChanges", () => {
 
   it("finds nothing in an untouched recipe", () => {
     expect(lines({})).toEqual([])
+  })
+})
+
+describe("how much it makes", () => {
+  const base = {
+    title: "Chilli",
+    ingredients: [],
+    directions: [],
+    tags: [],
+    serves: 4,
+    servingSize: "1 bowl",
+    hasImage: false,
+  }
+
+  it("counts a changed count and a changed serving size as one change", () => {
+    const changes = diffRecipe(base, { ...base, serves: 8, servingSize: "2 bowls" })
+
+    // One fact read two ways. Two flags would report "Serves: changed. Serving
+    // size: changed" about a single edit.
+    expect(changes.makes).toBe(true)
+    expect(changes.count).toBe(1)
+  })
+
+  it("says nothing when neither moved", () => {
+    expect(diffRecipe(base, { ...base }).makes).toBe(false)
+  })
+
+  it("counts a yield that has been filled in for the first time", () => {
+    const changes = diffRecipe({ ...base, serves: null, servingSize: null }, base)
+    expect(changes.makes).toBe(true)
+    expect(summariseChanges(changes)).toContain("How much it makes")
+  })
+
+  it("describes both sides so the peek can show what it said before", () => {
+    const [line] = describeChanges({ ...base, serves: null, servingSize: null }, base)
+
+    expect(line).toMatchObject({ where: "makes", before: "not said" })
+    expect(line.after).toBe("serves 4 · 1 bowl")
   })
 })

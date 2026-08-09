@@ -103,6 +103,11 @@ export class ChefPresenter {
   private stopWatching: Array<() => void> = []
   /** The yield as stored, before the fingerprint check. */
   private storedYield: RecipeYield | null = null
+  /** What the recipe document itself says it makes. Beats `storedYield`. */
+  private authored: { serves: number | null; servingSize: string | null } = {
+    serves: null,
+    servingSize: null,
+  }
 
   constructor(
     private readonly ask: Ask = askChef,
@@ -183,6 +188,13 @@ export class ChefPresenter {
   openFor(recipe: Recipe) {
     const id = recipe.id ?? null
     this.recipe = toDraft(recipe)
+    // What the recipe itself claims, which outranks any estimate — see
+    // `Recipe.serves`. Kept off `this.recipe`, which is the body the chef is
+    // sent and must stay a plain `RecipeDraft`.
+    this.authored = {
+      serves: recipe.serves ?? null,
+      servingSize: recipe.servingSize ?? null,
+    }
 
     if (id === this.recipeId) {
       // The recipe body may have moved under us — the list is a live snapshot.
@@ -210,6 +222,11 @@ export class ChefPresenter {
         }),
       ]
     }
+
+    // Unconditional: a recipe that states its own yield needs no watcher and no
+    // estimate, and the servings control should be live before any snapshot
+    // lands — including for a recipe with no id to watch.
+    this.applyStoredYield()
   }
 
   /**
@@ -231,9 +248,14 @@ export class ChefPresenter {
       stored != null && stored.fingerprint === recipeFingerprint(this.recipe) ? stored : null
 
     this._yield.set(current)
-    if (current != null && this._baseServes.get() == null) {
-      this._baseServes.set(current.baseServes)
-    }
+
+    // **The recipe's own figure first.** A recipe that says what it makes needs
+    // no estimate and no model call: the servings control is live the moment
+    // the page opens, and "Scale to 8" counts from what a person wrote rather
+    // than from what a model guessed. The estimate stays the fallback for the
+    // recipes — most of them — that say nothing.
+    const base = this.authored.serves ?? current?.baseServes ?? null
+    if (base != null && this._baseServes.get() == null) this._baseServes.set(base)
   }
 
   /* --------------------------------------------------------------- asking */
@@ -260,6 +282,9 @@ export class ChefPresenter {
           recipe: this.recipe,
           fork: this._fork.get(),
           recipeId: this.recipeId,
+          // Outranks the cached estimate the callable reads for itself, so the
+          // chip on the page and the chef in the drawer cannot disagree.
+          authored: this.authored,
         })
         this._turns.transform((current) => [
           ...current,

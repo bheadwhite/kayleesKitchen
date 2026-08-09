@@ -1,4 +1,5 @@
 export { default as AddIngredient } from "./AddIngredient"
+export { default as Makes } from "./Makes"
 export { default as ListIngredients } from "./ListIngredients"
 export { default as Directions } from "./Directions"
 export { default as Tags } from "./Tags"

@@ -12,6 +12,9 @@ import type { DirectionSection, Ingredient } from "@/types"
  */
 export interface RecipeBaseline {
   title: string
+  /** What the recipe claims it makes. Null for one that does not say. */
+  serves: number | null
+  servingSize: string | null
   ingredients: Ingredient[]
   directions: DirectionSection[]
   tags: string[]
@@ -47,6 +50,12 @@ export interface SectionChanges {
 export interface RecipeChanges {
   title: boolean
   image: boolean
+  /**
+   * The yield — how many it feeds, or what one serving is. One flag for both,
+   * because they are one fact read two ways and a summary that split them would
+   * say "Serves: changed. Serving size: changed" about a single edit.
+   */
+  makes: boolean
   /** One entry per ingredient currently in the list. */
   ingredients: RowDiff[]
   ingredientsRemoved: number
@@ -60,6 +69,8 @@ export interface RecipeChanges {
 
 const EMPTY: RecipeBaseline = {
   title: "",
+  serves: null,
+  servingSize: null,
   ingredients: [],
   directions: [],
   tags: [],
@@ -76,12 +87,20 @@ const sameIngredient = (a: Ingredient, b: Ingredient) =>
 export interface ChangeLine {
   kind: RowChange | "removed"
   /** Which part of the recipe this line belongs to, for grouping. */
-  where: "title" | "ingredient" | "step" | "section" | "tag"
+  where: "title" | "makes" | "ingredient" | "step" | "section" | "tag"
   /** The text as it stands now. Absent on an addition. */
   before?: string
   /** The text as it would be. Absent on a removal. */
   after?: string
 }
+
+/** The yield as one readable line — what the peek and the summary both show. */
+const describeYield = ({ serves, servingSize }: Pick<RecipeBaseline, "serves" | "servingSize">) =>
+  serves == null
+    ? servingSize
+      ? `serving: ${servingSize}`
+      : "not said"
+    : `serves ${serves}${servingSize ? ` · ${servingSize}` : ""}`
 
 const ingredientText = ({ name, amount, optional }: Ingredient) =>
   `${name}${amount ? ` — ${amount}` : ""}${optional ? " (optional)" : ""}`
@@ -106,6 +125,15 @@ export const describeChanges = (
 
   if (before.title !== current.title) {
     lines.push({ kind: "changed", where: "title", before: before.title, after: current.title })
+  }
+
+  if (before.serves !== current.serves || before.servingSize !== current.servingSize) {
+    lines.push({
+      kind: "changed",
+      where: "makes",
+      before: describeYield(before),
+      after: describeYield(current),
+    })
   }
 
   current.ingredients.forEach((ingredient, i) => {
@@ -199,6 +227,7 @@ export const summariseChanges = (changes: RecipeChanges): string[] => {
   const lines: string[] = []
 
   if (changes.title) lines.push("A different title")
+  if (changes.makes) lines.push("How much it makes")
 
   const ingredients = tally(changes.ingredients)
   const ingredientLine = phrase([
@@ -280,6 +309,8 @@ export const diffRecipe = (
 
   const title = before.title !== current.title
   const image = before.hasImage !== current.hasImage
+  const makes =
+    before.serves !== current.serves || before.servingSize !== current.servingSize
 
   const ingredients = diffRows(
     before.ingredients,
@@ -309,6 +340,7 @@ export const diffRecipe = (
   const count =
     (title ? 1 : 0) +
     (image ? 1 : 0) +
+    (makes ? 1 : 0) +
     countRows(ingredients) +
     ingredientsRemoved +
     tagsAdded.length +
@@ -327,6 +359,7 @@ export const diffRecipe = (
   return {
     title,
     image,
+    makes,
     ingredients,
     ingredientsRemoved,
     tagsAdded,

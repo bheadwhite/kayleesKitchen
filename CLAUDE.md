@@ -278,8 +278,9 @@ one. After applying, the marks in the editor take over (see the
 unsaved-changes section) — and applying **closes the drawer**, because the reason to apply is
 to look at what it did and the marked-up editor is behind the panel.
 
-**The chef tags the recipe too**, and `tags` rides on `propose_recipe` like everything else:
-sent whole, applied only when the user presses the button, and counted in the summary.
+**The chef tags the recipe too, and says how much it makes**, and both ride on
+`propose_recipe` like everything else: sent whole, applied only when the user presses the
+button, and counted in the summary.
 
 - **`EditorDraft` is `RecipeDraft` plus tags, and the split is deliberate.** `ChefFork`
   extends `RecipeDraft`, and the recipe page draws `{...selected, ...fork}` precisely so a
@@ -304,6 +305,22 @@ sent whole, applied only when the user presses the button, and counted in the su
 - **The summary counts them**, and the prompt asks the chef to name what it added. A tag is
   two words at the bottom of a draft that is mostly ingredients: the change most likely to be
   accepted without being read.
+
+`serves` and `servingSize` work the same way with one deliberate difference: they are
+**nullable, and null means "I could not tell" rather than "take it off"**. A `strict` schema
+makes every field mandatory, so without null the model would have to invent a number for a
+recipe that gives no way to work one out — and this is the figure a shopping list scales
+from, so a confident wrong one sends somebody to the shop for twice what they need. On a
+null the editor's own figure stands.
+
+That fallback has to match on both sides, and briefly did not: the diff kept the editor's
+value while the apply cleared it, so the summary reported no change and applying wiped a
+number the cook had set. Clearing one is done by emptying the field, which is unambiguous.
+
+The prompt spends its words on two things the model gets wrong by default: **serves
+describes the recipe as written**, so "double it" doubles the ingredients and leaves serves
+alone — it is what the app scales *from* — and a figure already in the editor is kept unless
+asked, because "it feeds three in this house" is the cook's to say.
 
 `MAX_IMAGES` is a budget for the **whole conversation**, not per message — photos stay
 attached to their turn and are re-sent with every later one, and the callable counts them
@@ -372,6 +389,13 @@ is the failure that ruins the dinner and is invisible in a list of doubled quant
 client-side multiplier gets every one of those wrong, and gets "a pinch" and "salt to taste"
 wrong on top. All of it is folded into the *steps* as well as the reply, because the copy
 has to be cookable by someone who never read the conversation.
+
+**A recipe can state its own yield, and that beats any estimate.** `Recipe.serves` and
+`Recipe.servingSize` are authored fields — typed into `<Makes>` in the editor, or proposed
+by the chef and applied. A recipe that says what it makes needs no model call at all: the
+chip reads it, the servings control counts from it the moment the page opens, and
+`askChef` is told it is settled so the chef in the drawer cannot contradict the chip above
+it. Everything below is the fallback for the recipes — most of them — that say nothing.
 
 **The yield is cached server-side, and the cache invalidates itself.** "How many does this
 feed?" has one answer for a given recipe, costs a model call to work out, and is asked of the

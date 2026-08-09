@@ -17,6 +17,7 @@ import { describeChanges, diffRecipe, summariseChanges } from "@/recipeDiff"
 /** Grouped in the order the recipe itself is written. */
 const GROUPS = [
   { where: "title", label: "Title" },
+  { where: "makes", label: "Makes" },
   { where: "ingredient", label: "Ingredients" },
   { where: "section", label: "Sections" },
   { where: "step", label: "Steps" },
@@ -91,6 +92,10 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
           // Sent so the chef can keep what is already there and add to it,
           // rather than proposing a set that silently drops half of them.
           tags: recipe.getTags(),
+          // Same reason: a figure already in the editor may be one the cook set
+          // deliberately, and the chef is told not to overwrite it unasked.
+          serves: recipe.getServes(),
+          servingSize: recipe.getServingSize(),
         },
         tagLibrary
       )
@@ -111,6 +116,14 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
         // somehow arrived without tags must fall back to the ones already on
         // the recipe — applying must never be a way to lose them silently.
         tags: proposedDraft.tags ?? recipe.getTags(),
+        // Null from the chef means "I could not tell", not "take it off" — the
+        // schema says so and the prompt says so — so the editor's own figure
+        // stands. It also has to match what the summary above claimed: the diff
+        // falls back the same way, and an apply that cleared a number the
+        // summary had just reported as unchanged is the worst of both.
+        // Clearing it is done by emptying the field, which is unambiguous.
+        serves: proposedDraft.serves ?? recipe.getServes() ?? undefined,
+        servingSize: proposedDraft.servingSize ?? recipe.getServingSize() ?? undefined,
       },
       // A draft is a pile of unsaved edits, not the saved recipe: leaving the
       // baseline where it is makes every line the chef touched show up as
@@ -130,7 +143,8 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
    * would be describing the apply rather than the draft. **Tags are not held
    * level any more** — the chef proposes those now, and a tag added or dropped
    * is exactly the kind of change someone accepts without noticing, so it has
-   * to appear in the summary like any other line.
+   * to appear in the summary like any other line — and neither is the yield,
+   * for the same reason.
    */
   const sides =
     proposedDraft == null
@@ -138,6 +152,8 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
       : ([
           {
             title: recipe.getTitle(),
+            serves: recipe.getServes(),
+            servingSize: recipe.getServingSize(),
             ingredients: recipe.getIngredients(),
             directions: recipe.getDirections(),
             tags: recipe.getTags(),
@@ -148,6 +164,8 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
             ingredients: proposedDraft.ingredients,
             directions: proposedDraft.directions,
             tags: proposedDraft.tags ?? recipe.getTags(),
+            serves: proposedDraft.serves ?? recipe.getServes(),
+            servingSize: proposedDraft.servingSize ?? recipe.getServingSize(),
             hasImage: false,
           },
         ] as const)

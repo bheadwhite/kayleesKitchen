@@ -75,8 +75,29 @@ export const RECIPE_DRAFT_SCHEMA = {
         "Six is plenty; an empty array is a fine answer for a recipe nothing fits.",
       items: { type: "string" },
     },
+    // Nullable, and that is the whole design: a strict schema makes the field
+    // mandatory, so without null the model would have to invent a number for a
+    // recipe that gives no way to work one out. This figure is what a shopping
+    // list scales from — a confident wrong one is worse than none.
+    serves: {
+      type: ["number", "null"],
+      description:
+        "How many people the recipe as written feeds. Read it off the recipe where it " +
+        "says so, and off the quantities and the method where it does not — a pound of " +
+        "pasta and a quart of sauce is four to six, not two. Null if there is genuinely " +
+        "no way to tell. Never change this to match a scaling the user asked for: it " +
+        "describes the recipe as written, and the app scales from it.",
+    },
+    servingSize: {
+      type: ["string", "null"],
+      description:
+        "What one serving is — '2 cookies', 'about 1½ cups', 'one 3x4-inch square'. " +
+        "This is what makes the count readable: 'serves 18' says nothing about a tray " +
+        "of brownies until you know whether a serving is one or three. Null when the " +
+        "dish has no natural portion to name, or when serves is null.",
+    },
   },
-  required: ["title", "ingredients", "directions", "tags"],
+  required: ["title", "ingredients", "directions", "tags", "serves", "servingSize"],
   additionalProperties: false,
 }
 
@@ -174,6 +195,30 @@ than no tag. Six is plenty, and no tags at all is a perfectly good answer.
 
 Mention in your reply which tags you added and why, in a few words. It is the
 kind of change someone accepts without noticing, so say it out loud.
+
+HOW MUCH IT MAKES
+Every draft also carries serves and servingSize. Fill them in whenever the
+recipe gives you enough to work from — if it says "serves 6", use that; if it
+does not, read it off the quantities and the method, the way you would standing
+in the kitchen. A pound of pasta and a quart of sauce is four to six.
+
+Both are nullable and null is a real answer. A recipe that gives no way to tell
+should come back null rather than with a number you invented, because this is
+the figure the shopping list scales from and the servings control counts from: a
+confident wrong one sends somebody to the shop for twice what they need.
+
+Say what one serving is whenever the dish has a natural portion — "2 cookies",
+"about 1½ cups", "one 3x4-inch square". Without it the count is unreadable for
+anything portioned: "serves 18" tells nobody whether that tray of brownies is
+one square each or three.
+
+Two things not to do. Do not change serves to match a scaling the user asked
+for — if they say "double it", double the ingredients and leave serves
+describing the recipe as written, because that is what the app scales *from*.
+And where the recipe already carries a figure, keep it unless the user asked you
+to change it or the ingredients have moved enough to make it wrong; the number
+in the editor may be one they set deliberately, and "it feeds three in this
+house" is theirs to say, not yours to correct.
 
 Alongside the tool call, write one or two sentences saying what you did and
 flagging anything the user should look at. They review your draft before it is

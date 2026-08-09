@@ -494,3 +494,72 @@ describe("RecipePresenter", () => {
     })
   })
 })
+
+/**
+ * What the recipe claims it makes. Authored, so it beats the chef's estimate —
+ * and typed a digit at a time, so it behaves like the title on the undo stack.
+ */
+describe("how much it makes", () => {
+  it("keeps a figure and a serving size", () => {
+    const presenter = new RecipePresenter()
+    presenter.setServes(6)
+    presenter.setServingSize("  2 cookies  ")
+
+    expect(presenter.getServes()).toBe(6)
+    expect(presenter.getServingSize()).toBe("2 cookies")
+    presenter.dispose()
+  })
+
+  it("treats nothing, zero and nonsense as not said", () => {
+    const presenter = new RecipePresenter()
+
+    // "Serves 0" is not a recipe. An empty field is a real state and the only
+    // honest one for a recipe that does not say.
+    presenter.setServes(0)
+    expect(presenter.getServes()).toBeNull()
+    presenter.setServes(Number.NaN)
+    expect(presenter.getServes()).toBeNull()
+    presenter.setServingSize("   ")
+    expect(presenter.getServingSize()).toBeNull()
+    presenter.dispose()
+  })
+
+  it("rounds, because half a person is not eating", () => {
+    const presenter = new RecipePresenter()
+    presenter.setServes(4.4)
+    expect(presenter.getServes()).toBe(4)
+    presenter.dispose()
+  })
+
+  it("reads it off a recipe and clears it on reset", () => {
+    const presenter = new RecipePresenter()
+    presenter.loadRecipe({
+      id: "r1",
+      title: "Chilli",
+      ingredients: [],
+      directions: [],
+      serves: 8,
+      servingSize: "1 bowl",
+    })
+
+    expect(presenter.getServes()).toBe(8)
+    presenter.reset()
+    expect(presenter.getServes()).toBeNull()
+    expect(presenter.getServingSize()).toBeNull()
+    presenter.dispose()
+  })
+
+  it("comes back with an undo of something else", () => {
+    const presenter = new RecipePresenter()
+    presenter.loadRecipe({ id: "r1", title: "Chilli", ingredients: [], directions: [], serves: 8 })
+    presenter.setServes(4)
+    // Typing a number records nothing of its own — an undo stack one keystroke
+    // deep is useless — but it rides in every snapshot, so undoing a real edit
+    // puts it back. Same arrangement as the title.
+    presenter.addTag("dinner")
+    presenter.undo()
+
+    expect(presenter.getServes()).toBe(4)
+    presenter.dispose()
+  })
+})

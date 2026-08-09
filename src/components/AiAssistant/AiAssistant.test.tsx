@@ -24,6 +24,8 @@ const DRAFT: EditorDraft = {
     { sectionTitle: "Dressing", steps: ["Whisk."] },
   ],
   tags: ["salad"],
+  serves: 4,
+  servingSize: "1 bowl",
 }
 
 const encodeImage = vi.fn(async (): Promise<AssistantImage> => ({
@@ -126,7 +128,7 @@ describe("AiAssistant", () => {
   it("says when a draft would change nothing", async () => {
     const user = userEvent.setup()
     const { recipe, assistant } = setup({ text: "Already how you have it.", draft: DRAFT })
-    recipe.loadRecipe({ id: "abc123", ...DRAFT })
+    recipe.loadRecipe({ id: "abc123", ...DRAFT, serves: DRAFT.serves ?? undefined, servingSize: DRAFT.servingSize ?? undefined })
 
     await user.type(screen.getByLabelText("Message the chef"), "tidy it up")
     await user.click(screen.getByRole("button", { name: "Send" }))
@@ -253,7 +255,7 @@ describe("AiAssistant", () => {
     it("counts a proposed tag in the summary", async () => {
       const user = userEvent.setup()
       const { recipe, assistant } = setup({ text: "Tagged it.", draft: DRAFT })
-      recipe.loadRecipe({ id: "abc123", ...DRAFT, tags: [] })
+      recipe.loadRecipe({ id: "abc123", ...DRAFT, tags: [], serves: DRAFT.serves ?? undefined, servingSize: DRAFT.servingSize ?? undefined })
 
       await send(user)
 
@@ -292,6 +294,81 @@ describe("AiAssistant", () => {
       await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
 
       expect(recipe.getTags()).toEqual(["lunch"])
+
+      assistant.dispose()
+      recipe.dispose()
+    })
+  })
+
+  /**
+   * The yield is what the shopping list scales from and the servings control
+   * counts from, so a wrong one is expensive — which is why the chef may answer
+   * null, and why what is already in the editor is sent to it.
+   */
+  describe("how much it makes", () => {
+    const send = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.type(screen.getByLabelText("Message the chef"), "type this up")
+      await user.click(screen.getByRole("button", { name: "Send" }))
+    }
+
+    it("shows the chef what the editor already claims", async () => {
+      const user = userEvent.setup()
+      const { recipe, assistant, ask } = setup({ text: "Done.", draft: DRAFT })
+      recipe.setServes(6)
+      recipe.setServingSize("1 bowl")
+
+      await send(user)
+
+      expect(ask.mock.calls[0][0].currentDraft).toMatchObject({
+        serves: 6,
+        servingSize: "1 bowl",
+      })
+
+      assistant.dispose()
+      recipe.dispose()
+    })
+
+    it("counts a changed yield in the summary", async () => {
+      const user = userEvent.setup()
+      const { recipe, assistant } = setup({ text: "Read it off.", draft: DRAFT })
+      recipe.loadRecipe({ id: "abc123", ...DRAFT, serves: undefined, servingSize: undefined })
+
+      await send(user)
+
+      expect(await screen.findByText("How much it makes")).toBeInTheDocument()
+
+      assistant.dispose()
+      recipe.dispose()
+    })
+
+    it("applies what the chef read off the recipe", async () => {
+      const user = userEvent.setup()
+      const { recipe, assistant } = setup({ text: "Read it off.", draft: DRAFT })
+
+      await send(user)
+      await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
+
+      expect(recipe.getServes()).toBe(4)
+      expect(recipe.getServingSize()).toBe("1 bowl")
+
+      assistant.dispose()
+      recipe.dispose()
+    })
+
+    it("keeps what the editor had when the chef will not say", async () => {
+      const user = userEvent.setup()
+      // Null is a real answer: a recipe giving no way to tell should come back
+      // empty rather than with an invented number.
+      const { recipe, assistant } = setup({
+        text: "Could not tell.",
+        draft: { ...DRAFT, serves: null, servingSize: null },
+      })
+      recipe.setServes(6)
+
+      await send(user)
+      await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
+
+      expect(recipe.getServes()).toBe(6)
 
       assistant.dispose()
       recipe.dispose()

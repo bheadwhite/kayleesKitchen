@@ -8,7 +8,7 @@ import { Button, DeleteIcon, Dialog, RedoIcon, SectionHeading, Spinner, UndoIcon
 import { AssistantDrawer } from "components/AiAssistant"
 import { TextField } from "components/finalForm"
 import { ImageUpload } from "components/ImageUpload"
-import { AddIngredient, Directions, ListIngredients, Tags } from "components/NewRecipe"
+import { AddIngredient, Directions, ListIngredients, Makes, Tags } from "components/NewRecipe"
 import { shouldNotSubmitAndFocusInputs } from "components/NewRecipe/utils"
 import { diffRecipe } from "@/recipeDiff"
 import { useAiDraftPresenter } from "contexts/AiDraftProvider"
@@ -21,6 +21,8 @@ import {
   useRecipeHistory,
   useRecipeImageUrl,
   useRecipePresenter,
+  useServes,
+  useServingSize,
   useTags,
 } from "contexts/RecipeProvider"
 import useTagLibrary from "hooks/useTagLibrary"
@@ -52,6 +54,8 @@ const RecipeEditor = () => {
   const directions = useDirections()
   const ingredients = useIngredients()
   const tags = useTags()
+  const serves = useServes()
+  const servingSize = useServingSize()
   const editSection = useEditSection()
   // Subscribed here, not just in the list: `initialValues` below is what fills
   // the editor's fields, and it is only rebuilt when this component renders.
@@ -203,6 +207,10 @@ const RecipeEditor = () => {
         ingredients,
         directions: cleanDirections,
         tags,
+        // Firestore rejects `undefined`, and these are genuinely absent on a
+        // recipe that does not say — null is what "not said" is stored as.
+        serves: serves ?? null,
+        servingSize: servingSize ?? null,
         email: user.email,
         contributor: user.displayName,
       }
@@ -295,6 +303,8 @@ const RecipeEditor = () => {
         // and it costs nothing: every input is already in hand.
         const changes = diffRecipe(presenter.getBaseline(), {
           title: values.title ?? "",
+          serves,
+          servingSize,
           ingredients,
           directions,
           tags,
@@ -366,6 +376,8 @@ const RecipeEditor = () => {
           />
 
           <ImageUpload />
+
+          <Makes changed={marked && changes.makes} />
 
           <Tags
             known={tagLibrary}

@@ -30,7 +30,17 @@ const toBaseline = (
   title: string,
   ingredients: RecipeType["ingredients"],
   directions: RecipeType["directions"]
-): RecipeBaseline => ({ title, ingredients, directions, tags: [], hasImage: false })
+): RecipeBaseline => ({
+  title,
+  ingredients,
+  directions,
+  tags: [],
+  // Held level, like the tags above them: this comparison exists to mark the
+  // lines a chef's copy changed, and a fork carries neither.
+  serves: null,
+  servingSize: null,
+  hasImage: false,
+})
 
 const Recipes = () => {
   const navigate = useNavigate()
@@ -203,12 +213,21 @@ const Recipes = () => {
             // The copy's own yield while you are cooking from it, the filed
             // recipe's while you are not — the chip has to agree with the list
             // of ingredients underneath it.
-            serves={fork != null && !showingOriginal ? fork.serves : baseServes}
+            //
+            // **What the recipe says beats what the chef worked out.** An
+            // estimate is for a recipe that does not say; one that does has
+            // been read by a person, and no model call is needed to trust it.
+            serves={
+              fork != null && !showingOriginal
+                ? fork.serves
+                : (selected.serves ?? baseServes)
+            }
             // A serving is the same size whichever version you are reading —
             // scaling changes how many there are, not how big one is — so the
             // copy's own is preferred only because it is the fresher wording.
             servingSize={
               (fork != null && !showingOriginal ? fork.servingSize : null) ??
+              selected.servingSize ??
               settledYield?.servingSize
             }
           />

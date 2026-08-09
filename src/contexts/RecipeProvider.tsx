@@ -36,6 +36,11 @@ export const useIngredients = () =>
 
 export const useDirections = () => useSignalValue(useRecipePresenter().directionsBroadcast)
 
+/** What the recipe claims it makes — see `<Makes>`. Null for one that does not say. */
+export const useServes = () => useSignalValue(useRecipePresenter().servesBroadcast)
+export const useServingSize = () =>
+  useSignalValue(useRecipePresenter().servingSizeBroadcast)
+
 export const useTags = () => useSignalValue(useRecipePresenter().tagsBroadcast)
 
 export const useRecipeHistory = () => useSignalValue(useRecipePresenter().historyBroadcast)

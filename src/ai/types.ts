@@ -31,6 +31,15 @@ export type AssistantTurn =
  */
 export interface EditorDraft extends RecipeDraft {
   tags: string[]
+  /**
+   * How many the recipe feeds and what one serving is, as the chef reads them
+   * off the recipe — **null when it will not say**, which is the point of them
+   * being nullable in a `strict` schema. A tool that forced a number would get
+   * a guess, and a confident wrong yield is worse than an empty field: it is
+   * the figure a shopping list scales from.
+   */
+  serves: number | null
+  servingSize: string | null
 }
 
 /** Request body for the `recipeAssistant` callable. */
@@ -78,6 +87,16 @@ export interface ChefRequest {
    * the chef simply works it out fresh.
    */
   recipeId?: string | null
+  /**
+   * What the recipe document itself claims it makes, when it claims anything.
+   *
+   * Ranked **above** the cached estimate: one is a person writing down what
+   * their recipe makes, the other is a model reading it off the ingredients.
+   * Without this the chip could read "Serves 6" from the recipe while the chef,
+   * seeing only its own older estimate, insisted on four in the same breath.
+   * Optional on the wire — an older client sends none.
+   */
+  authored?: { serves: number | null; servingSize: string | null }
 }
 
 /**

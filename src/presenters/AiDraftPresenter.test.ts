@@ -10,13 +10,22 @@ import type {
 
 vi.mock("fire/firebase", () => ({ functions: {} }))
 
-const EMPTY_DRAFT: EditorDraft = { title: "", ingredients: [], directions: [], tags: [] }
+const EMPTY_DRAFT: EditorDraft = {
+  title: "",
+  ingredients: [],
+  directions: [],
+  tags: [],
+  serves: null,
+  servingSize: null,
+}
 
 const DRAFT: EditorDraft = {
   title: "Won Ton Salad",
   ingredients: [{ name: "cabbage", amount: "1 head", optional: false, unique: false }],
   directions: [{ sectionTitle: "", steps: ["Chop the cabbage."] }],
   tags: ["salad"],
+  serves: 4,
+  servingSize: "1 bowl",
 }
 
 const file = (name: string) => new File(["x"], name, { type: "image/png" })
