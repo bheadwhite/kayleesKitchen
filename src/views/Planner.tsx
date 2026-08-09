@@ -271,7 +271,23 @@ const Planner = () => {
         </span>
       </div>
 
-      <div className='mb-4 flex gap-1'>
+      {/* Sticky under the toolbar, the same way the recipe list's filter bar is
+       *  and at the same layer.
+       *
+       *  Both halves are long — a fortnight of meals, forty rows of shopping —
+       *  and the switch between them was pinned to the top of a page you spend
+       *  all your time at the bottom of. Ticking something off in a shop and
+       *  wanting to check what it was for meant scrolling the whole list back
+       *  up. The unticked count rides along, which is the other reason to keep
+       *  it in view: it is the answer to "am I done here".
+       *
+       *  `bg-ground` and the vertical padding are load-bearing — a transparent
+       *  sticky bar lets the rows slide visibly underneath the labels. */}
+      <div
+        className={clsx(
+          "sticky top-[calc(var(--header-h)+var(--sai-top))] z-30 -mt-1 mb-4 flex gap-1",
+          "bg-ground pt-1 pb-2"
+        )}>
         <Segment active={tab === "agenda"} onClick={() => setTab("agenda")}>
           Agenda
         </Segment>

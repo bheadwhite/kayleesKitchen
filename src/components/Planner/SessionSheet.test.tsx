@@ -28,11 +28,16 @@ const person = (firstName: string, lastName: string, email: string): UserProfile
 const ask = (toEmail: string): SessionInvite =>
   ({ id: `${toEmail}_s1`, sessionId: "s1", toEmail }) as SessionInvite
 
-const show = (people: UserProfile[], onInvite = vi.fn(), asked: SessionInvite[] = []) => {
+const show = (
+  people: UserProfile[],
+  onInvite = vi.fn(),
+  asked: SessionInvite[] = [],
+  onClose = vi.fn()
+) => {
   render(
     <SessionSheet
       open
-      onClose={vi.fn()}
+      onClose={onClose}
       sessions={[session]}
       current={session}
       me={me}
@@ -296,5 +301,30 @@ describe("taking somebody out", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+/**
+ * The two ways out this sheet had were tapping the backdrop and pressing
+ * Escape: one is invisible and the other does not exist on a phone. It is a
+ * screen of content rather than a question with buttons under it, so it needs a
+ * door.
+ */
+describe("getting out", () => {
+  it("offers a close button", async () => {
+    const onClose = vi.fn()
+    show([], vi.fn(), [], onClose)
+
+    await userEvent.click(screen.getByRole("button", { name: /close planning sessions/i }))
+
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("does not confuse it with leaving or deleting the session", () => {
+    show([])
+
+    // Closing the sheet is not an act on the session — the destructive one
+    // below still says what it does.
+    expect(screen.getByRole("button", { name: /^Delete Whiteheads$/ })).toBeInTheDocument()
   })
 })

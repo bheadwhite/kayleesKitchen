@@ -1281,6 +1281,14 @@ Local components live in `src/components/ui/`: `Button`, `Dialog`, `Spinner`, `A
   `icon`. **`primary` is the solid accent fill, and the system allows one per view** — the
   page's single real commitment (Save recipe, Apply to editor, Send). It also defaults to
   `type="button"` so the many icon buttons inside the editor's `<form>` do not submit it.
+- `Dialog` **always draws a close button**, the same ghost × `<Drawer>` has. The two ways
+  out it had before were tapping the backdrop and pressing Escape: one is invisible and the
+  other does not exist on a phone, which left the session sheet and the meal picker — the
+  two dialogs that are a screen of content rather than a question with buttons under it —
+  with no exit anybody could see. On a confirm dialog it duplicates Cancel, which is fine:
+  they agree, and both do the safe thing. Its header and footer are pinned with only the
+  middle scrolling, because a × that scrolls off the top of a long sheet is the same
+  problem one screen further down.
 - `Icons.tsx` is **Lucide at stroke-width 1.5** — `fill="none"`, `stroke="currentColor"`.
   Adding a filled Material path back would drop a solid blob among hairline drawings.
 - `SectionHeading` is the mono/uppercase rule every section of a recipe sits under. It
@@ -1333,10 +1341,18 @@ the search box). `Recipes` reads both once, on arrival — they *seed* the view 
 drive it, so closing a recipe or typing in the search box does not fight the URL, and a
 one-shot ref stops "All recipes" from immediately reopening what `?open=` picked.
 
-Because both bars are `position: fixed`, four places have to agree on their heights, so
+Because both bars are `position: fixed`, five places have to agree on their heights, so
 the heights are `:root` variables in `src/index.css` (`--header-h`, `--navbar-h`) rather
-than literals: the two bars themselves, `App`'s content padding, and `RecipeTable`'s
-sticky filter bar (`top-[calc(var(--header-h)+var(--sai-top))]`).
+than literals: the two bars themselves, `App`'s content padding, `RecipeTable`'s
+sticky filter bar, and the Plan tab's Agenda/Shopping-list segments — both of which stick
+at `top-[calc(var(--header-h)+var(--sai-top))]` on `z-30`.
+
+**The Plan tab's segments stick for the same reason the filter bar does.** Both halves are
+long — a fortnight of meals, forty rows of shopping — and the switch between them was
+pinned to the top of a page you spend all your time at the bottom of, so checking what a
+row was for meant scrolling a whole shop back up. The unticked count rides along, which is
+the other reason to keep it in view: it is the answer to "am I done here". A sticky bar
+needs its own `bg-ground` and vertical padding, or the rows slide visibly under the labels.
 
 `RecipeEditor` adds a **third fixed bar** — the unsaved-change count, Save/Update and
 Cancel, stacked directly on top of the nav bar at
