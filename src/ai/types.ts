@@ -21,17 +21,38 @@ export type AssistantTurn =
   | { role: "user"; text: string; images: AssistantImage[] }
   | { role: "assistant"; text: string }
 
+/**
+ * A recipe as the *editor* holds it — the body plus its tags.
+ *
+ * Deliberately not folded into {@link RecipeDraft}, which `ChefFork` extends: a
+ * scaled working copy has no business proposing tags, and the recipe page draws
+ * `{...selected, ...fork}` precisely so the filed recipe keeps its own. Tagging
+ * belongs to the half of the chef that is writing the recipe down.
+ */
+export interface EditorDraft extends RecipeDraft {
+  tags: string[]
+}
+
 /** Request body for the `recipeAssistant` callable. */
 export interface AssistantRequest {
   turns: AssistantTurn[]
   /** What the editor currently holds, so the assistant edits rather than invents. */
-  currentDraft: RecipeDraft
+  currentDraft: EditorDraft
+  /**
+   * Every tag already in circulation in this household.
+   *
+   * Sent so the chef reuses the vocabulary instead of coining its own, the same
+   * argument the shopping list's `known` aisles make: a box carrying "salad",
+   * "salads" and "Salad" filters into three piles of nothing. Optional on the
+   * wire so a client from before this existed still works.
+   */
+  tagLibrary?: string[]
 }
 
 /** Response from the callable. `draft` is null when the turn was conversational. */
 export interface AssistantResponse {
   text: string
-  draft: RecipeDraft | null
+  draft: EditorDraft | null
 }
 
 /**

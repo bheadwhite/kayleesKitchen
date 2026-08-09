@@ -2,7 +2,7 @@ import { Runner, Signal } from "@tcn/state/core"
 
 import { askRecipeAssistant, MAX_IMAGES, toAssistantImage } from "@/ai/recipeAssistant"
 import type { AssistantImage, AssistantRequest, AssistantResponse, AssistantTurn } from "@/ai/types"
-import type { RecipeDraft } from "@/types"
+import type { EditorDraft } from "@/ai/types"
 
 type Ask = (request: AssistantRequest) => Promise<AssistantResponse>
 type EncodeImage = (file: File) => Promise<AssistantImage>
@@ -26,7 +26,7 @@ export interface PendingImage {
 export class AiDraftPresenter {
   private readonly _turns = new Signal<AssistantTurn[]>([])
   private readonly _pendingImages = new Signal<PendingImage[]>([])
-  private readonly _proposedDraft = new Signal<RecipeDraft | null>(null)
+  private readonly _proposedDraft = new Signal<EditorDraft | null>(null)
   private readonly _askRunner = new Runner<void>(undefined)
   private nextImageId = 0
 
@@ -116,10 +116,15 @@ export class AiDraftPresenter {
 
   /**
    * Sends `text` plus any staged photos. `currentDraft` is what the editor holds
-   * right now, so the assistant revises the real state rather than its own
-   * recollection of it.
+   * right now — tags included — so the assistant revises the real state rather
+   * than its own recollection of it.
+   *
+   * `tagLibrary` is the household's vocabulary, sent so the chef reuses a tag
+   * that exists instead of coining a near-duplicate. It is what the recipe list
+   * filters on, and three spellings of "salad" make three filters that each find
+   * a third of the recipes.
    */
-  send(text: string, currentDraft: RecipeDraft) {
+  send(text: string, currentDraft: EditorDraft, tagLibrary: string[] = []) {
     const trimmed = text.trim()
     const pending = this._pendingImages.get()
     if (trimmed === "" && pending.length === 0) return Promise.resolve()
@@ -134,7 +139,7 @@ export class AiDraftPresenter {
       this.clearPendingImages()
 
       try {
-        const response = await this.ask({ turns, currentDraft })
+        const response = await this.ask({ turns, currentDraft, tagLibrary })
         this._turns.transform((current) => [
           ...current,
           { role: "assistant", text: response.text },

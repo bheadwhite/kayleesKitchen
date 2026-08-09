@@ -26,7 +26,12 @@ import {
  * The panel mechanics — kept mounted, slid off-screen, page locked behind it —
  * live in `<Drawer>`, shared with the recipe page's.
  */
-const AssistantDrawer = () => {
+interface AssistantDrawerProps {
+  /** The household's tag vocabulary, handed straight to `<AiAssistant>`. */
+  tagLibrary?: string[]
+}
+
+const AssistantDrawer = ({ tagLibrary }: AssistantDrawerProps) => {
   const [open, setOpen] = useState(false)
   const turns = useAssistantTurns()
   const proposedDraft = useProposedDraft()
@@ -70,7 +75,7 @@ const AssistantDrawer = () => {
             ? `${turns.length} message${turns.length === 1 ? "" : "s"}`
             : undefined
         }>
-        <AiAssistant onApplied={() => setOpen(false)} />
+        <AiAssistant onApplied={() => setOpen(false)} tagLibrary={tagLibrary} />
       </Drawer>
     </>
   )

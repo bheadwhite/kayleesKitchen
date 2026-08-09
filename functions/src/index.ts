@@ -19,6 +19,13 @@ const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY")
 
 const MAX_IMAGES_PER_REQUEST = 8
 
+/**
+ * How many tags to show the chef. Generous for a household, and a ceiling on
+ * how far a client can push the prompt — the vocabulary sits inside the cached
+ * prefix, so it wants a bound that does not move with the recipe box.
+ */
+const MAX_TAG_LIBRARY = 120
+
 const TOOLS: Anthropic.ToolUnion[] = [
   // Lets the user paste a link instead of photographing a screen. Only fetches
   // URLs already in the conversation, so it cannot wander off on its own.
@@ -60,6 +67,22 @@ export const recipeAssistant = onCall<AssistantRequest, Promise<AssistantRespons
 
     assertShape(request.data)
 
+    /**
+     * Normalised and capped here rather than trusted: it is a client-supplied
+     * list that goes straight into the prompt, and a recipe box with hundreds of
+     * tags would otherwise push the conversation out of the cached prefix on
+     * every call. Lowercased to match `normaliseTag`, so the model is never
+     * shown two spellings of one tag and asked to prefer the existing ones.
+     */
+    const tagLibrary = [
+      ...new Set(
+        (request.data.tagLibrary ?? [])
+          .filter((tag): tag is string => typeof tag === "string")
+          .map((tag) => tag.trim().replace(/\s+/g, " ").toLowerCase())
+          .filter(Boolean)
+      ),
+    ].slice(0, MAX_TAG_LIBRARY)
+
     const result = await runConversation(anthropicApiKey.value(), {
       feature: "assistant",
       caller: { uid: request.auth.uid, email: request.auth.token.email ?? null },
@@ -67,9 +90,22 @@ export const recipeAssistant = onCall<AssistantRequest, Promise<AssistantRespons
       system: SYSTEM_PROMPT,
       tools: TOOLS,
       context:
-        "Current contents of the recipe editor. Treat this as the source of truth " +
-        "for what the user is looking at right now:\n" +
-        JSON.stringify(request.data.currentDraft),
+        "Current contents of the recipe editor, including the tags it already " +
+        "carries. Treat this as the source of truth for what the user is looking " +
+        "at right now:\n" +
+        JSON.stringify(request.data.currentDraft) +
+        "\n\n" +
+        // The vocabulary, not a suggestion list: reusing a tag that exists is
+        // what keeps the recipe list's filters worth using. Said plainly when
+        // it is empty, because an absent list and an empty one mean opposite
+        // things — the second is a household that has not tagged anything yet,
+        // and inventing the first few tags is then exactly the right move.
+        (tagLibrary.length === 0
+          ? "Nobody has tagged a recipe in this household yet, so there is no " +
+            "vocabulary to reuse. Pick a few plain ones and they become the list."
+          : "Tags already in use in this household — prefer these over coining " +
+            "anything new:\n" +
+            tagLibrary.join(", ")),
     })
 
     if (result.refused) {

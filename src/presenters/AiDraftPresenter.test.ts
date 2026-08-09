@@ -1,17 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AiDraftPresenter } from "./AiDraftPresenter"
-import type { AssistantImage, AssistantRequest, AssistantResponse } from "@/ai/types"
-import type { RecipeDraft } from "@/types"
+import type {
+  AssistantImage,
+  AssistantRequest,
+  AssistantResponse,
+  EditorDraft,
+} from "@/ai/types"
 
 vi.mock("fire/firebase", () => ({ functions: {} }))
 
-const EMPTY_DRAFT: RecipeDraft = { title: "", ingredients: [], directions: [] }
+const EMPTY_DRAFT: EditorDraft = { title: "", ingredients: [], directions: [], tags: [] }
 
-const DRAFT: RecipeDraft = {
+const DRAFT: EditorDraft = {
   title: "Won Ton Salad",
   ingredients: [{ name: "cabbage", amount: "1 head", optional: false, unique: false }],
   directions: [{ sectionTitle: "", steps: ["Chop the cabbage."] }],
+  tags: ["salad"],
 }
 
 const file = (name: string) => new File(["x"], name, { type: "image/png" })

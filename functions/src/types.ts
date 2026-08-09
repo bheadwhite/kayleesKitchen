@@ -29,14 +29,25 @@ export interface RecipeDraft {
   directions: DirectionSection[]
 }
 
+/**
+ * A recipe as the *editor* holds it — the body plus its tags. Deliberately not
+ * folded into `RecipeDraft`, which `ChefFork` extends: a scaled working copy has
+ * no business proposing tags.
+ */
+export interface EditorDraft extends RecipeDraft {
+  tags: string[]
+}
+
 export interface AssistantRequest {
   turns: AssistantTurn[]
-  currentDraft: RecipeDraft
+  currentDraft: EditorDraft
+  /** The household's tag vocabulary. Optional — an older client sends none. */
+  tagLibrary?: string[]
 }
 
 export interface AssistantResponse {
   text: string
-  draft: RecipeDraft | null
+  draft: EditorDraft | null
 }
 
 /** One turn with the chef. Text only — the recipe is already in the request. */

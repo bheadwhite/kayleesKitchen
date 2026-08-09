@@ -26,6 +26,13 @@ const GROUPS = [
 interface AiAssistantProps {
   /** Fired after a draft is applied — the drawer closes on it. */
   onApplied?: () => void
+  /**
+   * Every tag in circulation, from `useTagLibrary`. Passed in rather than read
+   * here for the reason `<RecipeTable>` takes its colours as a prop: the editor
+   * already holds this, and a second listener over every recipe is a real cost
+   * on a screen that has one.
+   */
+  tagLibrary?: string[]
 }
 
 /**
@@ -38,7 +45,7 @@ interface AiAssistantProps {
  * while you are reading the reply you want to respond to is a chat box you have
  * to hunt for.
  */
-const AiAssistant = ({ onApplied }: AiAssistantProps) => {
+const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
   const assistant = useAiDraftPresenter()
   const recipe = useRecipePresenter()
   const turns = useAssistantTurns()
@@ -75,11 +82,18 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
     const message = text
     setText("")
     try {
-      await assistant.send(message, {
-        title: recipe.getTitle(),
-        ingredients: recipe.getIngredients(),
-        directions: recipe.getDirections(),
-      })
+      await assistant.send(
+        message,
+        {
+          title: recipe.getTitle(),
+          ingredients: recipe.getIngredients(),
+          directions: recipe.getDirections(),
+          // Sent so the chef can keep what is already there and add to it,
+          // rather than proposing a set that silently drops half of them.
+          tags: recipe.getTags(),
+        },
+        tagLibrary
+      )
     } catch (error) {
       setText(message) // Put it back so the message is not lost.
       toast.error(error instanceof Error ? error.message : "The chef could not respond.")
@@ -93,10 +107,10 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
         ...proposedDraft,
         // `loadRecipe` reads `id` off the argument; keep the editor's own.
         id: recipe.getId() ?? undefined,
-        // The chef does not propose tags, and `loadRecipe` replaces
-        // everything it is handed — without this, applying a draft would quietly
-        // strip the tags already on the recipe.
-        tags: recipe.getTags(),
+        // `loadRecipe` replaces everything it is handed, so a draft that
+        // somehow arrived without tags must fall back to the ones already on
+        // the recipe — applying must never be a way to lose them silently.
+        tags: proposedDraft.tags ?? recipe.getTags(),
       },
       // A draft is a pile of unsaved edits, not the saved recipe: leaving the
       // baseline where it is makes every line the chef touched show up as
@@ -111,9 +125,12 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
   }
 
   /**
-   * The draft against the editor as it stands. Tags and the photo are held
-   * level on both sides because the chef proposes neither, and a summary
-   * that announced them would be describing the apply rather than the draft.
+   * The draft against the editor as it stands. The photo is held level on both
+   * sides because the chef does not propose one, and a summary announcing it
+   * would be describing the apply rather than the draft. **Tags are not held
+   * level any more** — the chef proposes those now, and a tag added or dropped
+   * is exactly the kind of change someone accepts without noticing, so it has
+   * to appear in the summary like any other line.
    */
   const sides =
     proposedDraft == null
@@ -130,7 +147,7 @@ const AiAssistant = ({ onApplied }: AiAssistantProps) => {
             title: proposedDraft.title,
             ingredients: proposedDraft.ingredients,
             directions: proposedDraft.directions,
-            tags: recipe.getTags(),
+            tags: proposedDraft.tags ?? recipe.getTags(),
             hasImage: false,
           },
         ] as const)

@@ -60,8 +60,23 @@ export const RECIPE_BODY = {
  */
 export const RECIPE_DRAFT_SCHEMA = {
   type: "object" as const,
-  properties: RECIPE_BODY,
-  required: ["title", "ingredients", "directions"],
+  properties: {
+    ...RECIPE_BODY,
+    // Not in RECIPE_BODY, which `fork_recipe` shares: a scaled working copy of
+    // somebody else's recipe has no business retagging it.
+    tags: {
+      type: "array",
+      description:
+        "The recipe's labels, lowercase, one or two words each — 'salad', 'weeknight', " +
+        "'mexican'. Send the FULL list the recipe should carry, including every tag it " +
+        "already has: this replaces them wholesale, so a tag you leave out is a tag you " +
+        "are taking off. Strongly prefer a tag already in the household's list over " +
+        "coining a near-duplicate, and only add one that is plainly true of the dish. " +
+        "Six is plenty; an empty array is a fine answer for a recipe nothing fits.",
+      items: { type: "string" },
+    },
+  },
+  required: ["title", "ingredients", "directions", "tags"],
   additionalProperties: false,
 }
 
@@ -135,6 +150,30 @@ Call the propose_recipe tool whenever you have something for the user to look
 at. The draft replaces the editor's contents wholesale, so always send the
 complete recipe — every ingredient, every step — even when only one line
 changed. Carry over anything the user did not ask you to touch.
+
+TAGS
+Every draft carries the recipe's tags, and they work the same way as the rest of
+it: what you send replaces what is there, so a tag you leave out is a tag you
+have taken off. Start from the tags the recipe already has — they are in the
+editor contents — and keep them unless the user asked otherwise or one is
+plainly wrong for the dish now.
+
+Then look at the household's tag list, which is also in the context, and add any
+that fit. Reuse a tag from that list rather than coining something close to it:
+this is a shared vocabulary and the tags are what the recipe list filters on, so
+"salad", "salads" and "Salad" are three piles of nothing instead of one useful
+one. A new tag is fine when nothing in the list fits and the label is one a
+family would actually filter by — but reach for the list first.
+
+Tag what the recipe *is*, not what is in it: a cuisine ("mexican", "thai"), a
+course or role ("salad", "dessert", "side"), how it gets cooked ("grill",
+"slow cooker"), when it gets eaten ("weeknight", "holiday"), a diet it genuinely
+satisfies ("vegetarian"). Do not tag every ingredient, and do not claim a diet
+the recipe does not meet — "vegetarian" on something with fish stock is worse
+than no tag. Six is plenty, and no tags at all is a perfectly good answer.
+
+Mention in your reply which tags you added and why, in a few words. It is the
+kind of change someone accepts without noticing, so say it out loud.
 
 Alongside the tool call, write one or two sentences saying what you did and
 flagging anything the user should look at. They review your draft before it is

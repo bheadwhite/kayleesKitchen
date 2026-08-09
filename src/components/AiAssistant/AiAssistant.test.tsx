@@ -8,12 +8,12 @@ import RecipeProvider from "contexts/RecipeProvider"
 import { AiDraftPresenter } from "presenters/AiDraftPresenter"
 import { RecipePresenter } from "presenters/RecipePresenter"
 import type { AssistantImage, AssistantResponse } from "@/ai/types"
-import type { RecipeDraft } from "@/types"
+import type { EditorDraft } from "@/ai/types"
 
 vi.mock("fire/firebase", () => ({ functions: {} }))
 vi.mock("react-toastify", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 
-const DRAFT: RecipeDraft = {
+const DRAFT: EditorDraft = {
   title: "Won Ton Salad",
   ingredients: [
     { name: "cabbage", amount: "1 head", optional: false, unique: false },
@@ -23,6 +23,7 @@ const DRAFT: RecipeDraft = {
     { sectionTitle: "Salad", steps: ["Chop the cabbage.", "Toss."] },
     { sectionTitle: "Dressing", steps: ["Whisk."] },
   ],
+  tags: ["salad"],
 }
 
 const encodeImage = vi.fn(async (): Promise<AssistantImage> => ({
@@ -30,19 +31,20 @@ const encodeImage = vi.fn(async (): Promise<AssistantImage> => ({
   data: "",
 }))
 
-const setup = (response: AssistantResponse) => {
+const setup = (response: AssistantResponse, tagLibrary: string[] = []) => {
   const recipe = new RecipePresenter()
-  const assistant = new AiDraftPresenter(vi.fn().mockResolvedValue(response), encodeImage)
+  const ask = vi.fn().mockResolvedValue(response)
+  const assistant = new AiDraftPresenter(ask, encodeImage)
 
   render(
     <RecipeProvider presenter={recipe}>
       <AiDraftProvider presenter={assistant}>
-        <AiAssistant />
+        <AiAssistant tagLibrary={tagLibrary} />
       </AiDraftProvider>
     </RecipeProvider>
   )
 
-  return { recipe, assistant }
+  return { recipe, assistant, ask }
 }
 
 beforeEach(() => {
@@ -217,5 +219,82 @@ describe("AiAssistant", () => {
 
     assistant.dispose()
     recipe.dispose()
+  })
+
+  /**
+   * Tagging is the change most likely to be accepted without being read — it is
+   * two words at the bottom of a draft that is mostly ingredients — so it has to
+   * be visible in the summary and impossible to lose by accident.
+   */
+  describe("tags", () => {
+    const send = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.type(screen.getByLabelText("Message the chef"), "tidy this up")
+      await user.click(screen.getByRole("button", { name: "Send" }))
+    }
+
+    it("shows the chef what the recipe already carries, and the household's list", async () => {
+      const user = userEvent.setup()
+      const { recipe, assistant, ask } = setup({ text: "Done.", draft: DRAFT }, [
+        "salad",
+        "weeknight",
+      ])
+      recipe.addTag("lunch")
+
+      await send(user)
+
+      expect(ask.mock.calls[0][0].currentDraft.tags).toEqual(["lunch"])
+      // The vocabulary, so it reuses a tag rather than coining a near-duplicate.
+      expect(ask.mock.calls[0][0].tagLibrary).toEqual(["salad", "weeknight"])
+
+      assistant.dispose()
+      recipe.dispose()
+    })
+
+    it("counts a proposed tag in the summary", async () => {
+      const user = userEvent.setup()
+      const { recipe, assistant } = setup({ text: "Tagged it.", draft: DRAFT })
+      recipe.loadRecipe({ id: "abc123", ...DRAFT, tags: [] })
+
+      await send(user)
+
+      expect(await screen.findByText("Tags: 1 added")).toBeInTheDocument()
+
+      assistant.dispose()
+      recipe.dispose()
+    })
+
+    it("applies the tags the chef proposed", async () => {
+      const user = userEvent.setup()
+      const { recipe, assistant } = setup({ text: "Tagged it.", draft: DRAFT })
+
+      await send(user)
+      await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
+
+      expect(recipe.getTags()).toEqual(["salad"])
+
+      assistant.dispose()
+      recipe.dispose()
+    })
+
+    it("never strips the recipe's tags for a draft that carries none", async () => {
+      const user = userEvent.setup()
+      // `propose_recipe` is strict, so this should not happen — but applying is
+      // wholesale, and losing somebody's tags to a missing field is not a
+      // failure worth being exposed to.
+      const { tags: _dropped, ...untagged } = DRAFT
+      const { recipe, assistant } = setup({
+        text: "Done.",
+        draft: untagged as typeof DRAFT,
+      })
+      recipe.addTag("lunch")
+
+      await send(user)
+      await user.click(await screen.findByRole("button", { name: "Apply to editor" }))
+
+      expect(recipe.getTags()).toEqual(["lunch"])
+
+      assistant.dispose()
+      recipe.dispose()
+    })
   })
 })

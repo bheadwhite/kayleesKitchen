@@ -508,7 +508,10 @@ const RecipeEditor = () => {
 
     {/* Outside the <form> on purpose: it owns a textarea and a file picker, and
      *  nothing in it belongs to react-final-form or to the recipe's submit. */}
-    <AssistantDrawer />
+    {/* The editor already holds the vocabulary for its own tag picker, so the
+     *  chef reads it from here rather than opening a second listener over
+     *  every recipe in the box. */}
+    <AssistantDrawer tagLibrary={tagLibrary.map((tag) => tag.name)} />
     </>
   )
 }

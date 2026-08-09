@@ -272,10 +272,38 @@ A draft's changes are shown **twice, in two forms**. Before applying, the panel 
 that into "Ingredients: 1 changed" — *what would change*, not what the draft contains, since
 "12 ingredients" is equally true of a draft that touched one of them and one that replaced
 the lot. "See what changed" expands `describeChanges` underneath it: the lines themselves,
-grouped, each with the text being replaced struck through above the text replacing it. Tags and the photo are held level on both sides of that comparison because the
-chef proposes neither. After applying, the marks in the editor take over (see the
+grouped, each with the text being replaced struck through above the text replacing it. Only
+the photo is held level on both sides of that comparison, because the chef does not propose
+one. After applying, the marks in the editor take over (see the
 unsaved-changes section) — and applying **closes the drawer**, because the reason to apply is
 to look at what it did and the marked-up editor is behind the panel.
+
+**The chef tags the recipe too**, and `tags` rides on `propose_recipe` like everything else:
+sent whole, applied only when the user presses the button, and counted in the summary.
+
+- **`EditorDraft` is `RecipeDraft` plus tags, and the split is deliberate.** `ChefFork`
+  extends `RecipeDraft`, and the recipe page draws `{...selected, ...fork}` precisely so a
+  scaled working copy of somebody else's recipe cannot retag it. Tagging belongs to the half
+  of the chef that is writing the recipe down, so `tags` is in `RECIPE_DRAFT_SCHEMA` and not
+  in the shared `RECIPE_BODY`.
+- **The household's vocabulary goes in the context**, capped and lowercased server-side
+  (`MAX_TAG_LIBRARY`), with the same argument the shopping list's `known` aisles make: a box
+  carrying "salad", "salads" and "Salad" filters into three piles of nothing. The prompt says
+  to reach for the list first and coin a tag only when nothing fits. An *empty* library is
+  said out loud rather than omitted — no vocabulary and no tags mean opposite things, and
+  inventing the first few is then the right move.
+- **`RecipeEditor` already holds the library** for its own tag picker, so it passes it down
+  through `<AssistantDrawer>` rather than letting the chef open a second listener over every
+  recipe in the box — the same reasoning `<RecipeTable>` follows for tag colours.
+- **Tags replace wholesale, like the rest of a draft**, which is why the current ones are
+  sent *in* the context: a draft is the full recipe, so a tag left out is a tag taken off,
+  and the chef has to be able to see what it would be dropping. `onApply` falls back to
+  `recipe.getTags()` if a draft somehow arrives without them — the tool is `strict`, so it
+  should not, but applying is wholesale and losing somebody's tags to a missing field is not
+  a failure worth being exposed to.
+- **The summary counts them**, and the prompt asks the chef to name what it added. A tag is
+  two words at the bottom of a draft that is mostly ingredients: the change most likely to be
+  accepted without being read.
 
 `MAX_IMAGES` is a budget for the **whole conversation**, not per message — photos stay
 attached to their turn and are re-sent with every later one, and the callable counts them
