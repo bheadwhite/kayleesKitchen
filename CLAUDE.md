@@ -570,9 +570,27 @@ project means the function authenticates with its **own service account** (`Goog
 no key), so the project still holds exactly one AI secret. Imagen would have been the
 obvious choice but its `imagen-*-generate-*` publisher models 404 for this project.
 
-The generated file goes through `acceptImageFile()` — the same staging, upload, and
-form-wiring the file picker uses — so preview, "Delete image", and saving behave
-identically whether the image was picked or generated.
+The generated file goes through `acceptImageFile()` — the same staging and form-wiring the
+file picker uses — so preview, "Delete image", and saving behave identically whether the
+image was picked or generated.
+
+**Nothing is uploaded to show a photo**, and getting that wrong is what "Preview didn't
+load" was reporting for the whole life of the feature. The editor used to put every picked
+or generated picture at one scratch path per user and preview the *download* URL — sending
+a full-size image up and pulling the same megabytes straight back down purely to look at
+it. That upload never reached the recipe (`RecipeEditor` re-uploads `getImageFile()` on
+save, so the round trip was pure overhead), and it added the one hop that could fail: a
+multi-megabyte fetch back over a kitchen connection, through a `CacheFirst` worker that
+cannot tell an opaque 403 from a picture. `acceptImageFile` now previews the file it
+already holds, via `URL.createObjectURL`. A blob URL cannot 403, cannot be served stale,
+needs no cache-buster to be seen twice, and draws before the button finishes un-pressing.
+
+Two things follow. The URL each staged photo replaces is **revoked, but not on unmount** —
+the presenter outlives `ImageUpload`, so leaving the editor and coming back has to find the
+photo still drawable; one abandoned blob per session is reclaimed by the reload that ends
+it. And the repair machinery below is **skipped for a blob** (`isLocal`): there is no
+cached copy to evict, and a query parameter tacked onto a blob URL names nothing, so
+"retrying" one is a guaranteed second failure.
 
 Five things keep this from being flaky, and each one was a real failure:
 
@@ -594,40 +612,39 @@ Five things keep this from being flaky, and each one was a real failure:
   `src/ai/recipeImage.ts` has to stay in step with `timeoutSeconds`.
 - **Both image paths carry a `requestRef` ticket.** The file picker is never disabled
   during a generation, so a slow generation could land after a photo picked later and
-  replace it. The guard runs on entry to `acceptImageFile` as well as after the upload,
+  replace it. The guard runs on entry to `acceptImageFile`, before anything is staged,
   because `setImageFile` is what "Save recipe" uploads — a stale write there saves a
   picture the editor is not showing.
 - **The last hop says something when it fails.** Everything above reports its failures;
-  drawing the picture did not. The callable would succeed, the upload would succeed, and
-  then the `<img>` either failed to decode — `onError` cleared the URL, so the frame went
-  back to the empty "photo · finished dish" plate with no message and no log — or never
-  resolved at all, leaving a spinner up forever because only `onLoad` clears it. Both read
-  to the cook as "I pressed Generate and nothing appeared", and neither left a trace: the
-  function logs showed clean first-attempt successes throughout.
+  drawing the picture did not. The callable would succeed and then the `<img>` either
+  failed to decode — `onError` cleared the URL, so the frame went back to the empty
+  "photo · finished dish" plate with no message and no log — or never resolved at all,
+  leaving a spinner up forever because only `onLoad` clears it. Both read to the cook as
+  "I pressed Generate and nothing appeared", and neither left a trace: the function logs
+  showed clean first-attempt successes throughout.
 
-  So `ImageUpload` now treats a preview that will not draw as an event. It **evicts the URL
-  from the worker's image cache** (`forgetCachedImage` in `src/pwa.ts`) and retries once
-  behind a `retry=` parameter, which steps past the browser's image cache too;
-  `PREVIEW_TIMEOUT_MS` catches the request that resolves neither way. When the retry fails
+  So `ImageUpload` treats a preview that will not draw as an event. For a photo fetched
+  from Storage — an existing recipe opened for editing, or the URL written by a save — it
+  **evicts the URL from the worker's image cache** (`forgetCachedImage` in `src/pwa.ts`)
+  and retries once behind a `retry=` parameter, which steps past the browser's image cache
+  too; `PREVIEW_TIMEOUT_MS` catches the request that resolves neither way. When that fails
   as well, the frame says *"Preview didn't load"* and **the photo is kept** — the staged
   file stays on the presenter so saving still writes it, and `imageUrl` stays put so an
   update cannot write `image: null` over a picture that was fine. Clearing it was the old
   behaviour and was the more expensive half of the bug.
 
-**Regenerating is a first-class action** — the model gives a different picture every run,
-so the button reads "Regenerate" once an image exists. Making it *work* took a
-cache-buster in `uploadRecipeEditorImage`: staging reuses one fixed path per user
-(`${email}/recipeEditor.png`), so a second upload can return a byte-identical download
-URL, and then three layers hide the new image at once — the `<img>` clears its spinner
-only from `onLoad`, which never fires when `src` is unchanged; the service worker caches
-Storage URLs `CacheFirst` for 30 days; and the browser's image cache does the same. The
-symptom was a spinner that never stopped, over the first picture. The parameter cannot
-reach Firestore — staging always sets `imageFile`, and save re-uploads that through
-`uploadImageToRecipeId`, which stays clean.
+  That message is now genuinely rare, because the staged photo it used to fire on never
+  leaves the browser. What it reports today is a *stored* picture that will not come back.
 
-A generated image is **kept when only the preview upload fails**: `RecipeEditor` re-uploads
-`presenter.getImageFile()` on save, so the recipe still gets its photo. Clearing it meant
-paying for a second generation to recover from a blip in Storage.
+**Regenerating is a first-class action** — the model gives a different picture every run,
+so the button reads "Regenerate" once an image exists. Making it *work* used to take a
+cache-buster: staging reused one fixed path per user (`${email}/recipeEditor.png`), so a
+second upload could return a byte-identical download URL, and three layers then hid the new
+image at once — the `<img>` clears its spinner only from `onLoad`, which never fires when
+`src` is unchanged; the service worker caches Storage URLs `CacheFirst` for 30 days; and
+the browser's image cache does the same. The symptom was a spinner that never stopped, over
+the first picture. A fresh blob URL per file is a different string every time, so all three
+layers are simply not in the way any more.
 
 Every rejection is recorded, including the argument checks — `record` is declared before
 the first throw on purpose, since a run of bad requests otherwise looks like no traffic at
@@ -746,6 +763,31 @@ way the shared recipe collection already is.
 stars is a decision about rendering. It costs one `get()` per rating write, which is the
 price of the rule meaning anything. There is no delete — an un-rating would have to move the
 totals back down and nothing can check that it did.
+
+**In rules, "not there" is an error, and an error is a denial.** Both halves of this block
+shipped tripping over that, and between them they made rating a recipe impossible for
+anybody who had not already rated it — reported as "missing or insufficient permissions",
+which names neither cause:
+
+- **`resource` is null for a document that does not exist**, so `resource.data.uid` on the
+  read rule was an error rather than a miss. The document being read is `ratings/{id}_{uid}`
+  — a document whose whole point is that it is usually absent. `getMyRating` swallows the
+  denial and reports "not rated", which is right by accident; `rateRecipe` cannot, because
+  its transaction reads that same document to decide whether this is a new vote or a
+  changed one. So **every first rating failed**, and only a rating nobody could leave could
+  ever be edited. The guard is `resource == null || …`.
+- **Reading a field a document does not have is an error too**, so
+  `get(recipe).data.email != …` denied outright on any recipe with no `email` field — and
+  the shared box explicitly predates ownership being reliably recorded, so the oldest
+  recipes, the ones most likely to be rated, were exactly the ones refused.
+  `data.get('email', '')` asks without insisting; a recipe that names no cook is nobody's,
+  so it is rateable.
+
+What the first guard opens up is that somebody holding another person's uid could tell a
+denial from an empty read and learn *that* they rated a recipe — never what they gave it.
+Nothing in the app hands out a uid (profiles are keyed by email and hold names), and the
+collection cannot be listed, since a list is denied unless the rule holds for every
+document it could return.
 
 Sorting is average descending, then the most-rated of a tie, then alphabetical. **Unrated
 recipes sort last rather than as zero**: nobody has said they are bad, only that nobody has
@@ -1425,7 +1467,12 @@ the wrong one: opaque is *all* these responses ever are, so it would mean cachin
 photo at all — and photos on a phone with no signal in a kitchen are the reason the rule
 exists.
 
-The repair is on the page instead, which is the only place that can tell: an image that
+The narrower half of the fix is not to route a picture through this cache at all when it is
+already in hand: a photo staged in the editor is previewed from the `File` (see the
+generated-images section), so the cache only ever holds pictures that genuinely came from
+Storage.
+
+The repair for those is on the page, which is the only place that can tell: an image that
 will not decode gets its URL evicted by `forgetCachedImage` (`src/pwa.ts`, whose
 `RECIPE_IMAGE_CACHE` must match `cacheName` in `vite.config.ts` — the worker is generated,
 so nothing links the two but hand). The real fix is a CORS configuration on the bucket,

@@ -11,7 +11,6 @@ import {
   useRecipePresenter,
 } from "contexts/RecipeProvider"
 import { generateRecipeImage } from "@/ai/recipeImage"
-import { uploadRecipeEditorImage } from "fire/services"
 import { forgetCachedImage } from "@/pwa"
 
 /**
@@ -22,6 +21,9 @@ import { forgetCachedImage } from "@/pwa"
  * erroring — used to spin until the editor was abandoned. Generous, because
  * this is a phone on a kitchen connection fetching a photo, and the job is to
  * unstick a hang rather than to police a slow one.
+ *
+ * Only a *stored* photo can take that long now: a staged one is previewed from
+ * the file itself and never leaves the browser (see `acceptImageFile`).
  */
 const PREVIEW_TIMEOUT_MS = 30_000
 
@@ -87,15 +89,26 @@ const ImageUpload = () => {
 
   const broken = url != null && failedUrl === url
 
+  /**
+   * A staged photo is previewed straight from the file, so its URL is a `blob:`
+   * one. Neither repair below applies to it — there is no cached copy to evict,
+   * and a query parameter tacked onto a blob URL names nothing at all, so
+   * "retrying" one is a guaranteed second failure. A blob that will not decode
+   * is a file that is not a picture, and asking again cannot change that.
+   */
+  const isLocal = url != null && url.startsWith("blob:")
+
   const previewFailed = useCallback(() => {
     if (url == null || src == null) return
-    // Evicted whether or not that is what went wrong — a URL nothing is showing
-    // any more has no business being kept, and this is the only place that can
-    // tell the worker its copy does not decode.
-    void forgetCachedImage(src)
-    if (attempt < PREVIEW_RETRIES) {
-      setAttempt(attempt + 1)
-      return
+    if (!isLocal) {
+      // Evicted whether or not that is what went wrong — a URL nothing is
+      // showing any more has no business being kept, and this is the only place
+      // that can tell the worker its copy does not decode.
+      void forgetCachedImage(src)
+      if (attempt < PREVIEW_RETRIES) {
+        setAttempt(attempt + 1)
+        return
+      }
     }
     // The file, if there is one, stays on the presenter: "Save recipe" uploads
     // `getImageFile()`, so a preview that will not draw must not cost the photo
@@ -103,7 +116,7 @@ const ImageUpload = () => {
     // meant an update saving `image: null` over a picture that was fine.
     presenter.setRecipeImageIsLoading(false)
     setFailedUrl(url)
-  }, [attempt, presenter, src, url])
+  }, [attempt, isLocal, presenter, src, url])
 
   // Nothing else can catch a request that resolves neither way.
   useEffect(() => {
@@ -116,20 +129,44 @@ const ImageUpload = () => {
   // of nothing in particular. The function rejects it too; this just says so first.
   const canGenerate = presenter.getTitle().trim() !== "" || ingredients.length > 0
 
-  /** Shared tail of both paths: stage the file, upload it, point the form at it. */
-  const acceptImageFile = async (file: File, email: string, ticket: number) => {
-    // Checked on the way in as well as after the upload: `setImageFile` is what
-    // "Save recipe" actually uploads, so a superseded generation landing here
-    // would save a picture the editor is not even showing.
+  /**
+   * The blob URL currently being previewed, held so the one it replaces can be
+   * released. Deliberately *not* released on unmount: the presenter outlives
+   * this component — navigating away from the editor and back must still find
+   * the staged photo drawable — and one abandoned blob per editing session is
+   * reclaimed by the reload that ends it.
+   */
+  const stagedUrlRef = useRef<string | null>(null)
+
+  /**
+   * Shared tail of both paths: stage the file and point the editor at it.
+   *
+   * **Nothing is uploaded to show a photo.** The picture is already in the
+   * browser — picked from the camera roll, or handed back by the model — and
+   * "Save recipe" re-uploads `getImageFile()` itself, so the staging round trip
+   * (upload to one fixed path per user, then fetch the same megabytes back
+   * again) never put anything on the recipe. What it did do is add the one hop
+   * that kept failing: a full-size photo pulled back over a kitchen connection,
+   * through a `CacheFirst` worker that cannot tell an opaque 403 from a picture
+   * — which is what "Preview didn't load" was reporting.
+   *
+   * A blob URL cannot 403, cannot be served stale, needs no cache-buster to be
+   * seen a second time, and is drawn before the button finishes un-pressing.
+   */
+  const acceptImageFile = (file: File, ticket: number) => {
+    // A newer image was chosen while this one was being made — that one owns
+    // the editor now, and `setImageFile` is what "Save recipe" uploads, so
+    // landing here would save a picture the editor is not even showing.
     if (requestRef.current !== ticket) return
+
+    const preview = URL.createObjectURL(file)
+    if (stagedUrlRef.current != null) URL.revokeObjectURL(stagedUrlRef.current)
+    stagedUrlRef.current = preview
+
     presenter.setImageFile(file)
     presenter.setRecipeImageIsLoading(true)
-    const uploadedUrl = await uploadRecipeEditorImage(file, email)
-    // A newer image was chosen while this one uploaded — that one owns the
-    // editor now, and writing this URL would quietly undo their choice.
-    if (requestRef.current !== ticket) return
-    presenter.setImageUrl(uploadedUrl)
-    change("image", uploadedUrl)
+    presenter.setImageUrl(preview)
+    change("image", preview)
   }
 
   const onGenerate = async () => {
@@ -153,31 +190,17 @@ const ImageUpload = () => {
     }
     setIsGenerating(false)
 
-    try {
-      await acceptImageFile(file, user.email, ticket)
-    } catch {
-      // The picture exists and took half a minute to make. Only the *preview*
-      // upload failed, so keep it on the presenter: "Save recipe" uploads
-      // `getImageFile()` itself, and the image survives. Discarding it here
-      // meant paying for a second generation to recover from a blip.
-      if (requestRef.current === ticket) presenter.setRecipeImageIsLoading(false)
-      toast.error("Image generated, but the preview could not be uploaded. Saving will keep it.")
-    }
+    acceptImageFile(file, ticket)
   }
 
-  const onChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const onChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file == null || user == null) return
-    const ticket = (requestRef.current += 1)
+    if (file == null) return
 
-    try {
-      await acceptImageFile(file, user.email, ticket)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not upload image.")
-      if (requestRef.current === ticket) presenter.setRecipeImageIsLoading(false)
-    } finally {
-      if (inputRef.current) inputRef.current.value = ""
-    }
+    acceptImageFile(file, (requestRef.current += 1))
+    // The same file picked twice in a row fires no change event unless the
+    // input is emptied first.
+    if (inputRef.current) inputRef.current.value = ""
   }
 
   const removeImage = () => {

@@ -1156,33 +1156,16 @@ export const deleteTag = async (name: string) => {
 /* --------------------------------------------------------------- storage */
 
 /**
- * Scratch upload used by the editor before a recipe id exists.
- * Resolves to the download URL.
+ * There is no *staging* upload, deliberately.
+ *
+ * The editor used to put every picked or generated photo at one fixed scratch
+ * path per user and preview the download URL — a full-size image sent up and
+ * pulled straight back down purely to be looked at. It was never what the
+ * recipe ended up with (the save below re-uploads the file itself), it needed a
+ * cache-buster to be seen twice, and the fetch back through a `CacheFirst`
+ * worker that cannot tell an opaque 403 from a picture is what "Preview didn't
+ * load" was reporting. `ImageUpload` previews the file it already holds.
  */
-/**
- * Stages the editor's image at one fixed path per user, so a cook who tries
- * five photos leaves one file behind rather than five.
- *
- * That reuse is exactly why the URL gets a cache-buster. The path never changes,
- * so a second upload can hand back a byte-identical download URL — and three
- * separate layers then conspire to show the *old* picture:
- *
- * - the `<img>` in `ImageUpload` clears its spinner only from `onLoad`, which
- *   never fires again when `src` is unchanged, so the spinner runs forever;
- * - the service worker caches `firebasestorage.googleapis.com` `CacheFirst` for
- *   30 days (see `vite.config.ts`), so the new bytes are never fetched;
- * - the browser's own image cache does the same thing.
- *
- * That is what made "Generate" appear to work exactly once per session. Storage
- * ignores the extra parameter, and it cannot reach Firestore: staging always
- * sets `imageFile` too, and `RecipeEditor` re-uploads that file through
- * `uploadImageToRecipeId` — the persisted URL is built there, and stays clean.
- */
-export const uploadRecipeEditorImage = async (file: File, email: string) => {
-  const result = await uploadBytes(ref(storage, `${email}/recipeEditor.png`), file)
-  const url = await getDownloadURL(result.ref)
-  return `${url}${url.includes("?") ? "&" : "?"}staged=${Date.now()}`
-}
 
 /** Final upload, keyed by recipe id. Resolves to the download URL. */
 export const uploadImageToRecipeId = async (file: File, email: string, recipeId: string) => {

@@ -279,15 +279,55 @@ service cloud.firestore {
     //
     // No delete: an un-rating would have to move the totals back down, and
     // nothing here can check that it did.
+    //
+    // **Both clauses below used to deny far more than they meant to**, because
+    // rules treat "not there" as an error rather than as nothing — see each.
     match /ratings/{docId} {
-      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      // Whose recipe it is, for a recipe that may not say.
+      //
+      // `recipe.data.email` reads fine on a recipe that has one and **errors**
+      // on a recipe that does not — and an error is a denial. The shared box
+      // predates ownership being reliably recorded, so the recipes most likely
+      // to be rated are exactly the ones with no `email` field: rating an old
+      // recipe was refused outright, and the toast said only "missing or
+      // insufficient permissions". `get(key, default)` is what asks without
+      // insisting. A recipe that names no cook is nobody's, so it is rateable.
+      //
+      // `get()` on a missing document returns null rather than erroring, and a
+      // rating for a recipe that is gone is refused a step later by the
+      // transaction anyway.
+      function notMyRecipe(recipeId) {
+        let recipe = get(/databases/$(database)/documents/recipes/$(recipeId));
+        return recipe == null
+          || recipe.data.get('email', '') != request.auth.token.email;
+      }
+
+      // **`resource` is null for a document that does not exist**, so reading
+      // `resource.data.uid` there is an error, and an error is a denial. That
+      // made "have I rated this?" — a read of a document whose whole point is
+      // that it is usually absent — permission-denied for everybody who had
+      // not already rated the recipe.
+      //
+      // `getMyRating` swallowed it and reported "not rated", which is the right
+      // answer by accident. `rateRecipe` could not: its transaction reads the
+      // same document to decide whether this is a new vote or a changed one, so
+      // *every first rating failed* and only a rating nobody could leave could
+      // be edited.
+      //
+      // What this opens up is that somebody holding another person's uid could
+      // tell a denial from an empty read and learn *that* they rated a recipe —
+      // never what they gave it. Nothing in the app hands out a uid (profiles
+      // are keyed by email and hold names), and the collection cannot be
+      // listed, since a list is denied unless the rule holds for every document
+      // it could return.
+      allow read: if signedIn()
+        && (resource == null || resource.data.uid == request.auth.uid);
       allow create, update: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.stars is int
         && request.resource.data.stars >= 1
         && request.resource.data.stars <= 5
-        && get(/databases/$(database)/documents/recipes/$(request.resource.data.recipeId))
-             .data.email != request.auth.token.email;
+        && notMyRecipe(request.resource.data.recipeId);
       allow delete: if false;
     }
 

@@ -15,11 +15,6 @@ vi.mock("contexts/AuthProvider", () => ({
   useSessionUser: () => ({ uid: "u1", email: "cook@example.test", displayName: "Cook" }),
 }))
 
-const uploadRecipeEditorImage = vi.fn().mockResolvedValue("https://example.test/generated.png")
-vi.mock("fire/services", () => ({
-  uploadRecipeEditorImage: (...args: unknown[]) => uploadRecipeEditorImage(...args),
-}))
-
 const generateRecipeImage = vi.fn()
 vi.mock("@/ai/recipeImage", () => ({
   generateRecipeImage: (...args: unknown[]) => generateRecipeImage(...args),
@@ -29,6 +24,13 @@ const forgetCachedImage = vi.fn().mockResolvedValue(true)
 vi.mock("@/pwa", () => ({
   forgetCachedImage: (...args: unknown[]) => forgetCachedImage(...args),
 }))
+
+// jsdom implements neither, and the staged preview is built from them.
+let blobs = 0
+const createObjectURL = vi.fn(() => `blob:test/${(blobs += 1)}`)
+const revokeObjectURL = vi.fn()
+URL.createObjectURL = createObjectURL as unknown as typeof URL.createObjectURL
+URL.revokeObjectURL = revokeObjectURL as unknown as typeof URL.revokeObjectURL
 
 const setup = (seed?: (presenter: RecipePresenter) => void) => {
   const presenter = new RecipePresenter()
@@ -74,7 +76,7 @@ describe("ImageUpload — generate", () => {
     presenter.dispose()
   })
 
-  it("uploads the generated image down the same path as a picked file", async () => {
+  it("previews the generated image from the file, sending it nowhere", async () => {
     const user = userEvent.setup()
     const file = new File(["png"], "generated-recipe.png", { type: "image/png" })
     generateRecipeImage.mockResolvedValue(file)
@@ -83,15 +85,15 @@ describe("ImageUpload — generate", () => {
 
     await user.click(screen.getByRole("button", { name: "Generate" }))
 
-    await waitFor(() =>
-      expect(uploadRecipeEditorImage).toHaveBeenCalledWith(file, "cook@example.test")
-    )
     expect(generateRecipeImage).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Won Ton Salad" })
     )
-    await waitFor(() =>
-      expect(presenter.getImageUrl()).toBe("https://example.test/generated.png")
-    )
+    // The picture is already here. Uploading it to a scratch path and fetching
+    // the same megabytes back — through a worker that caches opaque failures as
+    // readily as photos — is the hop that used to say "Preview didn't load".
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalledWith(file))
+    expect(presenter.getImageUrl()).toMatch(/^blob:/)
+    expect(presenter.getImageFile()).toBe(file)
 
     presenter.dispose()
   })
@@ -101,50 +103,26 @@ describe("ImageUpload — generate", () => {
     const first = new File(["one"], "generated-recipe.png", { type: "image/png" })
     const second = new File(["two"], "generated-recipe.png", { type: "image/png" })
     generateRecipeImage.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
-    uploadRecipeEditorImage
-      .mockResolvedValueOnce("https://example.test/staged.png?staged=1")
-      .mockResolvedValueOnce("https://example.test/staged.png?staged=2")
 
     const presenter = setup((p) => p.setTitle("Won Ton Salad"))
 
     await user.click(screen.getByRole("button", { name: "Generate" }))
-    await waitFor(() =>
-      expect(presenter.getImageUrl()).toBe("https://example.test/staged.png?staged=1")
-    )
+    await waitFor(() => expect(presenter.getImageUrl()).toMatch(/^blob:/))
+    const staged = presenter.getImageUrl()
 
     // Only the <img>'s onLoad clears the spinner, and jsdom never fires it on
     // its own. "Delete image" appearing is that spinner having cleared.
     fireEvent.load(screen.getByAltText("recipe preview"))
     expect(await screen.findByRole("button", { name: "Delete image" })).toBeInTheDocument()
 
-    // The staging path is one fixed file per user, so the two uploads differ
-    // only by the cache-buster — which is the whole reason the second one is
-    // visible at all.
     await user.click(screen.getByRole("button", { name: "Regenerate" }))
 
-    await waitFor(() =>
-      expect(presenter.getImageUrl()).toBe("https://example.test/staged.png?staged=2")
-    )
-    expect(presenter.getImageFile()).toBe(second)
-
-    presenter.dispose()
-  })
-
-  it("keeps the generated image when only the preview upload fails", async () => {
-    const user = userEvent.setup()
-    const file = new File(["png"], "generated-recipe.png", { type: "image/png" })
-    generateRecipeImage.mockResolvedValue(file)
-    uploadRecipeEditorImage.mockRejectedValueOnce(new Error("storage offline"))
-
-    const presenter = setup((p) => p.setTitle("Won Ton Salad"))
-
-    await user.click(screen.getByRole("button", { name: "Generate" }))
-
-    // Saving re-uploads getImageFile(), so holding on to the file is what makes
-    // the recipe still end up with its picture. Throwing it away meant paying
-    // for a second generation to recover from a blip in Storage.
-    await waitFor(() => expect(presenter.getImageFile()).toBe(file))
-    expect(presenter.getImageUrl()).toBeNull()
+    // A different URL every time, with no cache-buster needed to make it one —
+    // which is what made "Generate" appear to work exactly once per session.
+    await waitFor(() => expect(presenter.getImageFile()).toBe(second))
+    expect(presenter.getImageUrl()).not.toBe(staged)
+    // The picture it replaced is released rather than held until the reload.
+    expect(revokeObjectURL).toHaveBeenCalledWith(staged)
 
     presenter.dispose()
   })
@@ -175,7 +153,6 @@ describe("ImageUpload — generate", () => {
         finishGenerating = resolve
       })
     )
-    uploadRecipeEditorImage.mockResolvedValue("https://example.test/picked.png")
 
     const presenter = setup((p) => p.setTitle("Won Ton Salad"))
 
@@ -187,7 +164,8 @@ describe("ImageUpload — generate", () => {
     const picked = new File(["pick"], "picked.png", { type: "image/png" })
     const input = document.getElementById("icon-button-file") as HTMLInputElement
     fireEvent.change(input, { target: { files: [picked] } })
-    await waitFor(() => expect(presenter.getImageUrl()).toBe("https://example.test/picked.png"))
+    await waitFor(() => expect(presenter.getImageFile()).toBe(picked))
+    const pickedUrl = presenter.getImageUrl()
 
     finishGenerating(generated)
     // "Regenerate" because the picked photo is now in place.
@@ -195,9 +173,12 @@ describe("ImageUpload — generate", () => {
 
     // The pick is newer, so it owns the editor — and `imageFile` matters as much
     // as the URL, because that is the one "Save recipe" uploads.
-    expect(presenter.getImageUrl()).toBe("https://example.test/picked.png")
+    expect(presenter.getImageUrl()).toBe(pickedUrl)
     expect(presenter.getImageFile()).toBe(picked)
-    expect(uploadRecipeEditorImage).toHaveBeenCalledTimes(1)
+    // Once, for the pick. The superseded generation is dropped before it can
+    // stage anything — the two files are indistinguishable by value here, so
+    // the count is what says which one landed.
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
 
     presenter.dispose()
   })
@@ -280,6 +261,26 @@ describe("ImageUpload — the preview itself", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it("does not retry a staged photo, which is not fetched from anywhere", async () => {
+    const file = new File(["png"], "generated-recipe.png", { type: "image/png" })
+    const presenter = setup((p) => {
+      p.setImageUrl("blob:test/staged")
+      p.setRecipeImageIsLoading(true)
+    })
+    presenter.setImageFile(file)
+
+    fireEvent.error(preview())
+
+    // There is no cached copy to evict and nothing to ask again — a query
+    // parameter on a blob URL names nothing, so the "retry" would be a second
+    // guaranteed failure. It says so once and keeps the photo.
+    expect(forgetCachedImage).not.toHaveBeenCalled()
+    expect(await screen.findByText(/preview didn't load/i)).toBeInTheDocument()
+    expect(presenter.getImageFile()).toBe(file)
+
+    presenter.dispose()
   })
 
   it("stops the spinner and says nothing at all when it does load", async () => {
