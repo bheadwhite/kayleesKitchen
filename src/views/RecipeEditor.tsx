@@ -333,34 +333,47 @@ const RecipeEditor = () => {
           // Room for the save bar, which is fixed and so out of flow — without
           // this the last thing on the page sits underneath it.
           className='pb-[var(--editor-actions-h)]'>
-          <Select<RecipeOption>
-            className='mb-1 w-full max-w-[400px]'
-            placeholder='Edit an existing recipe'
-            options={options}
-            value={editMode ? options.find((o) => o.value.id === presenter.getId()) : null}
-            onChange={handleOnPulledRecipe}
-            styles={{
-              // The menu is portaled to <body> to escape the form's clipping, so
-              // it needs an explicit place on the app's z-scale (see index.css):
-              // above the recipe list's sticky filter, below the fixed toolbar
-              // and nav bar. react-select's own default of 1 loses to the sticky
-              // filter; the 999 this used to carry drew the open menu *over* the
-              // toolbar as soon as the page scrolled.
-              menuPortal: (base) => ({ ...base, zIndex: 35 }),
-              // Long enough to be worth opening, short enough that it cannot
-              // reach the nav bar at the bottom of the window.
-              menu: (base) => ({ ...base, maxHeight: "50dvh" }),
-              menuList: (base) => ({ ...base, maxHeight: "50dvh" }),
-              // react-select's 38px default control is under the 44px touch
-              // minimum, and its 14px text makes iOS zoom in on focus.
-              control: (base) => ({ ...base, minHeight: 44 }),
-              input: (base) => ({ ...base, fontSize: 16 }),
-              placeholder: (base) => ({ ...base, fontSize: 16 }),
-              singleValue: (base) => ({ ...base, fontSize: 16 }),
-              option: (base) => ({ ...base, fontSize: 16, paddingTop: 10, paddingBottom: 10 }),
-            }}
-            menuPortalTarget={document.body}
-          />
+          {/* Sticks for the reason the recipe list's search and the recipe
+           *  page's action row do: this is the way into every *other* recipe,
+           *  and the editor is a long form, so switching meant scrolling a whole
+           *  recipe back up to reach it. With no title bar above it, this is the
+           *  top bar of the page.
+           *
+           *  The negative margins reach back through the content column's own
+           *  padding so the background covers the full width; without them the
+           *  form slides visibly past on both sides. The menu is portaled to
+           *  <body> (z-35), so it escapes the stacking context this creates and
+           *  still opens over the form. */}
+          <div className='sticky top-[var(--chrome-top)] z-30 -mx-3 mb-1 bg-ground px-3 pt-1 pb-2 sm:-mx-2.5 sm:px-2.5'>
+            <Select<RecipeOption>
+              className='w-full max-w-[400px]'
+              placeholder='Edit an existing recipe'
+              options={options}
+              value={editMode ? options.find((o) => o.value.id === presenter.getId()) : null}
+              onChange={handleOnPulledRecipe}
+              styles={{
+                // The menu is portaled to <body> to escape the form's clipping,
+                // so it needs an explicit place on the app's z-scale (see
+                // index.css): above the sticky bars, below the fixed chrome.
+                // react-select's own default of 1 loses to the sticky filter;
+                // the 999 this used to carry drew the open menu *over* the
+                // fixed chrome as soon as the page scrolled.
+                menuPortal: (base) => ({ ...base, zIndex: 35 }),
+                // Long enough to be worth opening, short enough that it cannot
+                // reach the nav bar at the bottom of the window.
+                menu: (base) => ({ ...base, maxHeight: "50dvh" }),
+                menuList: (base) => ({ ...base, maxHeight: "50dvh" }),
+                // react-select's 38px default control is under the 44px touch
+                // minimum, and its 14px text makes iOS zoom in on focus.
+                control: (base) => ({ ...base, minHeight: 44 }),
+                input: (base) => ({ ...base, fontSize: 16 }),
+                placeholder: (base) => ({ ...base, fontSize: 16 }),
+                singleValue: (base) => ({ ...base, fontSize: 16 }),
+                option: (base) => ({ ...base, fontSize: 16, paddingTop: 10, paddingBottom: 10 }),
+              }}
+              menuPortalTarget={document.body}
+            />
+          </div>
 
           <TextField
             name='title'

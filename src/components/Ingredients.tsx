@@ -1,5 +1,4 @@
 import clsx from "clsx"
-import { useState } from "react"
 
 import { ChangeMark, SectionHeading } from "components"
 import type { RowDiff } from "@/recipeDiff"
@@ -15,25 +14,46 @@ interface IngredientsProps {
   changes?: RowDiff[]
   /** How many the filed recipe had that this copy does not. */
   removed?: number
+  /**
+   * Which rows are ticked, and how to tick one.
+   *
+   * Held by <Recipe> rather than here, because this list is drawn **twice** —
+   * in the flow of the page and again inside the bar pulled up over the steps —
+   * and two copies of it disagreeing about what has already gone in the bowl is
+   * worse than not being able to tick anything at all. Keys are stable across
+   * both, since both are given the same array.
+   */
+  checked: string[]
+  onToggle: (key: string) => void
+  /**
+   * The bar draws its own heading, and a second one directly beneath it would
+   * repeat the word and the count in the space of two rows.
+   */
+  showHeading?: boolean
 }
 
-const Ingredients = ({ ingredients, changes, removed = 0 }: IngredientsProps) => {
-  const [checked, setChecked] = useState<string[]>([])
+/** The key a row is ticked under. By position: a recipe may list a name twice. */
+const rowKey = (ingredient: Ingredient, index: number) => `${ingredient.name}-${index}`
 
-  const toggle = (key: string) =>
-    setChecked((current) =>
-      current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
-    )
-
+const Ingredients = ({
+  ingredients,
+  changes,
+  removed = 0,
+  checked,
+  onToggle,
+  showHeading = true,
+}: IngredientsProps) => {
   const count = ingredients?.length ?? 0
 
   return (
     <div>
-      <SectionHeading meta={`${count} item${count === 1 ? "" : "s"}`}>Ingredients</SectionHeading>
+      {showHeading && (
+        <SectionHeading meta={`${count} item${count === 1 ? "" : "s"}`}>Ingredients</SectionHeading>
+      )}
       {/* The whole row toggles, not just the name: a single word is too small a
        *  target on a phone, and a <button> makes it keyboard-reachable too. */}
       {ingredients?.map((ingredient, index) => {
-        const key = `${ingredient.name}-${index}`
+        const key = rowKey(ingredient, index)
         const isChecked = checked.includes(key)
         const change = changes?.[index]?.kind
         return (
@@ -41,7 +61,7 @@ const Ingredients = ({ ingredients, changes, removed = 0 }: IngredientsProps) =>
             key={key}
             type='button'
             aria-pressed={isChecked}
-            onClick={() => toggle(key)}
+            onClick={() => onToggle(key)}
             className={clsx(
               "flex w-full cursor-pointer items-baseline gap-1.5 border-b border-ink/8 py-2.5 text-left",
               isChecked && "line-through opacity-45"

@@ -499,7 +499,7 @@ before" for one row, but here the question is "is this still the recipe", and th
 the recipe. Nothing is lost by looking.
 
 The banner is **rendered twice** — a card in the flow of the page carrying the chef's
-summary, and a compact bar `fixed` under the toolbar that fades in once the card has
+summary, and a compact bar `fixed` under the page's sticky action row that fades in once the card has
 scrolled away, so "which version am I reading" stays answerable from the middle of a long
 recipe. Not one `position: sticky` card that sheds its summary when it sticks: that changes
 the height of an element still in the flow, and everything below it jumps the moment you
@@ -507,7 +507,7 @@ scroll past. Two elements, one out of flow, nothing moves.
 
 Two details in there are load-bearing. The bar is **kept mounted and hidden** rather than
 conditionally rendered, because the scroll check reads *its own* `getBoundingClientRect()`
-— a `fixed` element's top is the resolved offset under the toolbar, safe-area inset
+— a `fixed` element's top is the resolved offset under that row, safe-area inset
 included, which beats parsing a `calc()` over two custom properties back out of the
 stylesheet — and `aria-hidden` plus `visibility: hidden` keep its duplicate controls out of
 the accessibility tree and the tab order meanwhile. And the card **keeps its summary, muted,
@@ -1366,14 +1366,38 @@ Local components live in `src/components/ui/`: `Button`, `Dialog`, `Spinner`, `A
 
 Three places deviate from the supplied assets on purpose, each noted in the code: the
 manifest's `theme_color` is the ground rather than steel (it paints the Android status bar
-directly above a ground-colored header), `danger` exists at all, and **`src/tagColors.ts`**
+directly above <StatusBand>, which is ground), `danger` exists at all, and **`src/tagColors.ts`**
 is a closed eight-tint palette for tags — the one thing users colour themselves (see the
 tags section).
 
 ### App chrome, and the four numbers that must agree
 
-Two fixed bars sandwich the scrolling column: `components/Toolbar` (title only) at the
-top and `components/NavBar` at the bottom. The hamburger menu they replaced is gone.
+**There is no title bar.** `components/Toolbar` was a fixed row at the top reading "Kitchen
+Help" and carrying nothing else — no navigation, no actions, no state. The name is already on
+the home-screen icon, in the app switcher, in `<title>`, and in the manifest, and `NavBar`
+along the bottom answers "where am I" far better than a wordmark can. What it cost was 56px
+of a phone, permanently, *above* whatever each view sticks underneath it — on a recipe that
+was the wordmark and then "All recipes", a hundred pixels of chrome before any content.
+
+`components/StatusBand` is what is left: a fixed strip of exactly `--sai-top`, painted
+`bg-ground`, with no wordmark and no hairline under it. Installed edge-to-edge under
+`viewport-fit=cover`, *something* has to paint behind the status bar or the clock sits over a
+recipe scrolling underneath it. In a browser tab the inset is `0px`, so it is a zero-height
+element that draws nothing — no conditional styling, as everywhere else that pays an inset.
+
+**Each view's own sticky bar is now the top bar**, which is the bar that was carrying
+something all along: the recipe list's search, the recipe's "All recipes", the editor's
+recipe picker, the Plan tab's segments. The three views with no such bar — Tags, Profile,
+Admin — already name themselves in their own first heading, so none of them grew one.
+
+`components/NavBar` is unchanged at the bottom. The hamburger menu the two replaced is gone.
+
+> ⚠️ **`--header-h` no longer exists.** It was the toolbar's height, and `<Drawer>` had
+> borrowed it for years for its own title row purely because the two numbers matched —
+> deleting the header would have collapsed every drawer header to nothing. `--drawer-header-h`
+> is that row's own token now. `useHideOnScroll` is gone too: it hid the toolbar on the way
+> down the page, and with no toolbar it had no subject. The sticky bars must *not* hide —
+> being reachable from the middle of a long recipe is the whole point of them.
 
 `NavBar`'s tabs are Recipes, Editor, Plan, Tags, and the account — plus an Admin tab for the one
 admin address (see the admin console section). The account tab is an `<Avatar>` with the
@@ -1407,11 +1431,36 @@ the search box). `Recipes` reads both once, on arrival — they *seed* the view 
 drive it, so closing a recipe or typing in the search box does not fight the URL, and a
 one-shot ref stops "All recipes" from immediately reopening what `?open=` picked.
 
-Because both bars are `position: fixed`, five places have to agree on their heights, so
-the heights are `:root` variables in `src/index.css` (`--header-h`, `--navbar-h`) rather
-than literals: the two bars themselves, `App`'s content padding, `RecipeTable`'s
-sticky filter bar, and the Plan tab's Agenda/Shopping-list segments — both of which stick
-at `top-[calc(var(--header-h)+var(--sai-top))]` on `z-30`.
+**`--chrome-top` is the one place the top edge is decided**, and seven things read it rather
+than spelling a sum out: `App`'s content padding, `RecipeTable`'s search, the Plan tab's
+segments, the recipe's action row, the editor's recipe picker, `<ChefBanner>`'s compact bar,
+and `<IngredientsBar>`'s top marker. The sticky ones sit on `z-30`. That indirection is what
+has let the whole arrangement change twice in one sitting — a fixed header, then a header
+that hid on scroll, then no header — without touching a single call site.
+
+- **A CSS variable, not React state.** Five unrelated subtrees have to agree about that edge.
+  A context and five subscriptions would say what one variable already says.
+- **`<UpdateBanner>` moves it**, via `:root:has([data-update-banner])` in `index.css`: while
+  the banner is up, `--chrome-top` is pushed down by `--update-banner-h` so the content column
+  and every sticky bar start *below* it rather than behind it. The banner sets its row to that
+  same height rather than padding, so the declaration and the element cannot drift — the
+  discipline `--navbar-h` and `--editor-actions-h` already follow. It is stated in the
+  stylesheet because the banner cannot reach the elements that have to move.
+
+**The recipe view sticks its own row at that edge** — "All recipes", Plan, Edit — for the
+reason the list's search bar sticks: the way out of a long recipe was several scrolls above
+wherever you were reading. It owns its height through `--recipe-actions-h` rather than
+taking it from the buttons inside it, because two things pin directly below it:
+`<ChefBanner>`'s compact bar and `<IngredientsBar>`'s top marker, both at
+`calc(var(--chrome-top)+var(--recipe-actions-h))`. Negative margins reach back through the
+content column's padding so its background covers the full width; without them the recipe
+slides visibly past on both sides.
+
+**The editor sticks its recipe picker the same way**, and for the same reason: it is the way
+into every *other* recipe, and the editor is a long form, so switching meant scrolling a
+whole recipe back up to reach it. Its menu is portaled to `<body>` at z-35, so it escapes the
+stacking context the sticky wrapper creates and still opens over the form — which is what
+that portal was already for.
 
 **The Plan tab's segments stick for the same reason the filter bar does.** Both halves are
 long — a fortnight of meals, forty rows of shopping — and the switch between them was
@@ -1429,11 +1478,48 @@ and the form's own `pb-` have to agree, and only that form pays the padding. **D
 stays at the far end of the scroll** — it is the one action here that cannot be undone, and
 it has no business a thumb's width from Update.
 
+`Recipe` adds the **other bar in that slot**, on the same terms: `IngredientsBar`, the
+ingredient list reachable from the middle of the method. Reading a recipe on a phone is two
+things at once — you follow the steps, and every few of them you need a quantity that is a
+screen and a half above you. Scrolling up to fetch it costs your place in the method. So the
+list comes to the step: a strip on the bottom edge that pulls the whole list up over the
+steps and drops it again. `--ingredients-bar-h` is a `:root` variable for exactly the reason
+`--editor-actions-h` is, and only the recipe view pays that padding.
+
+Four decisions in it, each of which had an alternative that is worse:
+
+- **It is absent while the list is what you are reading.** A handle drawn directly under the
+  thing it opens is a control that does nothing, and it costs a permanent 44px strip of a
+  phone to do it. The line it appears at is **halfway down the readable area, not the list's
+  last row**: waiting for the list to clear the screen *entirely* meant a recipe with the
+  method filling the phone and one ingredient line still peeking out over the top edge had no
+  bar — precisely the moment somebody wants one. Above halfway, less than half the screen can
+  still be holding ingredients, so what is being read is the method. The measurement is
+  `<ChefBanner>`'s trick doubled: two zero-height `fixed` markers at the edges of the
+  readable area, whose own positions *are* those offsets with the safe-area insets in them,
+  rather than parsing a `calc()` over four custom properties back out of the stylesheet.
+  Neither marker is transformed, so neither moves when the bar itself slides away.
+- **Nothing behind it is blocked** — no backdrop and no scroll lock, unlike `<Drawer>`. The
+  step being asked *about* is on the screen underneath, and dimming or freezing it defeats
+  the point of not having scrolled away from it. Escape and a second tap are the ways out;
+  scrolling back to the list is a third, since finding it answers the same question, and
+  leaving the panel up would then cover the list with a copy of itself.
+- **The rows are the same rows, ticks included.** `checked` moved out of `<Ingredients>` and
+  onto `<Recipe>`, because the list is now drawn twice and two copies of it disagreeing about
+  what has already gone in the bowl is worse than not being able to tick anything at all.
+- **The panel's rows are mounted only while the bar is reachable.** Everything else here
+  stays mounted and hides (`<Drawer>`, `RecipeTable`) because it holds state that closing
+  must not destroy; these hold none — the ticks live on `<Recipe>` — so a second copy of the
+  list behind every recipe nobody scrolls is a duplicate for find-in-page to turn up and for
+  nothing to read. `visibility` rides in both transitions so it steps at the *end* of the
+  duration: the rows are still drawn while the panel collapses, rather than an empty box
+  shrinking.
+
 The **z-index scale is written out in the `:root` block of `src/index.css`** (drag 10,
 sticky filter 30, portaled menu 35, fixed chrome 40, drawer 48, dialog 50). Layers get set three
 different ways here — Tailwind classes, react-select's `styles` prop, and a portal into
 `<body>` — so anything new that stacks takes a value from that list. Reaching for a big
-number instead is how the editor's recipe picker ended up painting over the toolbar.
+number instead is how the editor's recipe picker ended up painting over the fixed chrome.
 
 ### PWA
 

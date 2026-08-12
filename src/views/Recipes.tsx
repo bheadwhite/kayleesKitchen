@@ -169,7 +169,17 @@ const Recipes = () => {
 
       {selected != null && (
         <>
-          <div className='mb-3 flex items-center justify-between gap-2'>
+          {/* The way out stays in reach from anywhere in a long recipe — the
+           *  same argument the list's search bar and the Plan tab's segments
+           *  make. With no title bar above it this is the top bar of the page,
+           *  which is the point: it carries something.
+           *
+           *  The negative margins reach back through the content column's own
+           *  padding so the background covers the full width; without it the
+           *  recipe slides visibly past on both sides. The row owns its height
+           *  rather than taking it from the buttons, because the chef's bar and
+           *  the ingredients bar both pin directly below it. */}
+          <div className='sticky top-[var(--chrome-top)] z-30 -mx-3 mb-2 flex h-[var(--recipe-actions-h)] items-center justify-between gap-2 bg-ground px-3 sm:-mx-2.5 sm:px-2.5'>
             <Button variant='ghost' onClick={() => setSelectedId(null)} className='mt-0 -ml-2'>
               <ArrowBackIcon />
               All recipes

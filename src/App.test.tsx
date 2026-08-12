@@ -108,9 +108,14 @@ describe("App", () => {
     expect(await screen.findByLabelText("Filter recipes")).toBeInTheDocument()
   })
 
-  it("renders the app chrome", () => {
+  it("draws no title bar", () => {
     renderApp("/login")
-    expect(screen.getByRole("heading", { name: "Kitchen Help" })).toBeInTheDocument()
+
+    // A fixed row carrying nothing but the app's own name spent 56px of a phone
+    // saying what the home-screen icon, the app switcher, the tab title and the
+    // manifest already say — above whatever each view sticks under it. What is
+    // left of it is <StatusBand>: the notch inset, painted, and nothing else.
+    expect(screen.queryByRole("heading", { name: "Kitchen Help" })).toBeNull()
   })
 
   it("hides the nav bar on the login page — every entry needs a session", async () => {

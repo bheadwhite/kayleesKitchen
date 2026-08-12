@@ -121,10 +121,11 @@ const RecipeTable = ({
 
   return (
     <div className='w-full max-w-[720px]'>
-      {/* Sticks just below the fixed toolbar — same height token, plus whatever
-          notch inset the toolbar is sitting under — so the search stays
-          reachable however far down the list you have scrolled. */}
-      <div className='sticky top-[calc(var(--header-h)+var(--sai-top))] z-30 mb-1 bg-ground pt-1 pb-3'>
+      {/* With no title bar above it, this *is* the top of the list — which is
+          what it was doing anyway. It sticks so the search stays reachable
+          however far down you have scrolled; `--chrome-top` is the one place the
+          top edge is decided, so it needs no arithmetic of its own. */}
+      <div className='sticky top-[var(--chrome-top)] z-30 mb-1 bg-ground pt-1 pb-3'>
         <div className='relative'>
           <SearchIcon className='pointer-events-none absolute top-1/2 left-3.5 h-[17px] w-[17px] -translate-y-1/2 text-steel' />
           <input

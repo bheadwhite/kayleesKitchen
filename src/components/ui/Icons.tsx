@@ -131,6 +131,13 @@ export const ChevronRightIcon = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 )
 
+/** `chevron-up` — the handle of a panel that pulls up from the bottom edge. */
+export const ChevronUpIcon = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d='M18 15l-6-6-6 6' />
+  </Icon>
+)
+
 /** `activity` — the admin console's usage readout. */
 export const ActivityIcon = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>

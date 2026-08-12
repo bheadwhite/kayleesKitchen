@@ -75,11 +75,41 @@
   --sai-left: env(safe-area-inset-left);
   --sai-right: env(safe-area-inset-right);
 
-  /* Heights of the two fixed bars. The scrolling content pads itself by these,
-   * and RecipeTable's filter bar sticks below the header — so all three must
-   * agree, and a literal in one place would drift. */
-  --header-h: 3.5rem;
+  /* The nav bar's height. The scrolling content pads itself by it, since the
+   * bar is fixed and so out of flow. */
   --navbar-h: 67px;
+
+  /*
+   * The top edge of everything: where the content column starts and where every
+   * bar that sticks under the chrome pins itself.
+   *
+   * **There is no title bar.** A fixed row reading "Kitchen Help" sat here for
+   * years carrying nothing else — the name is already on the home-screen icon,
+   * in the app switcher, in the tab title and in the manifest, and the nav bar
+   * along the bottom answers "where am I" far better than a wordmark can. What
+   * it cost was 56px of a phone, permanently, doubled up with whatever each view
+   * sticks underneath it. <StatusBand> is what remains: the notch inset, painted,
+   * and nothing else.
+   *
+   * Every sticky bar reads this rather than spelling the sum out, which is what
+   * lets the whole arrangement change in one line — it has now done so twice.
+   */
+  --chrome-top: var(--sai-top);
+
+  /* <Drawer>'s own title row. Distinct from anything above: it is the height of
+   * a row inside a panel, not a position on the page. */
+  --drawer-header-h: 3.5rem;
+
+  /* <UpdateBanner>, which is fixed over the top edge while it is up. Declared
+   * here because `--chrome-top` has to move down by exactly this much to clear
+   * it, the same way the two are kept in step for the nav bar and the editor's
+   * save bar. The banner sets its own row to this height so they cannot drift. */
+  --update-banner-h: 64px;
+
+  /* The recipe view's own sticky row — "All recipes", Plan, Edit. It is the
+   * authority on its height rather than the buttons inside it, because the
+   * chef's bar and the ingredients bar's marker both pin below it. */
+  --recipe-actions-h: 48px;
 
   /* The editor's save bar, which stacks directly on top of the nav bar. Only
    * <RecipeEditor> wears it, so only that form pays the padding for it — but
@@ -87,23 +117,50 @@
    * agree the same way the two fixed bars above do. */
   --editor-actions-h: 60px;
 
+  /* The handle of the ingredients bar, which stacks on the nav bar the same way
+   * the editor's actions do — and for the same reason it is written down here:
+   * the last step of a recipe has to pad itself past a bar it cannot measure. */
+  --ingredients-bar-h: 44px;
+
   /*
    * The whole z-index scale, in one place, because the layers are set in three
    * different ways — Tailwind classes, react-select's `styles` prop, and a
    * portal into <body> — and only a written-down order keeps them consistent:
    *
    *   10  a row being dragged, above its siblings (Directions)
-   *   30  the recipe list's sticky filter bar
+   *   30  every view's own sticky top bar, and the chef's compact bar
    *   35  a portaled dropdown menu (RecipeEditor's react-select)
-   *   40  the fixed chrome: Toolbar, NavBar, the editor's save bar
-   *   45  UpdateBanner, which sits over the header it replaces for a moment
+   *   40  the fixed chrome: StatusBand, NavBar, the editor's save bar, and the
+   *       recipe's ingredients bar — which stacks on NavBar and, sharing this
+   *       value, is painted under it by document order when it slides away
+   *   45  UpdateBanner, which takes the top edge for a moment
    *   48  the editor's assistant drawer and its backdrop
    *   50  Dialog, which covers everything including the chrome
    *
    * Anything portaled to <body> escapes its parent's stacking context, so it
    * must name a value on this scale. Picking a big number instead is how the
-   * recipe picker ended up painting over the toolbar.
+   * recipe picker ended up painting over the fixed chrome.
    */
+}
+
+/*
+ * <UpdateBanner> is fixed across the top edge, so while it is up everything
+ * below has to start beneath it rather than behind it — the content column and
+ * every sticky bar alike, which is exactly what they already share this variable
+ * to agree about. Stated here rather than in the banner, because the banner
+ * cannot reach the elements that need to move.
+ */
+:root:has([data-update-banner]) {
+  --chrome-top: calc(var(--sai-top) + var(--update-banner-h));
+}
+
+/* Buttons drop from a 44px touch target to a denser 34px where there is a
+ * pointer (see <Button>), so the row they sit in does too. `40rem` is Tailwind's
+ * own `sm:` breakpoint — these have to be the same number. */
+@media (min-width: 40rem) {
+  :root {
+    --recipe-actions-h: 38px;
+  }
 }
 
 @layer base {

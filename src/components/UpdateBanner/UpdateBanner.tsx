@@ -51,10 +51,16 @@ const UpdateBanner = () => {
   return (
     <div
       role='status'
-      // Above the fixed header (z-40) but below dialogs (z-50) — see the
+      // Read by `:root:has(...)` in index.css, which pushes `--chrome-top` down
+      // by `--update-banner-h` for as long as this is up — so the content column
+      // and every sticky bar start below this rather than behind it.
+      data-update-banner=''
+      // Above the fixed chrome (z-40) but below dialogs (z-50) — see the
       // z-index scale in index.css.
       className='fixed inset-x-0 top-0 z-45 border-b border-steel bg-steel-100 pt-[var(--sai-top)]'>
-      <div className='mx-auto flex w-full max-w-[900px] items-center gap-3 px-4 py-2.5'>
+      {/* The declared height rather than padding, because `--chrome-top` clears
+       *  this bar by exactly that number and the two must not drift. */}
+      <div className='mx-auto flex h-[var(--update-banner-h)] w-full max-w-[900px] items-center gap-3 px-4'>
         <span className='min-w-0 flex-1 text-sm'>A new version is ready.</span>
         <Button
           variant='primary'

@@ -1,7 +1,9 @@
-import { useState } from "react"
+import clsx from "clsx"
+import { useRef, useState } from "react"
 
 import { ChangeMark, SectionHeading, TagChip, UsersIcon } from "components"
 import Ingredients from "./Ingredients"
+import IngredientsBar from "./IngredientsBar"
 import RecipeRating from "./RecipeRating"
 import type { RecipeChanges } from "@/recipeDiff"
 import type { Recipe as RecipeType } from "@/types"
@@ -35,14 +37,31 @@ const Recipe = ({ recipe, tagColors = {}, changes, serves, servingSize }: Recipe
   // A stored image URL can stop resolving (deleted file, Storage billing off).
   // Drop the <img> rather than leaving a broken-image icon in the recipe.
   const [imageFailed, setImageFailed] = useState(false)
+  // Which ingredients have gone in. Owned here rather than by <Ingredients>
+  // because the list is drawn twice — in the flow, and in the bar over the
+  // steps — and both have to be the same list, ticks and all.
+  const [checked, setChecked] = useState<string[]>([])
+  // What the bar measures itself against: it is only worth drawing once this
+  // has scrolled away.
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const toggle = (key: string) =>
+    setChecked((current) =>
+      current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
+    )
 
   if (recipe == null) return null
 
   const { ingredients, directions, image, contributor, title, tags } = recipe
   const stepCount = directions?.reduce((total, section) => total + section.steps.length, 0) ?? 0
+  // Nothing to reach back to without both halves: a recipe with no steps is
+  // read off the ingredient list itself.
+  const hasBar = (ingredients?.length ?? 0) > 0 && stepCount > 0
 
   return (
-    <div>
+    // The bar is `fixed`, so the last step has to pay for the room it takes —
+    // the same arrangement the editor's save bar and its form have.
+    <div className={clsx(hasBar && "pb-[var(--ingredients-bar-h)]")}>
       {image != null && image.length > 1 && !imageFailed && (
         <div className='blueprint mb-5 aspect-[16/10] w-full bg-surface'>
           <img
@@ -81,11 +100,26 @@ const Recipe = ({ recipe, tagColors = {}, changes, serves, servingSize }: Recipe
 
       <RecipeRating recipe={recipe} />
 
-      <Ingredients
-        ingredients={ingredients}
-        changes={changes?.ingredients}
-        removed={changes?.ingredientsRemoved}
-      />
+      <div ref={listRef}>
+        <Ingredients
+          ingredients={ingredients}
+          changes={changes?.ingredients}
+          removed={changes?.ingredientsRemoved}
+          checked={checked}
+          onToggle={toggle}
+        />
+      </div>
+
+      {hasBar && (
+        <IngredientsBar
+          ingredients={ingredients}
+          changes={changes?.ingredients}
+          removed={changes?.ingredientsRemoved}
+          checked={checked}
+          onToggle={toggle}
+          listRef={listRef}
+        />
+      )}
 
       {directions != null && directions.length > 0 && (
         <>

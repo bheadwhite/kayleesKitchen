@@ -271,7 +271,7 @@ const Planner = () => {
         </span>
       </div>
 
-      {/* Sticky under the toolbar, the same way the recipe list's filter bar is
+      {/* Sticky at the top edge, the same way the recipe list's filter bar is
        *  and at the same layer.
        *
        *  Both halves are long — a fortnight of meals, forty rows of shopping —
@@ -285,7 +285,8 @@ const Planner = () => {
        *  sticky bar lets the rows slide visibly underneath the labels. */}
       <div
         className={clsx(
-          "sticky top-[calc(var(--header-h)+var(--sai-top))] z-30 -mt-1 mb-4 flex gap-1",
+          // `--chrome-top` rather than the sum: one place decides the top edge.
+          "sticky top-[var(--chrome-top)] z-30 -mt-1 mb-4 flex gap-1",
           "bg-ground pt-1 pb-2"
         )}>
         <Segment active={tab === "agenda"} onClick={() => setTab("agenda")}>

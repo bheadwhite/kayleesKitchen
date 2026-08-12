@@ -28,7 +28,8 @@ interface ChefBannerProps {
  * recipe. The copy is not thrown away by looking.
  *
  * It is rendered **twice**: a full card in the flow of the page, and a compact
- * bar fixed under the toolbar that takes over once the card has scrolled away.
+ * bar fixed under the page's sticky action row that takes over once the card
+ * has scrolled away.
  * The alternative — one `position: sticky` card that drops its summary when it
  * sticks — changes the height of an element that is still in the flow, so
  * everything below it jumps the moment you scroll past. Two elements, one of
@@ -48,8 +49,8 @@ const ChefBanner = ({ showingOriginal, onToggleOriginal, onOpenChef }: ChefBanne
       const bar = barRef.current
       if (card == null || bar == null) return
       // The bar is `fixed`, so its own top *is* the resolved offset under the
-      // toolbar — safe-area inset included — without parsing a calc() over two
-      // custom properties back out of the stylesheet.
+      // action row — safe-area inset included — without parsing a calc() over
+      // three custom properties back out of the stylesheet.
       setScrolledPast(card.getBoundingClientRect().bottom < bar.getBoundingClientRect().top)
     }
 
@@ -159,7 +160,9 @@ const ChefBanner = ({ showingOriginal, onToggleOriginal, onOpenChef }: ChefBanne
         aria-hidden={!scrolledPast || fork == null}
         className={clsx(
           "fixed inset-x-0 z-30 border-b border-divider transition-opacity duration-150",
-          "top-[calc(var(--header-h)+var(--sai-top))]",
+          // Under the recipe's own sticky action row, which is the top bar of
+          // this page — there is no title bar above it.
+          "top-[calc(var(--chrome-top)+var(--recipe-actions-h))]",
           onCopy ? "bg-steel-100" : "bg-surface",
           // Only while a copy is loaded: with the recipe as filed on screen
           // there is no "which version am I reading" to answer.

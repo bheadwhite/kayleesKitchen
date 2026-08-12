@@ -91,7 +91,11 @@ const Drawer = ({
           "transition-transform duration-200 ease-out sm:max-w-[440px]",
           open ? "translate-x-0" : "invisible translate-x-full"
         )}>
-        <div className='flex h-[var(--header-h)] shrink-0 items-center gap-2 border-b border-divider px-4'>
+        {/* Its own token, not the app's header height. It borrowed that for
+         *  years because the two happened to match, and then the header was
+         *  deleted — a drawer whose title row collapses to nothing is a long way
+         *  from an obvious consequence of removing a wordmark. */}
+        <div className='flex h-[var(--drawer-header-h)] shrink-0 items-center gap-2 border-b border-divider px-4'>
           <h2 className='flex-1 font-heading text-xl font-semibold tracking-[0.04em] uppercase'>
             {title}
           </h2>

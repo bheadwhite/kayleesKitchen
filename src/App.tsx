@@ -4,7 +4,7 @@ import { ToastContainer } from "react-toastify"
 
 import { Spinner } from "components"
 import NavBar from "components/NavBar"
-import Toolbar from "components/Toolbar"
+import StatusBand from "components/StatusBand"
 import UpdateBanner from "components/UpdateBanner"
 import { useAuthStatus } from "contexts/AuthProvider"
 import {
@@ -48,12 +48,15 @@ const App = () => {
     // address bar, so `min-h-screen` overflows the visible viewport on a phone.
     <div className='flex min-h-dvh flex-col items-center'>
       <UpdateBanner />
-      <Toolbar />
-      {/* Both bars are fixed, so they are out of flow — the scrolling column
-       *  pads itself past each one plus the safe-area inset it sits under. */}
+      <StatusBand />
+      {/* The chrome is fixed and so out of flow — the scrolling column pads
+       *  itself past it. `--chrome-top` is the top edge every sticky bar pins to
+       *  as well, which is what keeps the column and those bars agreeing about
+       *  where the page begins; it is also what moves when the update banner
+       *  takes the top of the screen. */}
       <div
         className={clsx(
-          "w-full max-w-[900px] px-3 pt-[calc(var(--header-h)+var(--sai-top)+0.75rem)] sm:px-2.5",
+          "w-full max-w-[900px] px-3 pt-[calc(var(--chrome-top)+0.75rem)] sm:px-2.5",
           signedIn
             ? "pb-[calc(var(--navbar-h)+var(--sai-bottom)+1rem)]"
             : "pb-[calc(var(--sai-bottom)+1rem)]"
