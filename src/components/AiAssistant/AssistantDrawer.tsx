@@ -29,9 +29,13 @@ import {
 interface AssistantDrawerProps {
   /** The household's tag vocabulary, handed straight to `<AiAssistant>`. */
   tagLibrary?: string[]
+  /** Every title in the recipe box, handed on the same way. */
+  recipeTitles?: string[]
+  /** Colour per tag name, so the category chips are the ones people know. */
+  tagColors?: Record<string, string>
 }
 
-const AssistantDrawer = ({ tagLibrary }: AssistantDrawerProps) => {
+const AssistantDrawer = ({ tagLibrary, recipeTitles, tagColors }: AssistantDrawerProps) => {
   const [open, setOpen] = useState(false)
   const turns = useAssistantTurns()
   const proposedDraft = useProposedDraft()
@@ -75,7 +79,12 @@ const AssistantDrawer = ({ tagLibrary }: AssistantDrawerProps) => {
             ? `${turns.length} message${turns.length === 1 ? "" : "s"}`
             : undefined
         }>
-        <AiAssistant onApplied={() => setOpen(false)} tagLibrary={tagLibrary} />
+        <AiAssistant
+          onApplied={() => setOpen(false)}
+          tagLibrary={tagLibrary}
+          recipeTitles={recipeTitles}
+          tagColors={tagColors}
+        />
       </Drawer>
     </>
   )

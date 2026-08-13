@@ -67,7 +67,9 @@ const RecipeEditor = () => {
   const usersRecipes = useUsersRecipes()
   // Every tag anyone has used, so a second recipe gets "mexican" off a chip
   // rather than "Mexican food" out of someone's memory.
-  const { tags: tagLibrary } = useTagLibrary()
+  // And every title in the box, so an idea the chef comes up with is one the
+  // household does not already have filed. Same listener, so it costs nothing.
+  const { tags: tagLibrary, colors: tagColors, recipeTitles } = useTagLibrary()
 
   const [editMode, setEditMode] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -536,7 +538,11 @@ const RecipeEditor = () => {
     {/* The editor already holds the vocabulary for its own tag picker, so the
      *  chef reads it from here rather than opening a second listener over
      *  every recipe in the box. */}
-    <AssistantDrawer tagLibrary={tagLibrary.map((tag) => tag.name)} />
+    <AssistantDrawer
+      tagLibrary={tagLibrary.map((tag) => tag.name)}
+      recipeTitles={recipeTitles}
+      tagColors={tagColors}
+    />
     </>
   )
 }

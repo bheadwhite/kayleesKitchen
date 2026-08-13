@@ -42,6 +42,16 @@ export interface EditorDraft extends RecipeDraft {
   servingSize: string | null
 }
 
+/**
+ * What the chef is told about the world *around* the conversation, as the view
+ * supplies it. Both halves are read off listeners the editor already owns —
+ * see `useTagLibrary` — rather than opened here.
+ */
+export interface AskContext {
+  tagLibrary?: string[]
+  recipeTitles?: string[]
+}
+
 /** Request body for the `recipeAssistant` callable. */
 export interface AssistantRequest {
   turns: AssistantTurn[]
@@ -56,6 +66,37 @@ export interface AssistantRequest {
    * wire so a client from before this existed still works.
    */
   tagLibrary?: string[]
+  /**
+   * Every recipe title already in the household's box.
+   *
+   * Sent so an idea the chef comes up with is one they do not already have. It
+   * constrains *suggesting* and nothing else — a photo of a recipe already in
+   * the box is still transcribed as given.
+   */
+  recipeTitles?: string[]
+  /**
+   * The categories the cook is asking inside — the household's own tags, picked
+   * as chips rather than typed, so a baseline is drawn from the vocabulary the
+   * recipe list already filters on.
+   *
+   * A **baseline for what is suggested**, not a filter on the conversation: a
+   * photo is still transcribed as it reads, and a request that names something
+   * else outranks the chips. Sent on every turn, because "make it lighter" is
+   * still a request the baseline applies to.
+   */
+  categories?: string[]
+  /**
+   * Ideas offered in this conversation and turned down, by title.
+   *
+   * **The proposals themselves never enter the transcript** — an assistant turn
+   * carries `text` alone, and the draft rides on a tool call the next request
+   * does not replay — so without this the chef cannot see what it has already
+   * put in front of somebody, only the sentences it wrote about it.
+   *
+   * Only what was explicitly turned down goes here, never every draft: a chef
+   * forbidden from re-proposing its own title could not revise a recipe at all.
+   */
+  rejected?: string[]
 }
 
 /** Response from the callable. `draft` is null when the turn was conversational. */

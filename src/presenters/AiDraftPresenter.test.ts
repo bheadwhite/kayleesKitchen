@@ -190,6 +190,164 @@ describe("AiDraftPresenter", () => {
     presenter.dispose()
   })
 
+  /**
+   * The chef never sees its own past drafts — a proposal leaves as a tool call
+   * and comes back as the sentence written beside it — so the list of what has
+   * been turned down is the only record there is.
+   */
+  describe("something else", () => {
+    it("names the dish, remembers it, and asks again", async () => {
+      const ask = vi
+        .fn()
+        .mockResolvedValueOnce({ text: "Here's a draft.", draft: DRAFT })
+        .mockResolvedValueOnce({ text: "How about a chowder?", draft: null })
+      const presenter = build(ask)
+
+      await presenter.send("something for tonight", EMPTY_DRAFT)
+      await presenter.rejectDraft(EMPTY_DRAFT)
+
+      // Named in the transcript, so scrolling back says *what* was refused
+      // rather than showing a row of identical "something else"s.
+      expect(presenter.getTurns()[2]).toEqual({
+        role: "user",
+        text: 'Not "Won Ton Salad" — suggest something else.',
+        images: [],
+      })
+      // And named on the list, which is what the prompt actually points at.
+      expect(ask.mock.calls[1][0].rejected).toEqual(["Won Ton Salad"])
+      expect(presenter.getRejected()).toEqual(["Won Ton Salad"])
+      // The proposal it replaces is off the screen.
+      expect(presenter.getProposedDraft()).toBeNull()
+      presenter.dispose()
+    })
+
+    it("keeps carrying what was turned down on later turns", async () => {
+      const ask = vi
+        .fn()
+        .mockResolvedValueOnce({ text: "Here's a draft.", draft: DRAFT })
+        .mockResolvedValueOnce({ text: "A chowder, then.", draft: null })
+        .mockResolvedValueOnce({ text: "Lighter still.", draft: null })
+      const presenter = build(ask)
+
+      await presenter.send("something for tonight", EMPTY_DRAFT)
+      await presenter.rejectDraft(EMPTY_DRAFT)
+      await presenter.send("make it lighter", EMPTY_DRAFT)
+
+      // "Make it lighter" is still a request the refused dish is out of bounds
+      // for, so the list rides on every turn rather than only the rejection.
+      expect(ask.mock.calls[2][0].rejected).toEqual(["Won Ton Salad"])
+      presenter.dispose()
+    })
+
+    it("remembers nothing for a draft that was merely discarded", async () => {
+      const ask = vi
+        .fn()
+        .mockResolvedValueOnce({ text: "Here's a draft.", draft: DRAFT })
+        .mockResolvedValueOnce({ text: "Sure.", draft: null })
+      const presenter = build(ask)
+
+      await presenter.send("type this up", EMPTY_DRAFT)
+      presenter.clearProposedDraft()
+      await presenter.send("what else could I add?", EMPTY_DRAFT)
+
+      // Discard takes a draft off the screen; it does not say the dish was
+      // unwanted. A chef barred from re-proposing every title it has used could
+      // not revise a recipe at all.
+      expect(presenter.getRejected()).toEqual([])
+      expect(ask.mock.calls[1][0].rejected).toEqual([])
+      presenter.dispose()
+    })
+
+    it("puts the draft back when the ask that would replace it fails", async () => {
+      const ask = vi
+        .fn()
+        .mockResolvedValueOnce({ text: "Here's a draft.", draft: DRAFT })
+        .mockRejectedValueOnce(new Error("network"))
+      const presenter = build(ask)
+
+      await presenter.send("something for tonight", EMPTY_DRAFT)
+      await expect(presenter.rejectDraft(EMPTY_DRAFT)).rejects.toThrow("network")
+
+      // A call that failed rejected nothing, and the draft may still be the one
+      // they want to apply — losing it to a dropped connection would be the
+      // expensive half of a free action.
+      expect(presenter.getProposedDraft()).toEqual(DRAFT)
+      expect(presenter.getRejected()).toEqual([])
+      presenter.dispose()
+    })
+
+    it("does nothing without a proposal to turn down", async () => {
+      const ask = vi.fn()
+      const presenter = build(ask)
+
+      await presenter.rejectDraft(EMPTY_DRAFT)
+
+      expect(ask).not.toHaveBeenCalled()
+      presenter.dispose()
+    })
+
+    it("sends the recipe box so a new idea is one they do not have", async () => {
+      const ask = vi.fn().mockResolvedValue({ text: "ok", draft: null })
+      const presenter = build(ask)
+
+      await presenter.send("something for tonight", EMPTY_DRAFT, {
+        recipeTitles: ["Won Ton Salad", "Beef Stew"],
+      })
+
+      expect(ask.mock.calls[0][0].recipeTitles).toEqual(["Won Ton Salad", "Beef Stew"])
+      presenter.dispose()
+    })
+  })
+
+  /**
+   * The baseline: the household's own tags, picked as chips, holding across the
+   * conversation rather than living in one message's wording.
+   */
+  describe("categories", () => {
+    it("carries the picked categories on every turn", async () => {
+      const ask = vi.fn().mockResolvedValue({ text: "ok", draft: null })
+      const presenter = build(ask)
+
+      presenter.toggleCategory("mexican")
+      presenter.toggleCategory("weeknight")
+      await presenter.send("something for tonight", EMPTY_DRAFT)
+      await presenter.send("make it lighter", EMPTY_DRAFT)
+
+      expect(presenter.getCategories()).toEqual(["mexican", "weeknight"])
+      // A follow-up is still a request the baseline applies to, so it rides on
+      // every turn rather than only the one that picked it.
+      expect(ask.mock.calls[0][0].categories).toEqual(["mexican", "weeknight"])
+      expect(ask.mock.calls[1][0].categories).toEqual(["mexican", "weeknight"])
+      presenter.dispose()
+    })
+
+    it("takes a category back off, and normalises what it is given", () => {
+      const presenter = build(vi.fn())
+
+      // Chips come from the library already normalised; anything else must not
+      // be able to open a second baseline spelled differently.
+      presenter.toggleCategory("  Mexican ")
+      expect(presenter.getCategories()).toEqual(["mexican"])
+
+      presenter.toggleCategory("mexican")
+      expect(presenter.getCategories()).toEqual([])
+
+      presenter.toggleCategory("   ")
+      expect(presenter.getCategories()).toEqual([])
+      presenter.dispose()
+    })
+
+    it("forgets the baseline when the editor is left", () => {
+      const presenter = build(vi.fn())
+
+      presenter.toggleCategory("mexican")
+      presenter.reset()
+
+      expect(presenter.getCategories()).toEqual([])
+      presenter.dispose()
+    })
+  })
+
   it("releases thumbnail URLs on reset", async () => {
     const presenter = build(vi.fn())
 

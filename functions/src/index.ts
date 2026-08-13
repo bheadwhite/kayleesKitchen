@@ -26,6 +26,56 @@ const MAX_IMAGES_PER_REQUEST = 8
  */
 const MAX_TAG_LIBRARY = 120
 
+/**
+ * How much of the recipe box to name. Unlike the tags, this does not sit in the
+ * cached prefix — the context message goes *after* the breakpoint — so every
+ * title is paid for on every turn of every conversation. A few hundred is a
+ * household's whole box; the cap is here so a client cannot make the bill grow
+ * without bound, not because the number is precious.
+ */
+const MAX_RECIPE_TITLES = 200
+
+/** Ideas turned down in one sitting. Nobody rejects thirty in a row. */
+const MAX_REJECTED = 30
+
+/**
+ * Categories to work inside. A baseline of a dozen is already the intersection
+ * of a dozen conditions, and past that the ask is unsatisfiable rather than
+ * specific — capping it keeps that from arriving as a prompt instead of a
+ * refusal.
+ */
+const MAX_CATEGORIES = 12
+
+/**
+ * Titles as the model should read them: trimmed, de-duplicated, capped. Not
+ * lowercased, unlike the tags — a tag is a filter key and a recipe title is a
+ * name, and "Won Ton Salad" is how the household wrote it down.
+ */
+const cleanTitles = (values: unknown, limit: number) => [
+  ...new Set(
+    (Array.isArray(values) ? values : [])
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim().replace(/\s+/g, " "))
+      .filter(Boolean)
+  ),
+].slice(0, limit)
+
+/**
+ * The same, folded to lowercase to match `normaliseTag` — so the model is never
+ * shown two spellings of one tag and asked to prefer the ones that exist. The
+ * fold happens before the de-duplication, or "Salad" and "salad" survive it as
+ * two entries.
+ */
+const cleanTags = (values: unknown, limit: number) =>
+  cleanTitles(
+    (Array.isArray(values) ? values : []).map((value) =>
+      typeof value === "string" ? value.toLowerCase() : value
+    ),
+    limit
+  )
+
+const asList = (titles: string[]) => titles.map((title) => `- ${title}`).join("\n")
+
 const TOOLS: Anthropic.ToolUnion[] = [
   // Lets the user paste a link instead of photographing a screen. Only fetches
   // URLs already in the conversation, so it cannot wander off on its own.
@@ -74,14 +124,66 @@ export const recipeAssistant = onCall<AssistantRequest, Promise<AssistantRespons
      * every call. Lowercased to match `normaliseTag`, so the model is never
      * shown two spellings of one tag and asked to prefer the existing ones.
      */
-    const tagLibrary = [
-      ...new Set(
-        (request.data.tagLibrary ?? [])
-          .filter((tag): tag is string => typeof tag === "string")
-          .map((tag) => tag.trim().replace(/\s+/g, " ").toLowerCase())
-          .filter(Boolean)
-      ),
-    ].slice(0, MAX_TAG_LIBRARY)
+    const tagLibrary = cleanTags(request.data.tagLibrary, MAX_TAG_LIBRARY)
+
+    const recipeTitles = cleanTitles(request.data.recipeTitles, MAX_RECIPE_TITLES)
+    const rejected = cleanTitles(request.data.rejected, MAX_REJECTED)
+    const categories = cleanTags(request.data.categories, MAX_CATEGORIES)
+
+    const sections = [
+      "Current contents of the recipe editor, including the tags it already " +
+        "carries. Treat this as the source of truth for what the user is looking " +
+        "at right now:\n" +
+        JSON.stringify(request.data.currentDraft),
+
+      // The vocabulary, not a suggestion list: reusing a tag that exists is
+      // what keeps the recipe list's filters worth using. Said plainly when
+      // it is empty, because an absent list and an empty one mean opposite
+      // things — the second is a household that has not tagged anything yet,
+      // and inventing the first few tags is then exactly the right move.
+      tagLibrary.length === 0
+        ? "Nobody has tagged a recipe in this household yet, so there is no " +
+          "vocabulary to reuse. Pick a few plain ones and they become the list."
+        : "Tags already in use in this household — prefer these over coining " +
+          "anything new:\n" +
+          tagLibrary.join(", "),
+    ]
+
+    // The baseline goes first of the three, because it is the only one that
+    // says what to aim *at* — the other two say what to avoid, and a model
+    // handed nothing but exclusions writes something safe and beside the point.
+    if (categories.length > 0) {
+      sections.push(
+        "The cook has asked for ideas in these categories, picked from the " +
+          "household's own tags. Treat them as the baseline: anything you " +
+          "suggest has to fit all of them, and the draft should carry them as " +
+          "tags. They do not constrain transcribing a photo or a link, and " +
+          "anything the user asks for in words outranks them:\n" +
+          asList(categories)
+      )
+    }
+
+    // Omitted rather than announced when empty, unlike the tags: an empty box
+    // rules nothing out, so there is nothing for the model to do with the fact.
+    if (recipeTitles.length > 0) {
+      sections.push(
+        "Recipes already in this household's box, by title. Do not offer one of " +
+          "these as a new idea — they have it. This constrains what you suggest " +
+          "and nothing else:\n" +
+          asList(recipeTitles)
+      )
+    }
+
+    // The only record of what has already been put in front of them: a proposal
+    // reaches the model as a tool call, and the transcript replayed on the next
+    // request carries the prose beside it and not the draft.
+    if (rejected.length > 0) {
+      sections.push(
+        "Ideas you have already offered in this conversation and had turned " +
+          "down. Do not offer any of these again, or a thin variation of one:\n" +
+          asList(rejected)
+      )
+    }
 
     const result = await runConversation(anthropicApiKey.value(), {
       feature: "assistant",
@@ -89,23 +191,7 @@ export const recipeAssistant = onCall<AssistantRequest, Promise<AssistantRespons
       turns: request.data.turns,
       system: SYSTEM_PROMPT,
       tools: TOOLS,
-      context:
-        "Current contents of the recipe editor, including the tags it already " +
-        "carries. Treat this as the source of truth for what the user is looking " +
-        "at right now:\n" +
-        JSON.stringify(request.data.currentDraft) +
-        "\n\n" +
-        // The vocabulary, not a suggestion list: reusing a tag that exists is
-        // what keeps the recipe list's filters worth using. Said plainly when
-        // it is empty, because an absent list and an empty one mean opposite
-        // things — the second is a household that has not tagged anything yet,
-        // and inventing the first few tags is then exactly the right move.
-        (tagLibrary.length === 0
-          ? "Nobody has tagged a recipe in this household yet, so there is no " +
-            "vocabulary to reuse. Pick a few plain ones and they become the list."
-          : "Tags already in use in this household — prefer these over coining " +
-            "anything new:\n" +
-            tagLibrary.join(", ")),
+      context: sections.join("\n\n"),
     })
 
     if (result.refused) {

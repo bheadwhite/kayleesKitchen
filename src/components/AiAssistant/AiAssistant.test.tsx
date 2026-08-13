@@ -183,6 +183,76 @@ describe("AiAssistant", () => {
     recipe.dispose()
   })
 
+  /**
+   * "No, not this — something else." The proposal never enters the transcript
+   * as a recipe, so turning one down has to leave a record of the dish or the
+   * chef will cheerfully offer it again two turns later.
+   */
+  it("turns an idea down and asks the chef for a different one", async () => {
+    const user = userEvent.setup()
+    const recipe = new RecipePresenter()
+    const ask = vi
+      .fn()
+      .mockResolvedValueOnce({ text: "Here's a draft.", draft: DRAFT })
+      .mockResolvedValueOnce({ text: "A chowder, then.", draft: null })
+    const assistant = new AiDraftPresenter(ask, encodeImage)
+
+    render(
+      <RecipeProvider presenter={recipe}>
+        <AiDraftProvider presenter={assistant}>
+          <AiAssistant recipeTitles={["Beef Stew"]} />
+        </AiDraftProvider>
+      </RecipeProvider>
+    )
+
+    await user.type(screen.getByLabelText("Message the chef"), "something for tonight")
+    await user.click(screen.getByRole("button", { name: "Send" }))
+    await user.click(await screen.findByRole("button", { name: "Something else" }))
+
+    // Nothing reached the editor, and the refused proposal is off the screen.
+    expect(recipe.getTitle()).toBe("")
+    expect(screen.queryByRole("button", { name: "Apply to editor" })).not.toBeInTheDocument()
+
+    // Both things the chef has to avoid: the dish just refused, and the box.
+    expect(ask.mock.calls[1][0].rejected).toEqual(["Won Ton Salad"])
+    expect(ask.mock.calls[1][0].recipeTitles).toEqual(["Beef Stew"])
+
+    // And the cook can see the constraint now shaping every later suggestion.
+    expect(await screen.findByText(/Turned down: Won Ton Salad/)).toBeInTheDocument()
+
+    assistant.dispose()
+    recipe.dispose()
+  })
+
+  it("asks inside the categories picked from the household's tags", async () => {
+    const user = userEvent.setup()
+    const recipe = new RecipePresenter()
+    const ask = vi.fn().mockResolvedValue({ text: "Here's a draft.", draft: DRAFT })
+    const assistant = new AiDraftPresenter(ask, encodeImage)
+
+    render(
+      <RecipeProvider presenter={recipe}>
+        <AiDraftProvider presenter={assistant}>
+          <AiAssistant tagLibrary={["mexican", "weeknight"]} />
+        </AiDraftProvider>
+      </RecipeProvider>
+    )
+
+    await user.click(screen.getByRole("button", { name: "Ask for mexican" }))
+    await user.type(screen.getByLabelText("Message the chef"), "give me an idea")
+    await user.click(screen.getByRole("button", { name: "Send" }))
+
+    expect(ask.mock.calls[0][0].categories).toEqual(["mexican"])
+    // A picked chip is the way back off it, so the baseline is never a state
+    // you can get into and not out of.
+    expect(
+      await screen.findByRole("button", { name: "Stop asking for mexican" })
+    ).toBeInTheDocument()
+
+    assistant.dispose()
+    recipe.dispose()
+  })
+
   it("keeps the recipe's existing id when applying", async () => {
     const user = userEvent.setup()
     const { recipe, assistant } = setup({ text: "Doubled.", draft: DRAFT })

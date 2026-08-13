@@ -2,7 +2,8 @@ import { Runner, Signal } from "@tcn/state/core"
 
 import { askRecipeAssistant, MAX_IMAGES, toAssistantImage } from "@/ai/recipeAssistant"
 import type { AssistantImage, AssistantRequest, AssistantResponse, AssistantTurn } from "@/ai/types"
-import type { EditorDraft } from "@/ai/types"
+import type { AskContext, EditorDraft } from "@/ai/types"
+import { normaliseTag } from "presenters/RecipePresenter"
 
 type Ask = (request: AssistantRequest) => Promise<AssistantResponse>
 type EncodeImage = (file: File) => Promise<AssistantImage>
@@ -27,6 +28,8 @@ export class AiDraftPresenter {
   private readonly _turns = new Signal<AssistantTurn[]>([])
   private readonly _pendingImages = new Signal<PendingImage[]>([])
   private readonly _proposedDraft = new Signal<EditorDraft | null>(null)
+  private readonly _rejected = new Signal<string[]>([])
+  private readonly _categories = new Signal<string[]>([])
   private readonly _askRunner = new Runner<void>(undefined)
   private nextImageId = 0
 
@@ -47,6 +50,14 @@ export class AiDraftPresenter {
     return this._proposedDraft.broadcast
   }
 
+  get rejectedBroadcast() {
+    return this._rejected.broadcast
+  }
+
+  get categoriesBroadcast() {
+    return this._categories.broadcast
+  }
+
   get askRunnerBroadcast() {
     return this._askRunner.stateBroadcast
   }
@@ -61,6 +72,43 @@ export class AiDraftPresenter {
 
   getPendingImages() {
     return this._pendingImages.get()
+  }
+
+  getRejected() {
+    return this._rejected.get()
+  }
+
+  getCategories() {
+    return this._categories.get()
+  }
+
+  /* ------------------------------------------------------------ categories */
+
+  /**
+   * Picks a category to work inside, or drops one already picked.
+   *
+   * **Categories are the household's own tags**, not a second vocabulary. They
+   * are what the recipe list filters on, so a suggestion asked for inside them
+   * comes back wearing labels that already mean something here — and picking
+   * from chips rather than typing is what stops "mexican", "Mexican" and
+   * "mexican food" being three baselines.
+   *
+   * They hold until they are changed, which is what makes them a baseline
+   * rather than one message's wording: the chef is sent them on every turn, so
+   * a follow-up gets the same footing the first ask had.
+   */
+  toggleCategory(name: string) {
+    const category = normaliseTag(name)
+    if (category === "") return
+    this._categories.transform((current) =>
+      current.includes(category)
+        ? current.filter((one) => one !== category)
+        : [...current, category]
+    )
+  }
+
+  clearCategories() {
+    this._categories.set([])
   }
 
   /* ------------------------------------------------------------ attachments */
@@ -119,12 +167,12 @@ export class AiDraftPresenter {
    * right now — tags included — so the assistant revises the real state rather
    * than its own recollection of it.
    *
-   * `tagLibrary` is the household's vocabulary, sent so the chef reuses a tag
-   * that exists instead of coining a near-duplicate. It is what the recipe list
-   * filters on, and three spellings of "salad" make three filters that each find
-   * a third of the recipes.
+   * `context` is what the editor already holds listeners for: the household's
+   * tag vocabulary, sent so the chef reuses a tag that exists instead of coining
+   * a near-duplicate, and every title in the recipe box, sent so an idea it
+   * comes up with is one the household does not already have.
    */
-  send(text: string, currentDraft: EditorDraft, tagLibrary: string[] = []) {
+  send(text: string, currentDraft: EditorDraft, context: AskContext = {}) {
     const trimmed = text.trim()
     const pending = this._pendingImages.get()
     if (trimmed === "" && pending.length === 0) return Promise.resolve()
@@ -139,7 +187,19 @@ export class AiDraftPresenter {
       this.clearPendingImages()
 
       try {
-        const response = await this.ask({ turns, currentDraft, tagLibrary })
+        const response = await this.ask({
+          turns,
+          currentDraft,
+          tagLibrary: context.tagLibrary ?? [],
+          recipeTitles: context.recipeTitles ?? [],
+          // The baseline holds across the conversation, so it rides on every
+          // turn rather than only the one that picked it.
+          categories: this._categories.get(),
+          // Carried on every turn, not just the one that rejects something: a
+          // follow-up like "make it lighter" is still a request the turned-down
+          // ideas are out of bounds for.
+          rejected: this._rejected.get(),
+        })
         this._turns.transform((current) => [
           ...current,
           { role: "assistant", text: response.text },
@@ -153,6 +213,50 @@ export class AiDraftPresenter {
     })
   }
 
+  /**
+   * "Not this one — something else."
+   *
+   * Turns the proposal down and asks for another idea in one press. The title
+   * is remembered and rides along on every later request, because **the chef
+   * cannot see its own past drafts**: a proposal reaches the model as a tool
+   * call, and the transcript sent back carries only the sentences it wrote
+   * beside it. Without a list, "something else" is answered by a model whose
+   * only record of what it already offered is its own prose.
+   *
+   * Only ideas turned down this way are remembered — never every draft. A chef
+   * barred from re-proposing a title it has used could not revise a recipe at
+   * all, which is most of what it does here.
+   *
+   * The dish is named in the message as well as kept on the list. The list is
+   * the constraint the prompt points at; the message is what makes the
+   * transcript honest, so somebody scrolling back can see what they turned down
+   * rather than a row of identical "something else"s.
+   */
+  rejectDraft(currentDraft: EditorDraft, context: AskContext = {}) {
+    const draft = this._proposedDraft.get()
+    if (draft == null) return Promise.resolve()
+
+    const title = draft.title.trim()
+    const known = title === "" || this._rejected.get().includes(title)
+    if (!known) this._rejected.transform((current) => [...current, title])
+    this._proposedDraft.set(null)
+
+    return this.send(
+      title === ""
+        ? "Not that one — suggest something else."
+        : `Not "${title}" — suggest something else.`,
+      currentDraft,
+      context
+    ).catch((error) => {
+      // A call that failed did not reject anything. Put the draft back — it may
+      // still be the one they want to apply, and losing it to a dropped
+      // connection would be the expensive half of a free action.
+      this._proposedDraft.set(draft)
+      if (!known) this._rejected.transform((current) => current.filter((t) => t !== title))
+      throw error
+    })
+  }
+
   /** Called once the view has handed the draft to the recipe editor. */
   clearProposedDraft() {
     this._proposedDraft.set(null)
@@ -162,6 +266,8 @@ export class AiDraftPresenter {
     this.clearPendingImages()
     this._turns.set([])
     this._proposedDraft.set(null)
+    this._rejected.set([])
+    this._categories.set([])
   }
 
   dispose() {
@@ -169,6 +275,8 @@ export class AiDraftPresenter {
     this._turns.dispose()
     this._pendingImages.dispose()
     this._proposedDraft.dispose()
+    this._rejected.dispose()
+    this._categories.dispose()
     this._askRunner.dispose()
   }
 }

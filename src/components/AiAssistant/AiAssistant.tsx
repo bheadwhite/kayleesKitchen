@@ -2,13 +2,15 @@ import clsx from "clsx"
 import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { toast } from "react-toastify"
 
-import { Button, ChangeMark, CloseIcon, ImageIcon, SendIcon, Spinner } from "components"
+import { Button, ChangeMark, CloseIcon, ImageIcon, SendIcon, Spinner, TagChip } from "components"
 import {
   useAiDraftPresenter,
+  useAssistantCategories,
   useAssistantStatus,
   useAssistantTurns,
   usePendingImages,
   useProposedDraft,
+  useRejectedIdeas,
 } from "contexts/AiDraftProvider"
 import { useRecipePresenter } from "contexts/RecipeProvider"
 import { MAX_IMAGES } from "@/ai/recipeAssistant"
@@ -34,6 +36,18 @@ interface AiAssistantProps {
    * on a screen that has one.
    */
   tagLibrary?: string[]
+  /**
+   * Every title in the recipe box, from the same hook and passed the same way.
+   * It is what keeps "something else" from suggesting a dinner the household
+   * already has filed.
+   */
+  recipeTitles?: string[]
+  /**
+   * Colour per tag name, for the category chips. Taken as a prop for the reason
+   * `<RecipeTable>` takes the same map: the owner already holds it, and a chip
+   * assembling its own colour would mean a second listener over the box.
+   */
+  tagColors?: Record<string, string>
 }
 
 /**
@@ -46,12 +60,19 @@ interface AiAssistantProps {
  * while you are reading the reply you want to respond to is a chat box you have
  * to hunt for.
  */
-const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
+const AiAssistant = ({
+  onApplied,
+  tagLibrary = [],
+  recipeTitles = [],
+  tagColors = {},
+}: AiAssistantProps) => {
   const assistant = useAiDraftPresenter()
   const recipe = useRecipePresenter()
   const turns = useAssistantTurns()
   const pendingImages = usePendingImages()
   const proposedDraft = useProposedDraft()
+  const rejected = useRejectedIdeas()
+  const categories = useAssistantCategories()
   const { isAsking } = useAssistantStatus()
 
   const [text, setText] = useState("")
@@ -79,28 +100,46 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
     event.target.value = ""
   }
 
+  /** The editor as it stands — the chef revises real state, not its own memory. */
+  const editorContents = () => ({
+    title: recipe.getTitle(),
+    ingredients: recipe.getIngredients(),
+    directions: recipe.getDirections(),
+    // Sent so the chef can keep what is already there and add to it,
+    // rather than proposing a set that silently drops half of them.
+    tags: recipe.getTags(),
+    // Same reason: a figure already in the editor may be one the cook set
+    // deliberately, and the chef is told not to overwrite it unasked.
+    serves: recipe.getServes(),
+    servingSize: recipe.getServingSize(),
+  })
+
+  const askContext = { tagLibrary, recipeTitles }
+
   const onSend = async () => {
     const message = text
     setText("")
     try {
-      await assistant.send(
-        message,
-        {
-          title: recipe.getTitle(),
-          ingredients: recipe.getIngredients(),
-          directions: recipe.getDirections(),
-          // Sent so the chef can keep what is already there and add to it,
-          // rather than proposing a set that silently drops half of them.
-          tags: recipe.getTags(),
-          // Same reason: a figure already in the editor may be one the cook set
-          // deliberately, and the chef is told not to overwrite it unasked.
-          serves: recipe.getServes(),
-          servingSize: recipe.getServingSize(),
-        },
-        tagLibrary
-      )
+      await assistant.send(message, editorContents(), askContext)
     } catch (error) {
       setText(message) // Put it back so the message is not lost.
+      toast.error(error instanceof Error ? error.message : "The chef could not respond.")
+    }
+  }
+
+  /**
+   * "No, not this — something else." One press turns the proposal down and asks
+   * for another idea, with the dish added to the list the chef is told not to
+   * offer again.
+   *
+   * Kept apart from Discard, which is the quieter neighbour: that one takes the
+   * draft off the screen and stops there. This one spends a call and commits to
+   * not wanting the dish, so it says so in the transcript and in the list.
+   */
+  const onSomethingElse = async () => {
+    try {
+      await assistant.rejectDraft(editorContents(), askContext)
+    } catch (error) {
       toast.error(error instanceof Error ? error.message : "The chef could not respond.")
     }
   }
@@ -193,6 +232,12 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
                 thing&rdquo;
               </li>
               <li>ask for a change — &ldquo;double everything&rdquo;</li>
+              {tagLibrary.length > 0 && (
+                <li>
+                  pick a category or two below and ask for an idea — the chef stays inside
+                  them, and skips what you already have
+                </li>
+              )}
             </ul>
             <p className='mt-1'>
               Instagram and Facebook links usually sit behind a login — a screenshot works
@@ -313,6 +358,15 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
             <Button onClick={onApply} variant='primary'>
               Apply to editor
             </Button>
+            {/* Turning an idea down is the other half of iterating on one, and
+             *  it belongs beside the thing being turned down rather than in the
+             *  message box: typing "no, something else" leaves no record of
+             *  *what* was refused, and the chef never sees its own past drafts
+             *  to work it out. Disabled mid-call — a second press would reject
+             *  a draft that has already been taken off the screen. */}
+            <Button onClick={() => void onSomethingElse()} disabled={isAsking}>
+              Something else
+            </Button>
             <Button onClick={() => assistant.clearProposedDraft()}>Discard</Button>
           </div>
         </div>
@@ -337,6 +391,62 @@ const AiAssistant = ({ onApplied, tagLibrary = [] }: AiAssistantProps) => {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* The baseline, picked rather than typed. These are the household's own
+       *  tags — the vocabulary the recipe list already filters on — so an idea
+       *  asked for inside them comes back wearing labels that mean something
+       *  here, and there is no way to coin a third spelling of "mexican" while
+       *  asking for one. One scrolling line, the same shape and the same
+       *  filled/outline reading as the list's own tag filter. */}
+      {tagLibrary.length > 0 && (
+        <div className='mt-2 px-4'>
+          <div className='flex items-baseline justify-between gap-2 font-mono text-[11px] tracking-[0.14em] text-muted uppercase'>
+            <span>{categories.length === 0 ? "Categories" : "Ideas in"}</span>
+            {categories.length > 0 && (
+              <button
+                type='button'
+                onClick={() => assistant.clearCategories()}
+                aria-label='Ask for anything'
+                className='cursor-pointer tracking-[0.14em] uppercase underline underline-offset-4 hover:text-ink'>
+                Clear
+              </button>
+            )}
+          </div>
+          <div className='mt-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+            <ul className='flex w-max gap-2'>
+              {tagLibrary.map((name) => {
+                const picked = categories.includes(name)
+                return (
+                  <li key={name}>
+                    <TagChip
+                      name={name}
+                      color={tagColors[name]}
+                      muted={!picked}
+                      pressed={picked}
+                      onClick={() => assistant.toggleCategory(name)}
+                      label={picked ? `Stop asking for ${name}` : `Ask for ${name}`}
+                      className={clsx(picked && "ring-1 ring-ink/25")}
+                    />
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* What has been ruled out, said where the ruling was made. The chef is
+       *  handed this same list on every turn, and a constraint shaping every
+       *  later suggestion should not be invisible — this is the one place the
+       *  ideas already refused can be seen at all, since the drafts themselves
+       *  leave nothing behind in the transcript. Asking for one back is an
+       *  ordinary message: the list records what was not wanted, not a ban. */}
+      {rejected.length > 0 && (
+        <p className='mx-4 mt-2 text-xs text-muted'>
+          Turned down: {rejected.join(", ")}. The chef will not offer these again unless
+          you ask for one by name.
+        </p>
       )}
 
       <div className='mt-2 flex flex-wrap items-end gap-2 border-t border-divider px-4 pt-3 pb-1'>

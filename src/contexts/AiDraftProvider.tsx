@@ -37,6 +37,13 @@ export const usePendingImages = () =>
 export const useProposedDraft = () =>
   useSignalValue(useAiDraftPresenter().proposedDraftBroadcast)
 
+/** Ideas offered and turned down this conversation, by title. */
+export const useRejectedIdeas = () => useSignalValue(useAiDraftPresenter().rejectedBroadcast)
+
+/** The tags the cook is asking inside — the baseline for a new suggestion. */
+export const useAssistantCategories = () =>
+  useSignalValue(useAiDraftPresenter().categoriesBroadcast)
+
 /** `{ isAsking, error }` — derived from the ask `Runner`'s state. */
 export const useAssistantStatus = () => {
   const state = useSignalValue(useAiDraftPresenter().askRunnerBroadcast)

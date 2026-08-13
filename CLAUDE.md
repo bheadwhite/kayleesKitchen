@@ -70,7 +70,8 @@ The shape is always the same:
 3. **Hooks** — thin `useSignalValue(presenter.xBroadcast)` wrappers, colocated in the
    provider file (`useIngredients`, `useDirections`, `useEditSection`, `useEditIngredient`,
    `useRecipeImageUrl`, `useLoadingRecipeImage`, `useAuthStatus`, `useSessionUser`,
-   `useAssistantTurns`, `usePendingImages`, `useProposedDraft`, `useAssistantStatus`,
+   `useAssistantTurns`, `usePendingImages`, `useProposedDraft`, `useRejectedIdeas`,
+`useAssistantCategories`, `useAssistantStatus`,
 `useChefTurns`, `useChefFork`, `useBaseServes`, `useChefStatus`, `usePlanningSessions`,
 `useCurrentSession`, `useSessionInvites`, `useAskedIn`, `usePlannedMeals`, `useShoppingItems`,
 `useWeekOffset`, `useShopDays`, `useLastBuild`, `useBuildStatus`, `useSessionStatus`).
@@ -321,6 +322,73 @@ The prompt spends its words on two things the model gets wrong by default: **ser
 describes the recipe as written**, so "double it" doubles the ingredients and leaves serves
 alone — it is what the app scales *from* — and a figure already in the editor is kept unless
 asked, because "it feeds three in this house" is the cook's to say.
+
+**"Something else" is a button, because the chef cannot see its own past drafts.** A
+proposal leaves the conversation as a *tool call*; what the next request replays is
+`AssistantTurn`, which carries `text` alone. So the model's only record of what it has
+already put in front of somebody is whatever prose it happened to write beside it — and
+typing "no, something else" into the box asks a chef with no memory of the dish to avoid
+it. `rejectDraft` closes that: it names the turned-down title in the message *and* keeps it
+on `_rejected`, which rides in the context on every later turn.
+
+- **Only what was explicitly turned down is remembered, never every draft.** A chef barred
+  from re-proposing a title it has already used could not *revise* a recipe, which is most
+  of what it does here — "make it vegetarian" comes back with the same name on it. `Discard`
+  therefore records nothing: it takes a draft off the screen and says nothing about the dish.
+- **Both, deliberately — the message and the list.** The list is the constraint the prompt
+  points at. The message is what makes the transcript readable, since a column of identical
+  "something else"es says nothing about what was refused.
+- **A failed call rejects nothing.** `rejectDraft` restores the proposal and drops the title
+  again if the ask throws. The draft may still be the one they want to apply, and losing it
+  to a dropped connection would be the expensive half of an action that is otherwise free.
+- **The recipe box rides along too** (`recipeTitles`), so a fresh idea is one the household
+  does not already have filed. It comes off `useTagLibrary`, which is **already listening to
+  every recipe** for the tag counts — the same argument that makes the tag vocabulary a prop
+  rather than a second listener. Sent on every turn rather than only on a rejection: the
+  first suggestion is as capable of duplicating something filed as the fourth.
+- **Both lists constrain suggesting and nothing else**, and the prompt says so three ways: a
+  photo of a recipe they already own is still transcribed as given, asking for one by name
+  still gets it written, and the box holds *titles*, so it is recognising dishes rather than
+  judging recipes. Without that carve-out "do not repeat what is in the box" quietly becomes
+  a refusal to type up the family's own recipe card.
+- The turned-down names are **shown above the composer**, because a constraint shaping every
+  later suggestion should not be invisible — and because this is the only place the refused
+  ideas exist to be seen at all.
+
+**The baseline is picked, not typed: categories are the household's own tags.** A row of
+chips above the composer, the same filled/outline reading as the recipe list's own tag
+filter, and `categories` rides in the request beside the two avoid-lists. Anything suggested
+has to fit all of them, and the draft comes back wearing them.
+
+- **Tags, rather than a second vocabulary.** They are what the recipe list filters on, so a
+  recipe asked for inside them is findable by the same word afterwards — and a picker of
+  existing chips is what stops "mexican", "Mexican" and "mexican food" becoming three
+  baselines. `toggleCategory` runs `normaliseTag` anyway, since the signal is public.
+- **It holds across turns**, which is what makes it a baseline rather than one message's
+  wording — so it lives on `AiDraftPresenter` and is sent every turn, like `rejected`. A
+  follow-up ("make it lighter") is still a request the baseline applies to. `reset` clears
+  it: it belongs to a sitting at the editor, not to the household.
+- **It goes first of the three context blocks**, because it is the only one that says what
+  to aim *at*. A model handed nothing but exclusions writes something safe and beside the
+  point.
+- **A baseline, not a cage**, and the prompt spends its words there: words beat chips (an
+  ask that steps outside them is written, and *said* to be outside them), transcription and
+  revision are untouched, and a category is a direction rather than a checklist — "weeknight"
+  is a shape, and something that technically qualifies while missing the point of the word is
+  the failure to watch for.
+- **When the three together leave nothing honest, the chef says so and names the tightest
+  one.** The intersection of a baseline, the box, and a growing turned-down list gets
+  unsatisfiable quickly, and the failure mode is quiet: a model with nothing left relaxes a
+  constraint on its own and hands over a fourth variation of something already refused. An
+  offer to widen is a useful answer; that is not.
+- `tagColors` is a prop for the same reason `<RecipeTable>`'s is — the editor already holds
+  the map, and a chip that fetched its own colour would be a second listener over the box.
+
+Unlike the tag vocabulary, an **empty** box is omitted rather than announced: no tags and no
+vocabulary mean opposite things, but an empty box rules nothing out, so there is nothing for
+the model to do with the fact. `MAX_RECIPE_TITLES` caps it server-side, and note that this
+list sits *after* the cache breakpoint like the rest of the context — every title is paid for
+on every turn.
 
 `MAX_IMAGES` is a budget for the **whole conversation**, not per message — photos stay
 attached to their turn and are re-sent with every later one, and the callable counts them

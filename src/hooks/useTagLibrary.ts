@@ -11,6 +11,17 @@ export interface TagLibrary {
   colors: Record<string, string>
   /** How many recipes wear each tag. Zero for a registry entry nothing uses. */
   counts: Record<string, number>
+  /**
+   * Every title in the recipe box, alphabetical.
+   *
+   * It rides on the tag library because this hook is already listening to every
+   * recipe for the counts above, and the chef needs to know what the household
+   * already has so that "suggest something else" can suggest something they do
+   * not own. A hook of its own would mean a second `onRecipesSnapshot` over the
+   * whole box to produce a list of strings — the cost `<RecipeTable>` and
+   * `<AiAssistant>` take their data as props to avoid.
+   */
+  recipeTitles: string[]
 }
 
 /**
@@ -48,10 +59,15 @@ const useTagLibrary = (): TagLibrary => {
 
     const names = Array.from(new Set([...Object.keys(counts), ...Object.keys(colors)])).sort()
 
+    const recipeTitles = Array.from(
+      new Set(recipes.map((recipe) => (recipe.title ?? "").trim()).filter(Boolean))
+    ).sort()
+
     return {
       tags: names.map((name) => ({ name, color: colors[name] ?? "" })),
       colors,
       counts: Object.fromEntries(names.map((name) => [name, counts[name] ?? 0])),
+      recipeTitles,
     }
   }, [registry, recipes])
 }

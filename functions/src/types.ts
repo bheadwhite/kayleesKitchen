@@ -52,6 +52,19 @@ export interface AssistantRequest {
   currentDraft: EditorDraft
   /** The household's tag vocabulary. Optional — an older client sends none. */
   tagLibrary?: string[]
+  /** Every title already in the recipe box, so a new idea is genuinely new. */
+  recipeTitles?: string[]
+  /**
+   * Categories the cook is asking inside, from the household's own tags. The
+   * baseline anything suggested has to fit — not a filter on transcription.
+   */
+  categories?: string[]
+  /**
+   * Ideas offered in this conversation and turned down, by title. The drafts
+   * themselves never enter the transcript — an assistant turn carries text
+   * alone — so this is the only record of what has already been refused.
+   */
+  rejected?: string[]
 }
 
 export interface AssistantResponse {
